@@ -1,0 +1,32 @@
+import { useFrame } from '@react-three/fiber';
+import { useActions, useWorld } from 'koota/react';
+import { useEffect } from 'react';
+import { actions } from './actions';
+import { updateSpatialHashing } from './systems/update-spatial-hashing';
+
+export function Startup({
+	initialCameraPosition = [0, 1.5, 4], // Position camera behind and above the baby
+}: {
+	initialCameraPosition?: [number, number, number];
+}) {
+	const { spawnCamera, spawnBaby } = useActions(actions);
+	const world = useWorld();
+
+	useEffect(() => {
+		// Spawn camera for third-person view
+		spawnCamera(initialCameraPosition);
+
+		// Spawn baby entity instead of regular player
+		const baby = spawnBaby();
+
+		return () => {
+			baby.destroy();
+		};
+	}, [spawnCamera, spawnBaby, initialCameraPosition]);
+
+	useFrame(() => {
+		updateSpatialHashing(world);
+	});
+
+	return null;
+}
