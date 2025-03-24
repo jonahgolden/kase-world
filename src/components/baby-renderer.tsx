@@ -4,9 +4,9 @@ import { Entity } from 'koota';
 import { useQueryFirst } from 'koota/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { BABY_SPAWN_POSITION } from '../actions';
+import { PLAYER_SPAWN_POSITION } from '../actions';
 import babyRiggedModelUrl from '../assets/baby/baby-with-idle.glb?url'; // baby-walking
-import { Input, IsBaby, MovementMode, MovementModeType, Ref, Transform } from '../traits';
+import { Input, IsPlayer, MovementMode, MovementModeType, Ref, Transform } from '../traits';
 
 // Preload the baby model
 useGLTF.preload(babyRiggedModelUrl);
@@ -107,7 +107,7 @@ export function BabyView({ entity }: { entity: Entity }) {
 			// Initialize transform if needed
 			if (!entity.has(Transform)) {
 				entity.set(Transform, {
-					position: BABY_SPAWN_POSITION,
+					position: PLAYER_SPAWN_POSITION,
 					rotation: new THREE.Euler(0, 0, 0),
 					scale: new THREE.Vector3(1, 1, 1),
 				});
@@ -134,6 +134,6 @@ export function BabyView({ entity }: { entity: Entity }) {
 
 // Query for the baby entity and render it
 export function BabyRenderer() {
-	const baby = useQueryFirst(IsBaby, Transform);
+	const baby = useQueryFirst(IsPlayer, Transform);
 	return baby ? <BabyView entity={baby} /> : null;
 }

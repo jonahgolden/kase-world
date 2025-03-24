@@ -1,6 +1,6 @@
 import { World } from 'koota';
 import * as THREE from 'three';
-import { IsBaby, IsCamera, MovementMode, Transform } from '../traits';
+import { IsCamera, IsPlayer, MovementMode, Transform } from '../traits';
 
 // Third person camera position relative to baby
 const CAMERA_OFFSET = {
@@ -10,7 +10,7 @@ const CAMERA_OFFSET = {
 
 export function babyThirdPersonCamera(world: World) {
 	// Find the baby entity
-	const baby = world.queryFirst(IsBaby, Transform, MovementMode);
+	const baby = world.queryFirst(IsPlayer, Transform, MovementMode);
 	if (!baby) return;
 
 	const babyTransform = baby.get(Transform)!;

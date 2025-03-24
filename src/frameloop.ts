@@ -2,13 +2,12 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyThirdPersonCamera } from './systems/baby-camera';
-import { babyJump } from './systems/baby-jump';
 import { babyMovementMode } from './systems/baby-movement-mode';
 import { babyScreamSystem } from './systems/baby-scream';
 import { collisionDemo } from './systems/collision-demo';
 import { collisionSystem } from './systems/collision-system';
 import { healthSystem } from './systems/health-system';
-import { moveEntities } from './systems/move-entities';
+import { physicsSystem } from './systems/physics-system';
 import { pollInput } from './systems/poll-input';
 import { syncView } from './systems/sync-view';
 import { testDamageSystem } from './systems/test-damage-system';
@@ -32,8 +31,9 @@ export function GameLoop() {
 		// Update game state
 		convertInputToMovement(world);
 		babyMovementMode(world);
-		babyJump(world);
-		moveEntities(world);
+
+		// Physics and movement - using our new unified physics system
+		physicsSystem(world);
 
 		// Spatial and collision systems
 		updateSpatialHashing(world);

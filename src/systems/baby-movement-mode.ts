@@ -1,5 +1,6 @@
 import { World } from 'koota';
-import { Input, IsBaby, Movement, MovementMode, Time } from '../traits';
+import { BABY_THRUST } from '../actions';
+import { Input, IsPlayer, Movement, MovementMode, Time } from '../traits';
 
 /**
  * Handles the baby's movement mode (crawl/walk)
@@ -11,7 +12,7 @@ export function babyMovementMode(world: World) {
 	const time = world.get(Time);
 	if (!time) return;
 
-	world.query(IsBaby, Input, Movement, MovementMode).updateEach(([input, movement, movementMode]) => {
+	world.query(IsPlayer, Input, Movement, MovementMode).updateEach(([input, movement, movementMode]) => {
 		// Update timers based on current mode
 		if (movementMode.mode === 'walk') {
 			// When walking, increase walk duration
@@ -47,6 +48,6 @@ export function babyMovementMode(world: World) {
 		// Adjust movement speed based on current mode
 		const mode = movementMode.mode;
 		const speedMultiplier = movementMode.speeds[mode];
-		movement.thrust = 0.3 * speedMultiplier; // Base thrust is 0.3, multiply by mode-specific multiplier
+		movement.thrust = BABY_THRUST * speedMultiplier; // Base thrust multiplied by mode-specific multiplier
 	});
 }

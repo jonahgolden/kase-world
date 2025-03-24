@@ -9,7 +9,7 @@ export function Startup({
 }: {
 	initialCameraPosition?: [number, number, number];
 }) {
-	const { spawnCamera, spawnBaby } = useActions(actions);
+	const { spawnCamera, spawnPlayer } = useActions(actions);
 	const world = useWorld();
 
 	useEffect(() => {
@@ -17,12 +17,12 @@ export function Startup({
 		spawnCamera(initialCameraPosition);
 
 		// Spawn baby entity instead of regular player
-		const baby = spawnBaby();
+		const player = spawnPlayer();
 
 		return () => {
-			baby.destroy();
+			player.destroy();
 		};
-	}, [spawnCamera, spawnBaby, initialCameraPosition]);
+	}, [spawnCamera, spawnPlayer, initialCameraPosition]);
 
 	useFrame(() => {
 		updateSpatialHashing(world);

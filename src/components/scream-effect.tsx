@@ -3,7 +3,7 @@ import { useQueryFirst } from 'koota/react';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { calculateRingCount } from '../systems/baby-scream';
-import { IsBaby, Scream, Transform } from '../traits';
+import { IsPlayer, Scream, Transform } from '../traits';
 
 // Visual constants
 const INITIAL_RING_SIZE = 0.05; // 1/3 of the original size (0.2)
@@ -34,7 +34,7 @@ export function ScreamEffect() {
 	const processedScreamIdsRef = useRef<number[]>([]);
 
 	// Get the baby entity using useQueryFirst
-	const babyEntity = useQueryFirst(IsBaby, Transform, Scream);
+	const babyEntity = useQueryFirst(IsPlayer, Transform, Scream);
 
 	// State for managing scream rings
 	const [screamRings, setScreamRings] = useState<ScreamRing[]>([]);

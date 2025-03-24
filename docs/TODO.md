@@ -2,7 +2,9 @@ To Do List
 
 - Allow the mouse to move up and down as well, so the user can look all around
 - Add scope/target where baby is facing
-- Make jumps higher and allow for multiple successive jumps
+- Allow for multiple successive jumps
+- Make "s" key move backwards
+- Allow for movement inputs while in the air
 
 Cleanup
 

@@ -1,70 +1,28 @@
 import { Entity, createActions } from 'koota';
 import * as THREE from 'three';
-import {
-	Collider,
-	ColliderType,
-	CollisionEvents,
-	CollisionLayer,
-	Health,
-	Input,
-	IsBaby,
-	IsCamera,
-	IsPlayer,
-	Movement,
-	MovementMode,
-	Scream,
-	Transform,
-} from './traits';
+import { createCameraEntity, createPlayerEntity } from './factory';
+import { Health } from './traits';
 
 // Define the invulnerability period in seconds
 const INVULNERABILITY_PERIOD = 0.8;
 
 // Baby spawn position
-export const BABY_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
+export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
+
+// Baby movement properties
+export const BABY_THRUST = 5.0;
 
 export const actions = createActions((world) => ({
-	spawnPlayer: () => world.spawn(IsPlayer, Transform),
-	spawnCamera: (position: [number, number, number]) => {
-		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera);
+	spawnPlayer: (initialPosition: THREE.Vector3 = PLAYER_SPAWN_POSITION) => {
+		return createPlayerEntity(world, {
+			position: initialPosition,
+			thrust: BABY_THRUST,
+		});
 	},
-	spawnBaby: (initialPosition: THREE.Vector3 = BABY_SPAWN_POSITION) => {
-		return world.spawn(
-			IsBaby,
-			IsPlayer,
-			Transform({
-				position: initialPosition,
-				rotation: new THREE.Euler(0, 0, 0),
-				scale: new THREE.Vector3(1, 1, 1),
-			}),
-			Movement({
-				velocity: new THREE.Vector3(),
-				thrust: 0.3, // Lower thrust for baby movement
-				damping: 0.85, // More damping for a crawling baby
-				force: new THREE.Vector3(),
-			}),
-			MovementMode(), // Add movement mode trait with default values
-			Input(),
-			Health({
-				current: 100,
-				max: 100,
-				invulnerabilityTimer: 0,
-				isDamaged: false,
-			}),
-			Scream(), // Add scream trait with default values
-			Collider({
-				type: ColliderType.CAPSULE,
-				radius: 0.2, // Increased from 0.2 to better match baby's visuals
-				height: 0.4, // Increased from 0.4 for better collision
-				size: new THREE.Vector3(0.8, 1.0, 0.8), // Increased size for box collider (not used for capsule but required)
-				offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
-				layer: CollisionLayer.CHARACTER,
-				mask: CollisionLayer.DEFAULT | CollisionLayer.TRIGGER | CollisionLayer.CHARACTER,
-				friction: 0.3,
-				restitution: 0.1,
-				isTrigger: false,
-			}),
-			CollisionEvents() // Add collision events for the baby
-		);
+	spawnCamera: (position: [number, number, number]) => {
+		return createCameraEntity(world, {
+			position: new THREE.Vector3(...position),
+		});
 	},
 
 	// Apply damage to an entity with health

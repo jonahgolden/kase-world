@@ -241,7 +241,7 @@ When adding colliders to existing entities, ensure:
 // Example of adding a collider to the baby entity
 actions.spawnBaby = () => {
 	return world.spawn(
-		IsBaby,
+		IsPlayer,
 		Transform({
 			/* ... */
 		}),
