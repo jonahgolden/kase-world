@@ -1,6 +1,10 @@
 import { Entity, createActions } from 'koota';
 import * as THREE from 'three';
 import {
+	Collider,
+	ColliderType,
+	CollisionEvents,
+	CollisionLayer,
 	Health,
 	Input,
 	IsBaby,
@@ -15,12 +19,15 @@ import {
 // Define the invulnerability period in seconds
 const INVULNERABILITY_PERIOD = 0.8;
 
+// Baby spawn position
+export const BABY_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
+
 export const actions = createActions((world) => ({
 	spawnPlayer: () => world.spawn(IsPlayer, Transform),
 	spawnCamera: (position: [number, number, number]) => {
 		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera);
 	},
-	spawnBaby: (initialPosition: THREE.Vector3 = new THREE.Vector3(0, 0.5, 0)) => {
+	spawnBaby: (initialPosition: THREE.Vector3 = BABY_SPAWN_POSITION) => {
 		return world.spawn(
 			IsBaby,
 			IsPlayer,
@@ -43,7 +50,20 @@ export const actions = createActions((world) => ({
 				invulnerabilityTimer: 0,
 				isDamaged: false,
 			}),
-			Scream() // Add scream trait with default values
+			Scream(), // Add scream trait with default values
+			Collider({
+				type: ColliderType.CAPSULE,
+				radius: 0.2, // Increased from 0.2 to better match baby's visuals
+				height: 0.4, // Increased from 0.4 for better collision
+				size: new THREE.Vector3(0.8, 1.0, 0.8), // Increased size for box collider (not used for capsule but required)
+				offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
+				layer: CollisionLayer.CHARACTER,
+				mask: CollisionLayer.DEFAULT | CollisionLayer.TRIGGER | CollisionLayer.CHARACTER,
+				friction: 0.3,
+				restitution: 0.1,
+				isTrigger: false,
+			}),
+			CollisionEvents() // Add collision events for the baby
 		);
 	},
 

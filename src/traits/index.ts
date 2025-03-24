@@ -1,3 +1,4 @@
+export * from './collider';
 export * from './health';
 export * from './input';
 export * from './is-baby';

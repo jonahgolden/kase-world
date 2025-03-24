@@ -4,6 +4,10 @@ To Do List
 - Add scope/target where baby is facing
 - Make jumps higher and allow for multiple successive jumps
 
+Cleanup
+
+- remove `any` types
+
 To Revisit
 
 - Controls

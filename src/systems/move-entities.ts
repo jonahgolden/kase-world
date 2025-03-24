@@ -1,5 +1,5 @@
 import { World } from 'koota';
-import { Transform, Movement, Time } from '../traits';
+import { Movement, Time, Transform } from '../traits';
 
 export function moveEntities(world: World) {
 	// Get the delta time from the world clock

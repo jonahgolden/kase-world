@@ -1,8 +1,10 @@
 import { Canvas } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
 import { Color } from 'three';
-import { BabyRiggedRenderer } from './components/baby-rigged-renderer';
+import { BabyRenderer } from './components/baby-renderer';
 import { CameraRenderer } from './components/camera-renderer';
+import { CollisionDebugRenderer } from './components/collision-debug-renderer';
+import { CollisionObjectsRenderer } from './components/collision-objects-renderer';
 import { DamageEffect } from './components/damage-effect';
 import { GameOverScreen } from './components/game-over-screen';
 import { HealthUI } from './components/health-ui';
@@ -39,8 +41,10 @@ export function App() {
 				<GameLoop />
 
 				<CameraRenderer />
-				<BabyRiggedRenderer />
+				<BabyRenderer />
 				<ScreamEffect />
+				<CollisionObjectsRenderer />
+				<CollisionDebugRenderer enabled={true} />
 
 				{/* Simple floor */}
 				<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>

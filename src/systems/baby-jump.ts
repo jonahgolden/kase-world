@@ -9,7 +9,7 @@ const JUMP_FORCE = {
 };
 const GRAVITY = 20; // Gravity strength
 const MAX_JUMP_HEIGHT = 1.5; // Increased jump height (about 5x baby's height)
-const GROUND_LEVEL = 0.5; // Raised ground level so baby stands on ground
+const GROUND_LEVEL = 0;
 
 // Simple state object to track if the space was pressed in the previous frame
 let wasJumpPressed = false;

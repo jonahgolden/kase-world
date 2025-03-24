@@ -19,8 +19,8 @@ export const MovementMode = trait({
 
 	// Speed multipliers for each mode
 	speeds: {
-		crawl: 5.0, // Base speed (crawling)
-		walk: 10.0, // Walking is 2x faster
+		crawl: 2.0, // Base speed (crawling)
+		walk: 4.0, // Walking is 2x faster
 	} as Record<MovementModeType, number>,
 
 	// Flag to track if walk mode is available
