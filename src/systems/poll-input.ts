@@ -3,9 +3,8 @@ import { Input, IsPlayer } from '../traits';
 
 // We'll keep a simple in-memory state of the keys and mouse movement.
 const state = {
-	forward: 0, // +1 when W is down
+	forward: 0, // +1 when W is down, -1 when S is down
 	strafe: 0, // +1 when D is down, -1 when A is down
-	brake: false, // true when S is down
 	boost: false, // true when SPACE is down
 	jump: false, // true when SPACE is down for jumping
 	walk: false, // true when SHIFT is down for walking
@@ -51,7 +50,7 @@ window.addEventListener('keydown', (e) => {
 			break;
 		case 's':
 		case 'arrowdown':
-			state.brake = true;
+			state.forward = -1;
 			break;
 		case 'a':
 		case 'arrowleft':
@@ -108,7 +107,7 @@ window.addEventListener('keyup', (e) => {
 			break;
 		case 's':
 		case 'arrowdown':
-			state.brake = false;
+			state.forward = 0;
 			break;
 		case 'a':
 		case 'arrowleft':
@@ -150,11 +149,10 @@ window.addEventListener('mousemove', (e) => {
  */
 export function pollInput(world: World) {
 	world.query(IsPlayer, Input).updateEach(([input]) => {
-		// Transfer keyboard/boost/brake state
+		// Transfer keyboard/boost state
 		input.forward = state.forward;
 		input.strafe = state.strafe;
 		input.boost = state.boost;
-		input.brake = state.brake;
 		input.roll = state.roll;
 		input.jump = state.jump; // Update jump state in Input trait
 		input.walk = state.walk; // Update walk state in Input trait

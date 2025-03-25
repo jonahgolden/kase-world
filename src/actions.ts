@@ -1,19 +1,7 @@
 import { Entity, createActions } from 'koota';
 import * as THREE from 'three';
-import {
-	Collider,
-	ColliderType,
-	CollisionEvents,
-	CollisionLayer,
-	Health,
-	Input,
-	IsCamera,
-	IsPlayer,
-	Movement,
-	MovementMode,
-	Scream,
-	Transform,
-} from './traits';
+import { createPlayerEntity } from './factories/player-factory';
+import { Health, IsCamera, Transform } from './traits';
 
 // Define the invulnerability period in seconds
 const INVULNERABILITY_PERIOD = 0.8;
@@ -22,50 +10,13 @@ const INVULNERABILITY_PERIOD = 0.8;
 export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
 
 // Player base thrust
-export const PLAYER_BASE_THRUST = 0.3;
+export const PLAYER_BASE_THRUST = 3;
 
 export const actions = createActions((world) => ({
 	spawnCamera: (position: [number, number, number]) => {
 		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera);
 	},
-	spawnPlayer: (initialPosition: THREE.Vector3 = PLAYER_SPAWN_POSITION) => {
-		return world.spawn(
-			IsPlayer,
-			Transform({
-				position: initialPosition,
-				rotation: new THREE.Euler(0, 0, 0),
-				scale: new THREE.Vector3(1, 1, 1),
-			}),
-			Movement({
-				velocity: new THREE.Vector3(),
-				thrust: PLAYER_BASE_THRUST,
-				damping: 0.85, // More damping for a crawling baby
-				force: new THREE.Vector3(),
-			}),
-			MovementMode(), // Add movement mode trait with default values
-			Input(),
-			Health({
-				current: 100,
-				max: 100,
-				invulnerabilityTimer: 0,
-				isDamaged: false,
-			}),
-			Scream(), // Add scream trait with default values
-			Collider({
-				type: ColliderType.CAPSULE,
-				radius: 0.2, // Increased from 0.2 to better match baby's visuals
-				height: 0.4, // Increased from 0.4 for better collision
-				size: new THREE.Vector3(0.8, 1.0, 0.8), // Increased size for box collider (not used for capsule but required)
-				offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
-				layer: CollisionLayer.CHARACTER,
-				mask: CollisionLayer.DEFAULT | CollisionLayer.TRIGGER | CollisionLayer.CHARACTER,
-				friction: 0.3,
-				restitution: 0.1,
-				isTrigger: false,
-			}),
-			CollisionEvents() // Add collision events for the baby
-		);
-	},
+	spawnPlayer: () => createPlayerEntity({ world }),
 
 	// Apply damage to an entity with health
 	applyDamage: (entity: Entity, amount: number) => {

@@ -6,6 +6,8 @@ import {
 	ColliderInstanceType,
 	ColliderType,
 	CollisionEvents,
+	PHYSICS_BODY_DEFAULTS,
+	PhysicsBody,
 	Transform,
 } from '../traits';
 import { Ref } from '../traits/ref';
@@ -24,7 +26,12 @@ function addColliderObject({
 }: { world: World; position: THREE.Vector3; color: string } & Partial<ColliderInstanceType>) {
 	const collider = { ...COLLIDER_DEFAULTS, ...colliderProps };
 	// Create a new entity with collider
-	const entity = world.spawn(Transform({ position }), Collider(collider), CollisionEvents());
+	const entity = world.spawn(
+		Transform({ position }),
+		Collider(collider),
+		CollisionEvents(),
+		PhysicsBody({ ...PHYSICS_BODY_DEFAULTS, isStatic: true, isKinematic: true })
+	);
 
 	// Add a mesh for visualization
 	const geometry =

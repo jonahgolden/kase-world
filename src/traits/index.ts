@@ -6,6 +6,7 @@ export * from './is-player';
 export * from './maxSpeed';
 export * from './movement';
 export * from './movement-mode';
+export * from './physics-body';
 export * from './ref';
 export * from './scream';
 export * from './spatial-hash-map';
