@@ -239,9 +239,9 @@ When adding colliders to existing entities, ensure:
 
 ```typescript
 // Example of adding a collider to the baby entity
-actions.spawnBaby = () => {
+actions.spawnPlayer = () => {
 	return world.spawn(
-		IsBaby,
+		IsPlayer,
 		Transform({
 			/* ... */
 		}),

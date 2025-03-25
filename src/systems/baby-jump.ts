@@ -1,5 +1,5 @@
 import { World } from 'koota';
-import { Input, IsBaby, Movement, MovementMode, Transform } from '../traits';
+import { Input, IsPlayer, Movement, MovementMode, Transform } from '../traits';
 import { Time } from '../traits/time';
 
 // Jump settings
@@ -20,7 +20,7 @@ export function babyJump(world: World) {
 
 	// Find entities that have the baby trait
 	const babyEntities = world.entities.filter(
-		(e) => e && e.has(IsBaby) && e.has(Input) && e.has(Movement) && e.has(Transform)
+		(e) => e && e.has(IsPlayer) && e.has(Input) && e.has(Movement) && e.has(Transform)
 	);
 
 	// Process each entity with proper access to traits

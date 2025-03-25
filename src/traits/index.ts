@@ -1,7 +1,6 @@
 export * from './collider';
 export * from './health';
 export * from './input';
-export * from './is-baby';
 export * from './is-camera';
 export * from './is-player';
 export * from './maxSpeed';

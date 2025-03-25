@@ -1,6 +1,6 @@
 import { World } from 'koota';
 import * as THREE from 'three';
-import { IsBaby, IsCamera, MovementMode, Transform } from '../traits';
+import { IsCamera, IsPlayer, MovementMode, Transform } from '../traits';
 
 // Third person camera position relative to baby
 const CAMERA_OFFSET = {
@@ -8,23 +8,23 @@ const CAMERA_OFFSET = {
 	walk: new THREE.Vector3(0, 1.8, 4), // Higher camera when walking
 };
 
-export function babyThirdPersonCamera(world: World) {
-	// Find the baby entity
-	const baby = world.queryFirst(IsBaby, Transform, MovementMode);
-	if (!baby) return;
+export function playerThirdPersonCamera(world: World) {
+	// Find the player entity
+	const player = world.queryFirst(IsPlayer, Transform, MovementMode);
+	if (!player) return;
 
-	const babyTransform = baby.get(Transform)!;
-	const movementMode = baby.get(MovementMode)!;
+	const playerTransform = player.get(Transform)!;
+	const movementMode = player.get(MovementMode)!;
 
 	// Determine camera offset based on movement mode
 	const offset = movementMode.mode === 'walk' ? CAMERA_OFFSET.walk : CAMERA_OFFSET.crawl;
 
 	// Find the camera entity
 	world.query(IsCamera, Transform).updateEach(([cameraTransform]) => {
-		// Calculate camera position behind the baby
-		const direction = new THREE.Vector3(0, 0, 1).applyEuler(babyTransform.rotation);
-		const cameraPosition = babyTransform.position.clone().add(
-			direction.multiplyScalar(offset.z) // Move behind the baby based on its orientation
+		// Calculate camera position behind the player
+		const direction = new THREE.Vector3(0, 0, 1).applyEuler(playerTransform.rotation);
+		const cameraPosition = playerTransform.position.clone().add(
+			direction.multiplyScalar(offset.z) // Move behind the player based on its orientation
 		);
 
 		// Add height offset based on movement mode
@@ -33,8 +33,8 @@ export function babyThirdPersonCamera(world: World) {
 		// Update camera position
 		cameraTransform.position.copy(cameraPosition);
 
-		// Make the camera look at the baby
-		const lookTarget = babyTransform.position.clone().add(new THREE.Vector3(0, 0.3, 0)); // Look at baby's head
+		// Make the camera look at the player
+		const lookTarget = playerTransform.position.clone().add(new THREE.Vector3(0, 0.3, 0)); // Look at player's head
 
 		// Create a temporary matrix for the lookAt operation
 		const lookMatrix = new THREE.Matrix4();

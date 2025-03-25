@@ -1,10 +1,10 @@
 import { useQueryFirst } from 'koota/react';
 import { useEffect, useState } from 'react';
-import { IsBaby, MovementMode } from '../traits';
+import { IsPlayer, MovementMode } from '../traits';
 
 export function MovementModeUI() {
 	// Get the baby entity using useQueryFirst
-	const babyEntity = useQueryFirst(IsBaby, MovementMode);
+	const babyEntity = useQueryFirst(IsPlayer, MovementMode);
 
 	const [modeData, setModeData] = useState({
 		mode: 'crawl',

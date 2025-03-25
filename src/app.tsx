@@ -1,7 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
 import { Color } from 'three';
-import { BabyRenderer } from './components/baby-renderer';
 import { CameraRenderer } from './components/camera-renderer';
 import { CollisionDebugRenderer } from './components/collision-debug-renderer';
 import { CollisionObjectsRenderer } from './components/collision-objects-renderer';
@@ -9,6 +8,7 @@ import { DamageEffect } from './components/damage-effect';
 import { GameOverScreen } from './components/game-over-screen';
 import { HealthUI } from './components/health-ui';
 import { MovementModeUI } from './components/movement-mode-ui';
+import { PlayerRenderer } from './components/player-renderer';
 import { ScreamEffect } from './components/scream-effect';
 import { ScreamUI } from './components/scream-ui';
 import { GameLoop } from './frameloop';
@@ -41,7 +41,7 @@ export function App() {
 				<GameLoop />
 
 				<CameraRenderer />
-				<BabyRenderer />
+				<PlayerRenderer />
 				<ScreamEffect />
 				<CollisionObjectsRenderer />
 				<CollisionDebugRenderer enabled={true} />

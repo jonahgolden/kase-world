@@ -7,7 +7,6 @@ import {
 	CollisionLayer,
 	Health,
 	Input,
-	IsBaby,
 	IsCamera,
 	IsPlayer,
 	Movement,
@@ -19,17 +18,18 @@ import {
 // Define the invulnerability period in seconds
 const INVULNERABILITY_PERIOD = 0.8;
 
-// Baby spawn position
-export const BABY_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
+// Player spawn position
+export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
+
+// Player base thrust
+export const PLAYER_BASE_THRUST = 0.3;
 
 export const actions = createActions((world) => ({
-	spawnPlayer: () => world.spawn(IsPlayer, Transform),
 	spawnCamera: (position: [number, number, number]) => {
 		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera);
 	},
-	spawnBaby: (initialPosition: THREE.Vector3 = BABY_SPAWN_POSITION) => {
+	spawnPlayer: (initialPosition: THREE.Vector3 = PLAYER_SPAWN_POSITION) => {
 		return world.spawn(
-			IsBaby,
 			IsPlayer,
 			Transform({
 				position: initialPosition,
@@ -38,7 +38,7 @@ export const actions = createActions((world) => ({
 			}),
 			Movement({
 				velocity: new THREE.Vector3(),
-				thrust: 0.3, // Lower thrust for baby movement
+				thrust: PLAYER_BASE_THRUST,
 				damping: 0.85, // More damping for a crawling baby
 				force: new THREE.Vector3(),
 			}),

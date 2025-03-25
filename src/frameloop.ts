@@ -1,14 +1,14 @@
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
-import { babyThirdPersonCamera } from './systems/baby-camera';
 import { babyJump } from './systems/baby-jump';
-import { babyMovementMode } from './systems/baby-movement-mode';
 import { babyScreamSystem } from './systems/baby-scream';
 import { collisionDemo } from './systems/collision-demo';
 import { collisionSystem } from './systems/collision-system';
 import { healthSystem } from './systems/health-system';
 import { moveEntities } from './systems/move-entities';
+import { playerThirdPersonCamera } from './systems/player-camera';
+import { playerMovementMode } from './systems/player-movement-mode';
 import { pollInput } from './systems/poll-input';
 import { syncView } from './systems/sync-view';
 import { testDamageSystem } from './systems/test-damage-system';
@@ -31,7 +31,7 @@ export function GameLoop() {
 
 		// Update game state
 		convertInputToMovement(world);
-		babyMovementMode(world);
+		playerMovementMode(world);
 		babyJump(world);
 		moveEntities(world);
 
@@ -41,7 +41,7 @@ export function GameLoop() {
 
 		babyScreamSystem(world); // Process baby scream attack
 		healthSystem(world); // Process health updates
-		babyThirdPersonCamera(world);
+		playerThirdPersonCamera(world);
 
 		// Sync view state
 		syncView(world);

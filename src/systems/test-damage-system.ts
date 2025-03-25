@@ -1,5 +1,5 @@
 import { World } from 'koota';
-import { Health, IsBaby } from '../traits';
+import { Health, IsPlayer } from '../traits';
 
 // Track if 'T' key is currently pressed
 let isTestDamageKeyPressed = false;
@@ -25,10 +25,10 @@ export function testDamageSystem(world: World) {
 	if (isTestDamageKeyPressed) {
 		isTestDamageKeyPressed = false; // Reset to prevent continuous damage
 
-		// Find baby entity
-		const baby = world.queryFirst(IsBaby, Health);
-		if (baby) {
-			const health = baby.get(Health);
+		// Find player entity
+		const player = world.queryFirst(IsPlayer, Health);
+		if (player) {
+			const health = player.get(Health);
 			if (health && health.invulnerabilityTimer <= 0) {
 				const healthUpdates = { ...health };
 
@@ -37,8 +37,8 @@ export function testDamageSystem(world: World) {
 				healthUpdates.invulnerabilityTimer = 0.8; // Match the INVULNERABILITY_PERIOD from actions.ts
 				healthUpdates.isDamaged = true;
 
-				baby.set(Health, healthUpdates);
-				console.log('Test damage applied to baby: Current health:', healthUpdates.current);
+				player.set(Health, healthUpdates);
+				console.log('Test damage applied to player: Current health:', healthUpdates.current);
 			}
 		}
 	}

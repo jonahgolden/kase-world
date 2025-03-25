@@ -1,7 +1,7 @@
 import { World } from 'koota';
 import * as THREE from 'three';
 import { actions } from '../actions';
-import { ActiveScream, Health, Input, IsBaby, Scream, Time, Transform } from '../traits';
+import { ActiveScream, Health, Input, IsPlayer, Scream, Time, Transform } from '../traits';
 
 // Scream attack parameters
 const BASE_DAMAGE = 25; // Base damage at closest range
@@ -82,12 +82,12 @@ export function babyScreamSystem(world: World) {
 	if (!time) return;
 
 	// Find baby entity and associated traits
-	const baby = world.queryFirst(IsBaby, Input, Transform, Scream);
-	if (!baby) return;
+	const player = world.queryFirst(IsPlayer, Input, Transform, Scream);
+	if (!player) return;
 
-	const input = baby.get(Input);
-	const transform = baby.get(Transform);
-	const scream = baby.get(Scream);
+	const input = player.get(Input);
+	const transform = player.get(Transform);
+	const scream = player.get(Scream);
 
 	if (!input || !transform || !scream) return;
 
@@ -96,7 +96,7 @@ export function babyScreamSystem(world: World) {
 
 	// Get all entities with health that could be affected by scream
 	const entitiesWithHealth = world.entities.filter(
-		(entity) => entity && entity.has(Health) && entity.has(Transform) && !entity.has(IsBaby)
+		(entity) => entity && entity.has(Health) && entity.has(Transform) && !entity.has(IsPlayer)
 	);
 
 	// Create an object to collect all scream changes
@@ -215,6 +215,6 @@ export function babyScreamSystem(world: World) {
 	}
 
 	if (screamHasUpdates) {
-		baby.set(Scream, screamUpdates);
+		player.set(Scream, screamUpdates);
 	}
 }

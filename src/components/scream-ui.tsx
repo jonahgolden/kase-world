@@ -1,11 +1,11 @@
 import { useQueryFirst } from 'koota/react';
 import { useEffect, useState } from 'react';
-// import { IsBaby, Scream } from '../traits';
-import { IsBaby, Scream } from '../traits';
+// import { IsPlayer, Scream } from '../traits';
+import { IsPlayer, Scream } from '../traits';
 
 export function ScreamUI() {
 	// Get the baby entity using useQueryFirst
-	const babyEntity = useQueryFirst(IsBaby, Scream);
+	const babyEntity = useQueryFirst(IsPlayer, Scream);
 
 	const [screamData, setScreamData] = useState({
 		cooldown: 0,

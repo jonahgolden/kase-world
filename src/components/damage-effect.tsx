@@ -1,10 +1,10 @@
 import { useQueryFirst } from 'koota/react';
 import { useEffect, useState } from 'react';
-import { Health, IsBaby } from '../traits';
+import { Health, IsPlayer } from '../traits';
 
 export function DamageEffect() {
 	// Get the baby entity using useQueryFirst
-	const babyEntity = useQueryFirst(IsBaby, Health);
+	const babyEntity = useQueryFirst(IsPlayer, Health);
 
 	const [isDamaged, setIsDamaged] = useState(false);
 
