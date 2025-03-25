@@ -3,7 +3,6 @@ import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
 import { collisionDemo } from './systems/collision-demo';
-import { collisionSystem } from './systems/collision-system';
 import { healthSystem } from './systems/health-system';
 import { physicsSystem } from './systems/physics-system';
 import { playerThirdPersonCamera } from './systems/player-camera';
@@ -34,12 +33,12 @@ export function GameLoop() {
 		// babyJump(world);
 		// moveEntities(world);
 
-		// Physics and movement - using our new unified physics system
+		// Physics and movement - using our unified physics system
+		// Now includes collision detection and resolution
 		physicsSystem(world);
 
-		// Spatial and collision systems
+		// Spatial hashing for broad-phase collision detection
 		updateSpatialHashing(world);
-		collisionSystem(world);
 
 		babyScreamSystem(world); // Process baby scream attack
 		healthSystem(world); // Process health updates

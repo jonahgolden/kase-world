@@ -198,8 +198,8 @@ export function CollisionDebugRenderer({ enabled = false }: { enabled?: boolean 
 			const worldPosition = new THREE.Vector3().copy(transform.position).add(collider.offset);
 			wireframe.position.copy(worldPosition);
 
-			// For non-uniform scaling and rotation, you would need to update those too
-			// This is a simplified version that only handles position
+			// Update wireframe rotation to match entity's transform rotation
+			wireframe.rotation.copy(transform.rotation);
 		});
 	});
 
