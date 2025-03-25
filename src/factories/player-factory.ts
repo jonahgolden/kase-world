@@ -53,7 +53,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 			size: new THREE.Vector3(0.8, 1.0, 0.8), // Increased size for box collider (not used for capsule but required)
 			offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
 			layer: CollisionLayer.CHARACTER,
-			mask: CollisionLayer.DEFAULT | CollisionLayer.TRIGGER | CollisionLayer.CHARACTER,
+			mask: 0xffffffff, // Collides with all layers
 			friction: 0.3,
 			restitution: 0.1,
 			isTrigger: false,
