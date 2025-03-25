@@ -1,42 +1,39 @@
 import { World } from 'koota';
 import * as THREE from 'three';
-import { Transform } from '../traits';
-import { Collider, ColliderInstanceType, ColliderType, CollisionEvents } from '../traits/collider';
-import { Time } from '../traits/time';
+import { Movement, Transform } from '../traits';
+import {
+	Collider,
+	ColliderInstanceType,
+	ColliderType,
+	CollisionEvents,
+	CollisionLayer,
+} from '../traits/collider';
+import { PhysicsBody } from '../traits/physics-body';
 import { CollisionPair, SpatialHashGrid } from '../utils/spatial-hash-grid';
 
-// Constants for collision detection
+// Constants
 const SPATIAL_HASH_CELL_SIZE = 5; // Size of the cells in the spatial hash grid
 
-// Reusable objects for collision calculations (to avoid allocations)
+// Reusable vectors to avoid allocations
+const tempVec3 = new THREE.Vector3();
 const tempVec3A = new THREE.Vector3();
 const tempVec3B = new THREE.Vector3();
 
-/**
- * Used to track the current and previous state of collisions
- * for accurate collision enter/exit events
- */
-const currentCollisions = new Map<number, Set<number>>(); // entity id -> set of entity ids it's colliding with
+// Used to track current collisions for collision events
+const currentCollisions = new Map<number, Set<number>>();
 
-// Reusable spatial hash grid
+// Reusable spatial hash grid for broadphase collision detection
 const spatialGrid = new SpatialHashGrid(SPATIAL_HASH_CELL_SIZE);
 
-/**
- * Main collision detection system.
- * Detects collisions between entities with Collider traits, and triggers appropriate responses.
- */
 export function collisionSystem(world: World) {
-	// Get delta time from the Time singleton
-	const time = world.get(Time);
-	if (!time) return;
-
 	// Clear the spatial hash grid for this frame
 	spatialGrid.clear();
 
-	// Get all entities with Transform and Collider
+	// Get all entities with Transform and Collider for collision detection
 	const colliderQuery = world.query(Transform, Collider);
 
-	// Update the spatial hash grid with all entities
+	// Step 1: Prepare for collision detection
+	// Update the spatial hash grid with all entities that have colliders
 	colliderQuery.forEach((entity) => {
 		const transform = entity.get(Transform);
 		const collider = entity.get(Collider);
@@ -47,23 +44,16 @@ export function collisionSystem(world: World) {
 		spatialGrid.insertEntity(entity, transform.position, collider);
 	});
 
-	// Get potential collision pairs
+	// Step 2: Get potential collision pairs and process them
 	const potentialCollisions = spatialGrid.getPotentialCollisions();
-
-	// Process each potential collision
 	processCollisions(potentialCollisions, world);
 
-	// Update collision events (enter/stay/exit)
+	// Step 3: Update collision events (enter/stay/exit)
 	updateCollisionEvents(world);
 }
 
 /**
  * Tests if two entities are colliding based on their collider shapes
- * @param transformA Transform trait instance of entity A
- * @param transformB Transform trait instance of entity B
- * @param colliderA Collider instance of entity A
- * @param colliderB Collider instance of entity B
- * @returns Collision result with information about the collision
  */
 function testCollision(
 	transformA: any,
@@ -79,18 +69,15 @@ function testCollision(
 	const posA = tempVec3A.copy(transformA.position).add(colliderA.offset);
 	const posB = tempVec3B.copy(transformB.position).add(colliderB.offset);
 
-	// Perform collision test based on collider types
-
 	// Sphere vs Sphere
 	if (colliderA.type === ColliderType.SPHERE && colliderB.type === ColliderType.SPHERE) {
 		const distance = posA.distanceTo(posB);
 		const combinedRadius = colliderA.radius + colliderB.radius;
 
 		if (distance < combinedRadius) {
-			// Calculate penetration depth and normal
 			const penetrationDepth = combinedRadius - distance;
 			const normal =
-				distance > 0.0001 ? tempVec3A.copy(posB).sub(posA).normalize() : new THREE.Vector3(0, 1, 0); // Default normal if positions are too close
+				distance > 0.0001 ? tempVec3A.copy(posB).sub(posA).normalize() : new THREE.Vector3(0, 1, 0);
 
 			return {
 				colliding: true,
@@ -154,44 +141,60 @@ function testCollision(
 		return { colliding: false };
 	}
 
-	// Sphere vs Box
+	// Capsule vs Box (using sphere-sweep test for capsule)
 	if (
-		(colliderA.type === ColliderType.SPHERE && colliderB.type === ColliderType.BOX) ||
-		(colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.SPHERE)
+		(colliderA.type === ColliderType.CAPSULE && colliderB.type === ColliderType.BOX) ||
+		(colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.CAPSULE)
 	) {
-		// Ensure A is the sphere and B is the box
-		let spherePos: THREE.Vector3;
-		let sphereRadius: number;
+		// Ensure A is the capsule and B is the box
+		let capsulePos: THREE.Vector3;
+		let capsuleRadius: number;
+		let capsuleHeight: number;
 		let boxPos: THREE.Vector3;
-		let boxHalfSize: THREE.Vector3;
+		let boxSize: THREE.Vector3;
 		let swapped = false;
 
-		if (colliderA.type === ColliderType.SPHERE) {
-			spherePos = posA;
-			sphereRadius = colliderA.radius;
+		if (colliderA.type === ColliderType.CAPSULE) {
+			capsulePos = posA;
+			capsuleRadius = colliderA.radius;
+			capsuleHeight = colliderA.height;
 			boxPos = posB;
-			boxHalfSize = colliderB.size.clone().multiplyScalar(0.5);
+			boxSize = colliderB.size;
 		} else {
-			spherePos = posB;
-			sphereRadius = colliderB.radius;
+			capsulePos = posB;
+			capsuleRadius = colliderB.radius;
+			capsuleHeight = colliderB.height;
 			boxPos = posA;
-			boxHalfSize = colliderA.size.clone().multiplyScalar(0.5);
+			boxSize = colliderA.size;
 			swapped = true;
 		}
 
-		// Calculate closest point on box to sphere center
-		const closestPoint = new THREE.Vector3(
-			Math.max(boxPos.x - boxHalfSize.x, Math.min(spherePos.x, boxPos.x + boxHalfSize.x)),
-			Math.max(boxPos.y - boxHalfSize.y, Math.min(spherePos.y, boxPos.y + boxHalfSize.y)),
-			Math.max(boxPos.z - boxHalfSize.z, Math.min(spherePos.z, boxPos.z + boxHalfSize.z))
+		// Calculate box half-size
+		const halfSize = boxSize.clone().multiplyScalar(0.5);
+
+		// Calculate the top and bottom center points of the capsule
+		const capsuleTop = new THREE.Vector3(capsulePos.x, capsulePos.y + capsuleHeight / 2, capsulePos.z);
+		const capsuleBottom = new THREE.Vector3(capsulePos.x, capsulePos.y - capsuleHeight / 2, capsulePos.z);
+
+		// Calculate box min and max points
+		const boxMin = new THREE.Vector3(boxPos.x - halfSize.x, boxPos.y - halfSize.y, boxPos.z - halfSize.z);
+		const boxMax = new THREE.Vector3(boxPos.x + halfSize.x, boxPos.y + halfSize.y, boxPos.z + halfSize.z);
+
+		// Find the closest point on the box to the capsule axis
+		const closestPointInBox = new THREE.Vector3(
+			Math.max(boxMin.x, Math.min(capsulePos.x, boxMax.x)),
+			Math.max(boxMin.y, Math.min(capsulePos.y, boxMax.y)),
+			Math.max(boxMin.z, Math.min(capsulePos.z, boxMax.z))
 		);
 
-		// Calculate distance from sphere center to closest point
-		const distance = spherePos.distanceTo(closestPoint);
+		// Calculate the distance between the closest point and the capsule position
+		const distance = closestPointInBox.distanceTo(capsulePos);
 
-		if (distance < sphereRadius) {
-			// Calculate normal from closest point to sphere center
-			const normal = new THREE.Vector3().subVectors(spherePos, closestPoint).normalize();
+		// If the distance is less than the capsule radius, we have a collision
+		if (distance < capsuleRadius) {
+			// Calculate normal and penetration depth
+			const normal = new THREE.Vector3().subVectors(capsulePos, closestPointInBox).normalize();
+			const penetrationDepth = capsuleRadius - distance;
 
 			// Flip normal if we swapped the order
 			if (swapped) {
@@ -200,7 +203,7 @@ function testCollision(
 
 			return {
 				colliding: true,
-				penetrationDepth: sphereRadius - distance,
+				penetrationDepth,
 				normal,
 			};
 		}
@@ -208,147 +211,106 @@ function testCollision(
 		return { colliding: false };
 	}
 
-	// Capsule vs Box or Sphere (simplify as sphere at top and bottom of capsule)
-	if (colliderA.type === ColliderType.CAPSULE || colliderB.type === ColliderType.CAPSULE) {
-		// Simplified capsule collision - not perfect but works for most cases
-		// For capsule we'll test as two spheres (top and bottom) plus a cylinder
-
-		// Ensure A is always the capsule for simplicity
-		let capsulePos: THREE.Vector3;
-		let capsuleRadius: number;
-		let capsuleHeight: number;
-		let otherPos: THREE.Vector3;
-		let otherType: ColliderType;
-		let otherRadius: number;
-		let otherSize: THREE.Vector3;
+	// Special case for CHARACTER vs TERRAIN
+	if (
+		(colliderA.layer === CollisionLayer.CHARACTER && colliderB.layer === CollisionLayer.TERRAIN) ||
+		(colliderA.layer === CollisionLayer.TERRAIN && colliderB.layer === CollisionLayer.CHARACTER)
+	) {
+		// Ensure A is the character and B is the terrain
+		let characterPos: THREE.Vector3;
+		let characterRadius: number;
+		let terrainPos: THREE.Vector3;
+		let terrainSize: THREE.Vector3;
 		let swapped = false;
 
-		if (colliderA.type === ColliderType.CAPSULE) {
-			capsulePos = posA;
-			capsuleRadius = colliderA.radius;
-			capsuleHeight = colliderA.height;
-			otherPos = posB;
-			otherType = colliderB.type;
-			otherRadius = colliderB.radius;
-			otherSize = colliderB.size;
+		if (colliderA.layer === CollisionLayer.CHARACTER) {
+			characterPos = posA;
+			characterRadius = colliderA.radius;
+			terrainPos = posB;
+			terrainSize = colliderB.size;
 		} else {
-			capsulePos = posB;
-			capsuleRadius = colliderB.radius;
-			capsuleHeight = colliderB.height;
-			otherPos = posA;
-			otherType = colliderA.type;
-			otherRadius = colliderA.radius;
-			otherSize = colliderA.size;
+			characterPos = posB;
+			characterRadius = colliderB.radius;
+			terrainPos = posA;
+			terrainSize = colliderA.size;
 			swapped = true;
 		}
 
-		// Calculate top and bottom sphere positions
-		const topSpherePos = new THREE.Vector3(capsulePos.x, capsulePos.y + capsuleHeight / 2, capsulePos.z);
-		const bottomSpherePos = new THREE.Vector3(capsulePos.x, capsulePos.y - capsuleHeight / 2, capsulePos.z);
+		// Calculate terrain half-size
+		const halfSize = terrainSize.clone().multiplyScalar(0.5);
 
-		// For sphere collisions
-		if (otherType === ColliderType.SPHERE) {
-			// Test top sphere
-			const topDistance = topSpherePos.distanceTo(otherPos);
-			if (topDistance < capsuleRadius + otherRadius) {
-				const normal = new THREE.Vector3().subVectors(otherPos, topSpherePos).normalize();
-				if (swapped) normal.negate();
+		// Calculate the terrain bounds with expanded radius for the character
+		const expandedMin = new THREE.Vector3(
+			terrainPos.x - halfSize.x - characterRadius,
+			terrainPos.y - halfSize.y - characterRadius,
+			terrainPos.z - halfSize.z - characterRadius
+		);
+		const expandedMax = new THREE.Vector3(
+			terrainPos.x + halfSize.x + characterRadius,
+			terrainPos.y + halfSize.y + characterRadius,
+			terrainPos.z + halfSize.z + characterRadius
+		);
 
-				return {
-					colliding: true,
-					penetrationDepth: capsuleRadius + otherRadius - topDistance,
-					normal,
-				};
-			}
+		// Check if character is within the expanded bounds
+		if (
+			characterPos.x >= expandedMin.x &&
+			characterPos.x <= expandedMax.x &&
+			characterPos.y >= expandedMin.y &&
+			characterPos.y <= expandedMax.y &&
+			characterPos.z >= expandedMin.z &&
+			characterPos.z <= expandedMax.z
+		) {
+			// Calculate penetration along each axis
+			const penX = Math.min(
+				Math.abs(expandedMax.x - characterPos.x),
+				Math.abs(characterPos.x - expandedMin.x)
+			);
+			const penY = Math.min(
+				Math.abs(expandedMax.y - characterPos.y),
+				Math.abs(characterPos.y - expandedMin.y)
+			);
+			const penZ = Math.min(
+				Math.abs(expandedMax.z - characterPos.z),
+				Math.abs(characterPos.z - expandedMin.z)
+			);
 
-			// Test bottom sphere
-			const bottomDistance = bottomSpherePos.distanceTo(otherPos);
-			if (bottomDistance < capsuleRadius + otherRadius) {
-				const normal = new THREE.Vector3().subVectors(otherPos, bottomSpherePos).normalize();
-				if (swapped) normal.negate();
+			// Find the minimum penetration axis for the closest face
+			const normal = new THREE.Vector3();
+			let penetrationDepth = 0;
 
-				return {
-					colliding: true,
-					penetrationDepth: capsuleRadius + otherRadius - bottomDistance,
-					normal,
-				};
-			}
-
-			// Test cylinder - simplified
-			// Project other sphere onto the capsule axis
-			const axis = new THREE.Vector3(0, 1, 0);
-			const otherToBottom = new THREE.Vector3().subVectors(otherPos, bottomSpherePos);
-			const projection = otherToBottom.dot(axis);
-
-			if (projection >= 0 && projection <= capsuleHeight) {
-				// Calculate closest point on axis
-				const closestOnAxis = new THREE.Vector3(
-					bottomSpherePos.x,
-					bottomSpherePos.y + projection,
-					bottomSpherePos.z
-				);
-
-				// Calculate distance from sphere center to closest point on axis
-				const distance = otherPos.distanceTo(closestOnAxis);
-
-				if (distance < capsuleRadius + otherRadius) {
-					const normal = new THREE.Vector3().subVectors(otherPos, closestOnAxis).normalize();
-					if (swapped) normal.negate();
-
-					return {
-						colliding: true,
-						penetrationDepth: capsuleRadius + otherRadius - distance,
-						normal,
-					};
+			if (penX <= penY && penX <= penZ) {
+				penetrationDepth = penX;
+				if (Math.abs(characterPos.x - expandedMin.x) < Math.abs(expandedMax.x - characterPos.x)) {
+					normal.set(-1, 0, 0);
+				} else {
+					normal.set(1, 0, 0);
+				}
+			} else if (penY <= penX && penY <= penZ) {
+				penetrationDepth = penY;
+				if (Math.abs(characterPos.y - expandedMin.y) < Math.abs(expandedMax.y - characterPos.y)) {
+					normal.set(0, -1, 0);
+				} else {
+					normal.set(0, 1, 0);
+				}
+			} else {
+				penetrationDepth = penZ;
+				if (Math.abs(characterPos.z - expandedMin.z) < Math.abs(expandedMax.z - characterPos.z)) {
+					normal.set(0, 0, -1);
+				} else {
+					normal.set(0, 0, 1);
 				}
 			}
-		}
 
-		// For box collisions - simplified approach
-		if (otherType === ColliderType.BOX) {
-			// Get half size
-			const halfSize = otherSize.clone().multiplyScalar(0.5);
-
-			// Test top sphere vs box
-			const closestTop = new THREE.Vector3(
-				Math.max(otherPos.x - halfSize.x, Math.min(topSpherePos.x, otherPos.x + halfSize.x)),
-				Math.max(otherPos.y - halfSize.y, Math.min(topSpherePos.y, otherPos.y + halfSize.y)),
-				Math.max(otherPos.z - halfSize.z, Math.min(topSpherePos.z, otherPos.z + halfSize.z))
-			);
-
-			const topDistance = topSpherePos.distanceTo(closestTop);
-			if (topDistance < capsuleRadius) {
-				const normal = new THREE.Vector3().subVectors(topSpherePos, closestTop).normalize();
-				if (swapped) normal.negate();
-
-				return {
-					colliding: true,
-					penetrationDepth: capsuleRadius - topDistance,
-					normal,
-				};
+			if (swapped) {
+				normal.negate();
 			}
 
-			// Test bottom sphere vs box
-			const closestBottom = new THREE.Vector3(
-				Math.max(otherPos.x - halfSize.x, Math.min(bottomSpherePos.x, otherPos.x + halfSize.x)),
-				Math.max(otherPos.y - halfSize.y, Math.min(bottomSpherePos.y, otherPos.y + halfSize.y)),
-				Math.max(otherPos.z - halfSize.z, Math.min(bottomSpherePos.z, otherPos.z + halfSize.z))
-			);
-
-			const bottomDistance = bottomSpherePos.distanceTo(closestBottom);
-			if (bottomDistance < capsuleRadius) {
-				const normal = new THREE.Vector3().subVectors(bottomSpherePos, closestBottom).normalize();
-				if (swapped) normal.negate();
-
-				return {
-					colliding: true,
-					penetrationDepth: capsuleRadius - bottomDistance,
-					normal,
-				};
-			}
+			return {
+				colliding: true,
+				penetrationDepth,
+				normal,
+			};
 		}
-
-		return { colliding: false };
 	}
 
 	// Default case: no collision detected
@@ -357,11 +319,8 @@ function testCollision(
 
 /**
  * Process all potential collisions and apply responses
- * @param potentialCollisions Array of potential collision pairs
- * @param world World instance
  */
 function processCollisions(potentialCollisions: CollisionPair[], world: World) {
-	// Process each potential collision
 	for (const { entityA, entityB } of potentialCollisions) {
 		const transformA = entityA.get(Transform);
 		const transformB = entityB.get(Transform);
@@ -391,30 +350,87 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 
 			// Only if we have penetration depth and normal
 			if (collisionResult.penetrationDepth && collisionResult.normal) {
-				// Share the penetration between both objects
-				const halfPenetration = collisionResult.penetrationDepth * 0.5;
+				// Get physics bodies if available
+				const physicsA = entityA.get(PhysicsBody);
+				const physicsB = entityB.get(PhysicsBody);
 
-				// Update transforms to separate the objects
-				const newPositionA = transformA.position
-					.clone()
-					.sub(collisionResult.normal.clone().multiplyScalar(halfPenetration));
+				// Handle static objects (they don't move in collisions)
+				const isAStatic = physicsA?.isStatic || false;
+				const isBStatic = physicsB?.isStatic || false;
 
-				const newPositionB = transformB.position
-					.clone()
-					.add(collisionResult.normal.clone().multiplyScalar(halfPenetration));
+				// Calculate how to distribute the penetration correction
+				let ratioA = 0.5;
+				let ratioB = 0.5;
 
-				// Create new transform objects with updated positions
-				entityA.set(Transform, {
-					position: newPositionA,
-					rotation: transformA.rotation,
-					scale: transformA.scale,
-				});
+				// If one object is static, the other takes all the movement
+				if (isAStatic && !isBStatic) {
+					ratioA = 0;
+					ratioB = 1;
+				} else if (!isAStatic && isBStatic) {
+					ratioA = 1;
+					ratioB = 0;
+				}
 
-				entityB.set(Transform, {
-					position: newPositionB,
-					rotation: transformB.rotation,
-					scale: transformB.scale,
-				});
+				// Special case for CHARACTER vs TERRAIN
+				// Add a bit of extra separation to prevent getting stuck
+				let extraSeparation = 0;
+				if (
+					(colliderA.layer === CollisionLayer.CHARACTER && colliderB.layer === CollisionLayer.TERRAIN) ||
+					(colliderB.layer === CollisionLayer.CHARACTER && colliderA.layer === CollisionLayer.TERRAIN)
+				) {
+					extraSeparation = 0.01;
+				}
+
+				// Calculate penetration resolution with potential extra separation
+				const totalCorrection = collisionResult.penetrationDepth + extraSeparation;
+				const correctionA = collisionResult.normal.clone().multiplyScalar(-totalCorrection * ratioA);
+				const correctionB = collisionResult.normal.clone().multiplyScalar(totalCorrection * ratioB);
+
+				// Apply corrections to positions
+				if (!isAStatic) {
+					const newPositionA = transformA.position.clone().add(correctionA);
+					entityA.set(Transform, {
+						position: newPositionA,
+						rotation: transformA.rotation,
+						scale: transformA.scale,
+					});
+
+					// Adjust velocity for characters to enable wall sliding
+					const movementA = entityA.get(Movement);
+					if (movementA && colliderA.layer === CollisionLayer.CHARACTER) {
+						const normalVelocity = collisionResult.normal
+							.clone()
+							.multiplyScalar(movementA.velocity.dot(collisionResult.normal));
+
+						if (normalVelocity.dot(collisionResult.normal) < 0) {
+							movementA.velocity.sub(normalVelocity);
+							entityA.set(Movement, movementA);
+						}
+					}
+				}
+
+				if (!isBStatic) {
+					const newPositionB = transformB.position.clone().add(correctionB);
+					entityB.set(Transform, {
+						position: newPositionB,
+						rotation: transformB.rotation,
+						scale: transformB.scale,
+					});
+
+					// Apply the same velocity adjustment for the other entity if it's a character
+					const movementB = entityB.get(Movement);
+					if (movementB && colliderB.layer === CollisionLayer.CHARACTER) {
+						const normalVelocity = collisionResult.normal
+							.clone()
+							.negate()
+							.multiplyScalar(movementB.velocity.dot(collisionResult.normal.clone().negate()));
+
+						if (normalVelocity.dot(collisionResult.normal.clone().negate()) < 0) {
+							movementB.velocity.sub(normalVelocity);
+							entityB.set(Movement, movementB);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -422,30 +438,22 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 
 /**
  * Record a collision between two entities
- * @param entityIdA ID of first entity
- * @param entityIdB ID of second entity
  */
 function recordCollision(entityIdA: number, entityIdB: number) {
-	// Ensure we have sets for both entities
 	if (!currentCollisions.has(entityIdA)) {
 		currentCollisions.set(entityIdA, new Set<number>());
 	}
-
 	if (!currentCollisions.has(entityIdB)) {
 		currentCollisions.set(entityIdB, new Set<number>());
 	}
-
-	// Record the collision in both sets
 	currentCollisions.get(entityIdA)!.add(entityIdB);
 	currentCollisions.get(entityIdB)!.add(entityIdA);
 }
 
 /**
  * Update collision events (enter/stay/exit) based on current and previous collision state
- * @param world World instance
  */
 function updateCollisionEvents(world: World) {
-	// Process collision events for all entities with CollisionEvents
 	const eventsQuery = world.query(CollisionEvents);
 
 	eventsQuery.forEach((entity) => {
@@ -460,12 +468,9 @@ function updateCollisionEvents(world: World) {
 
 		// Check for new collisions (collision enter)
 		entityCollisions.forEach((otherId) => {
-			// Find the other entity by checking all entities
-			const otherEntity = world.query(CollisionEvents).find((e) => e.id() === otherId);
-
+			const otherEntity = findEntityById(world, otherId);
 			if (!otherEntity) return;
 
-			// Skip if already in contacts
 			if (collisionEvents.contacts.has(otherId)) {
 				// This is a 'stay' event
 				if (isTrigger) {
@@ -476,7 +481,6 @@ function updateCollisionEvents(world: World) {
 			} else {
 				// This is an 'enter' event
 				collisionEvents.contacts.add(otherId);
-
 				if (isTrigger) {
 					collisionEvents.onTriggerEnter.forEach((callback) => callback(otherEntity));
 				} else {
@@ -489,12 +493,8 @@ function updateCollisionEvents(world: World) {
 		const endedCollisions: number[] = [];
 		collisionEvents.contacts.forEach((otherId) => {
 			if (!entityCollisions.has(otherId)) {
-				// This collision has ended
 				endedCollisions.push(otherId);
-
-				// Find the other entity by checking all entities
-				const otherEntity = world.query(CollisionEvents).find((e) => e.id() === otherId);
-
+				const otherEntity = findEntityById(world, otherId);
 				if (!otherEntity) return;
 
 				if (isTrigger) {
@@ -517,10 +517,109 @@ function updateCollisionEvents(world: World) {
 
 /**
  * Helper function to find an entity by ID
- * @param world World instance
- * @param id Entity ID to find
- * @returns Entity or undefined if not found
  */
 function findEntityById(world: World, id: number) {
-	world.query().find((e) => e.id() === id);
+	return world.query().find((e) => e.id() === id);
+}
+
+/**
+ * Performs a swept test of a moving sphere against a box
+ */
+export function sweepTestAgainstTerrain(
+	startPos: THREE.Vector3,
+	endPos: THREE.Vector3,
+	radius: number,
+	boxPos: THREE.Vector3,
+	boxSize: THREE.Vector3
+): { hit: boolean; t: number; normal: THREE.Vector3 } {
+	const halfSize = boxSize.clone().multiplyScalar(0.5);
+	const boxMin = new THREE.Vector3(boxPos.x - halfSize.x, boxPos.y - halfSize.y, boxPos.z - halfSize.z);
+	const boxMax = new THREE.Vector3(boxPos.x + halfSize.x, boxPos.y + halfSize.y, boxPos.z + halfSize.z);
+	const extBoxMin = boxMin.clone().sub(new THREE.Vector3(radius, radius, radius));
+	const extBoxMax = boxMax.clone().add(new THREE.Vector3(radius, radius, radius));
+	const delta = new THREE.Vector3().subVectors(endPos, startPos);
+
+	// Check if starting point is already inside the expanded box
+	if (
+		startPos.x >= extBoxMin.x &&
+		startPos.x <= extBoxMax.x &&
+		startPos.y >= extBoxMin.y &&
+		startPos.y <= extBoxMax.y &&
+		startPos.z >= extBoxMin.z &&
+		startPos.z <= extBoxMax.z
+	) {
+		const dists = [
+			Math.abs(startPos.x - extBoxMin.x),
+			Math.abs(extBoxMax.x - startPos.x),
+			Math.abs(startPos.y - extBoxMin.y),
+			Math.abs(extBoxMax.y - startPos.y),
+			Math.abs(startPos.z - extBoxMin.z),
+			Math.abs(extBoxMax.z - startPos.z),
+		];
+
+		const minIndex = dists.indexOf(Math.min(...dists));
+		const normal = new THREE.Vector3();
+
+		switch (minIndex) {
+			case 0:
+				normal.set(-1, 0, 0);
+				break;
+			case 1:
+				normal.set(1, 0, 0);
+				break;
+			case 2:
+				normal.set(0, -1, 0);
+				break;
+			case 3:
+				normal.set(0, 1, 0);
+				break;
+			case 4:
+				normal.set(0, 0, -1);
+				break;
+			case 5:
+				normal.set(0, 0, 1);
+				break;
+		}
+
+		return { hit: true, t: 0, normal };
+	}
+
+	// Calculate entry and exit times for each axis
+	let tmin = -Infinity;
+	let tmax = Infinity;
+	const hitNormal = new THREE.Vector3();
+
+	// Check each axis (X, Y, Z)
+	for (const axis of ['x', 'y', 'z'] as const) {
+		if (Math.abs(delta[axis]) < 1e-10) {
+			if (startPos[axis] < extBoxMin[axis] || startPos[axis] > extBoxMax[axis]) {
+				return { hit: false, t: 1, normal: new THREE.Vector3() };
+			}
+		} else {
+			const invDelta = 1.0 / delta[axis];
+			let t1 = (extBoxMin[axis] - startPos[axis]) * invDelta;
+			let t2 = (extBoxMax[axis] - startPos[axis]) * invDelta;
+
+			if (t1 > t2) {
+				[t1, t2] = [t2, t1];
+			}
+
+			if (t1 > tmin) {
+				tmin = t1;
+				hitNormal.set(0, 0, 0);
+				hitNormal[axis] = delta[axis] < 0 ? 1 : -1;
+			}
+			tmax = Math.min(tmax, t2);
+
+			if (tmin > tmax || tmax < 0) {
+				return { hit: false, t: 1, normal: new THREE.Vector3() };
+			}
+		}
+	}
+
+	if (tmin >= 0 && tmin <= 1) {
+		return { hit: true, t: tmin, normal: hitNormal };
+	}
+
+	return { hit: false, t: 1, normal: new THREE.Vector3() };
 }

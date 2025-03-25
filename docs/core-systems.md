@@ -98,7 +98,7 @@ We'll implement the systems in the following order to manage dependencies approp
 
 1. Create base `createEntityFactory` function to generate factory methods
 2. Implement generic entity creators (`createBasicEntity`, `createPhysicsEntity`)
-3. Add specific entity creators for the baby character (expanding existing implementation)
+3. Add specific entity creators for the player character (expanding existing implementation)
 4. Create skeleton functions for NPCs, power-ups, and vehicles
 5. Document required traits for each entity type
 

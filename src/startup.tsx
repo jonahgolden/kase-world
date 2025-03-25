@@ -2,7 +2,6 @@ import { useFrame } from '@react-three/fiber';
 import { useActions, useWorld } from 'koota/react';
 import { useEffect } from 'react';
 import { actions } from './actions';
-import { buildingDemo } from './systems/building-demo';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
 
 export function Startup({
@@ -19,9 +18,6 @@ export function Startup({
 
 		// Spawn baby entity instead of regular player
 		const player = spawnPlayer();
-
-		// Initialize buildings
-		buildingDemo(world);
 
 		return () => {
 			player.destroy();

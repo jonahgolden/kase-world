@@ -7,7 +7,7 @@ import { Health, IsCamera, Transform } from './traits';
 const INVULNERABILITY_PERIOD = 0.8;
 
 // Player spawn position
-export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 0, 0);
+export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 10, 0);
 
 // Player base thrust
 export const PLAYER_BASE_THRUST = 3;

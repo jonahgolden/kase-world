@@ -48,9 +48,9 @@ export function createPlayerEntity({ world }: Props): Entity {
 		Scream(), // Add scream trait with default values
 		Collider({
 			type: ColliderType.CAPSULE,
-			radius: 0.2, // Increased from 0.2 to better match baby's visuals
-			height: 0.4, // Increased from 0.4 for better collision
-			size: new THREE.Vector3(0.8, 1.0, 0.8), // Increased size for box collider (not used for capsule but required)
+			radius: 0.2,
+			height: 0.4,
+			size: new THREE.Vector3(0.8, 1.0, 0.8),
 			offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
 			layer: CollisionLayer.CHARACTER,
 			mask: 0xffffffff, // Collides with all layers

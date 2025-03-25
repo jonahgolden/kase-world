@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
-import { collisionDemo } from './systems/collision-demo';
+import { collisionSystem } from './systems/collision-system';
 import { healthSystem } from './systems/health-system';
 import { physicsSystem } from './systems/physics-system';
 import { playerThirdPersonCamera } from './systems/player-camera';
@@ -12,12 +12,15 @@ import { syncView } from './systems/sync-view';
 import { testDamageSystem } from './systems/test-damage-system';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
 import { updateTime } from './systems/update-time';
+import { setupTestScene } from './test-scene';
 
 export function GameLoop() {
 	const world = useWorld();
 
 	// Initialize the collision demo once
-	collisionDemo(world);
+	// collisionDemo(world);
+
+	setupTestScene(world);
 
 	useFrame(() => {
 		// Start
@@ -36,6 +39,7 @@ export function GameLoop() {
 		// Physics and movement - using our unified physics system
 		// Now includes collision detection and resolution
 		physicsSystem(world);
+		collisionSystem(world);
 
 		// Spatial hashing for broad-phase collision detection
 		updateSpatialHashing(world);
