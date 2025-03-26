@@ -6,6 +6,7 @@ import {
 	ColliderInstanceType,
 	ColliderType,
 	CollisionEvents,
+	CollisionLayer,
 	PHYSICS_BODY_DEFAULTS,
 	PhysicsBody,
 	Transform,
@@ -24,7 +25,7 @@ function addColliderObject({
 	color,
 	...colliderProps
 }: { world: World; position: THREE.Vector3; color: string } & Partial<ColliderInstanceType>) {
-	const collider = { ...COLLIDER_DEFAULTS, ...colliderProps };
+	const collider = { ...COLLIDER_DEFAULTS, ...colliderProps, layer: CollisionLayer.TERRAIN };
 	// Create a new entity with collider
 	const entity = world.spawn(
 		Transform({ position }),
@@ -90,7 +91,7 @@ export function collisionDemo(world: World) {
 	addColliderObject({
 		world,
 		type: ColliderType.BOX,
-		position: new THREE.Vector3(3, 1, -3),
+		position: new THREE.Vector3(3, 3, -3),
 		color: '#ff8800',
 		size: new THREE.Vector3(1, 1, 1),
 	});
@@ -104,16 +105,16 @@ export function collisionDemo(world: World) {
 	});
 
 	// Trigger box (doesn't block movement but detects collisions)
-	// addColliderObject({
-	// 	world,
-	// 	position: new THREE.Vector3(0, 0.5, 0),
-	// 	color: '#00ffff',
-	// 	type: ColliderType.BOX,
-	// 	isTrigger: true,
-	// 	layer: CollisionLayer.TRIGGER,
-	// 	mask: CollisionLayer.DEFAULT | CollisionLayer.CHARACTER,
-	// 	size: new THREE.Vector3(1, 1, 1),
-	// });
+	addColliderObject({
+		world,
+		position: new THREE.Vector3(0, 0.5, 0),
+		color: '#00ffff',
+		type: ColliderType.BOX,
+		isTrigger: true,
+		layer: CollisionLayer.TRIGGER,
+		mask: CollisionLayer.DEFAULT | CollisionLayer.CHARACTER,
+		size: new THREE.Vector3(1, 1, 1),
+	});
 
 	// Set demo as created
 	demoCreated = true;

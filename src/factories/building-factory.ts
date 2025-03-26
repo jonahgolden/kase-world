@@ -38,7 +38,7 @@ export function createBuilding({
 			type: ColliderType.BOX,
 			size,
 			layer: CollisionLayer.TERRAIN, // Buildings use TERRAIN layer
-			mask: 0xffffffff, // Collide with everything
+			mask: CollisionLayer.ALL, // Collide with everything
 			isTrigger: false, // Real physical collision
 			radius: 0.5, // Default radius (not used for BOX but required)
 			height: 0, // Default height (not used for BOX but required)

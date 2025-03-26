@@ -53,7 +53,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 			size: new THREE.Vector3(0.8, 1.0, 0.8),
 			offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
 			layer: CollisionLayer.CHARACTER,
-			mask: 0xffffffff, // Collides with all layers
+			mask: CollisionLayer.ALL, // Collides with all layers
 			friction: 0.3,
 			restitution: 0.1,
 			isTrigger: false,

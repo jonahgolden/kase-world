@@ -250,8 +250,8 @@ export class SpatialHashGrid {
 	 */
 	private getPairHash(a: Entity, b: Entity): string {
 		// Ensure consistent hash regardless of order
-		const id1 = a.id;
-		const id2 = b.id;
+		const id1 = a.id();
+		const id2 = b.id();
 
 		return id1 < id2 ? `${id1}:${id2}` : `${id2}:${id1}`;
 	}

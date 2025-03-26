@@ -60,7 +60,9 @@ export function convertInputToMovement(world: World) {
 		// Handle jumping - apply immediate velocity change on jump press
 		const jumpPressed = input.jump && !wasJumpPressed;
 
-		if (jumpPressed && physics.isGrounded) {
+		// if (jumpPressed && physics.isGrounded) {
+		if (jumpPressed) {
+			// TODO: prevent multiple jumps in quick succession
 			// Apply upward force based on movement mode
 			const jumpForce = mode === 'walk' ? JUMP_FORCE.walk : JUMP_FORCE.crawl;
 			movement.velocity.y = jumpForce; // Direct velocity change for consistent jumping

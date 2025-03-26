@@ -274,31 +274,52 @@ function testCollision(
 				Math.abs(characterPos.z - expandedMin.z)
 			);
 
-			// Find the minimum penetration axis for the closest face
+			// Find the minimum penetration axis and calculate normal
 			const normal = new THREE.Vector3();
 			let penetrationDepth = 0;
 
-			if (penX <= penY && penX <= penZ) {
+			// Calculate center points
+			const terrainCenter = new THREE.Vector3(terrainPos.x, terrainPos.y, terrainPos.z);
+			const toCharacter = characterPos.clone().sub(terrainCenter);
+
+			// Determine which face of the terrain box we're closest to
+			const absX = Math.abs(toCharacter.x);
+			const absY = Math.abs(toCharacter.y);
+			const absZ = Math.abs(toCharacter.z);
+
+			// Compare with half-size to determine which face we're closest to
+			const ratioX = absX / (halfSize.x + characterRadius);
+			const ratioY = absY / (halfSize.y + characterRadius);
+			const ratioZ = absZ / (halfSize.z + characterRadius);
+
+			// The axis with the ratio closest to 1 is the face we're nearest to
+			if (ratioX >= ratioY && ratioX >= ratioZ) {
 				penetrationDepth = penX;
-				if (Math.abs(characterPos.x - expandedMin.x) < Math.abs(expandedMax.x - characterPos.x)) {
-					normal.set(-1, 0, 0);
-				} else {
-					normal.set(1, 0, 0);
-				}
-			} else if (penY <= penX && penY <= penZ) {
+				normal.set(Math.sign(toCharacter.x), 0, 0);
+			} else if (ratioY >= ratioX && ratioY >= ratioZ) {
 				penetrationDepth = penY;
-				if (Math.abs(characterPos.y - expandedMin.y) < Math.abs(expandedMax.y - characterPos.y)) {
-					normal.set(0, -1, 0);
-				} else {
-					normal.set(0, 1, 0);
-				}
+				normal.set(0, Math.sign(toCharacter.y), 0);
 			} else {
 				penetrationDepth = penZ;
-				if (Math.abs(characterPos.z - expandedMin.z) < Math.abs(expandedMax.z - characterPos.z)) {
-					normal.set(0, 0, -1);
-				} else {
-					normal.set(0, 0, 1);
-				}
+				normal.set(0, 0, Math.sign(toCharacter.z));
+			}
+
+			// If we're very close to an edge or corner, blend the normals
+			const EDGE_THRESHOLD = 0.1;
+			if (Math.abs(ratioX - ratioY) < EDGE_THRESHOLD) {
+				normal.x = Math.sign(toCharacter.x);
+				normal.y = Math.sign(toCharacter.y);
+				normal.normalize();
+			}
+			if (Math.abs(ratioX - ratioZ) < EDGE_THRESHOLD) {
+				normal.x = Math.sign(toCharacter.x);
+				normal.z = Math.sign(toCharacter.z);
+				normal.normalize();
+			}
+			if (Math.abs(ratioY - ratioZ) < EDGE_THRESHOLD) {
+				normal.y = Math.sign(toCharacter.y);
+				normal.z = Math.sign(toCharacter.z);
+				normal.normalize();
 			}
 
 			if (swapped) {
@@ -326,6 +347,8 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 		const transformB = entityB.get(Transform);
 		const colliderA = entityA.get(Collider);
 		const colliderB = entityB.get(Collider);
+		const movementA = entityA.get(Movement);
+		const movementB = entityB.get(Movement);
 
 		if (!transformA || !transformB || !colliderA || !colliderB) {
 			continue;
@@ -336,7 +359,144 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 			continue;
 		}
 
-		// Check for actual collision
+		// Special handling for CHARACTER vs TERRAIN to prevent tunneling
+		if (
+			(colliderA.layer === CollisionLayer.CHARACTER && colliderB.layer === CollisionLayer.TERRAIN) ||
+			(colliderB.layer === CollisionLayer.CHARACTER && colliderA.layer === CollisionLayer.TERRAIN)
+		) {
+			// Determine which is character and which is terrain
+			const [characterEntity, terrainEntity] =
+				colliderA.layer === CollisionLayer.CHARACTER ? [entityA, entityB] : [entityB, entityA];
+			const characterTransform = characterEntity.get(Transform)!;
+			const terrainTransform = terrainEntity.get(Transform)!;
+			const characterCollider = characterEntity.get(Collider)!;
+			const terrainCollider = terrainEntity.get(Collider)!;
+			const characterMovement = characterEntity.get(Movement);
+
+			// First handle any existing overlap
+			const overlapResult = testCollision(
+				characterTransform,
+				terrainTransform,
+				characterCollider,
+				terrainCollider
+			);
+
+			if (overlapResult.colliding) {
+				// Record collision for events
+				recordCollision(characterEntity.id(), terrainEntity.id());
+
+				// Push character out of terrain with a bit of extra separation
+				const pushOutDistance = overlapResult.penetrationDepth! + 0.01;
+				const pushOutVector = overlapResult.normal!.clone().multiplyScalar(pushOutDistance);
+				const safePos = characterTransform.position.clone().add(pushOutVector);
+
+				// Update position
+				characterEntity.set(Transform, {
+					position: safePos,
+					rotation: characterTransform.rotation,
+					scale: characterTransform.scale,
+				});
+
+				// Zero out velocity in the collision normal direction
+				if (characterMovement) {
+					const normal = overlapResult.normal!;
+					const dot = characterMovement.velocity.dot(normal);
+					if (dot < 0) {
+						// Remove all velocity in the normal direction
+						const normalVel = normal.clone().multiplyScalar(dot);
+						characterMovement.velocity.sub(normalVel);
+
+						// For vertical collisions, handle ground contact
+						if (Math.abs(normal.y) > 0.7) {
+							characterMovement.velocity.y = 0;
+						}
+
+						// For horizontal collisions, prevent any movement into the wall
+						if (Math.abs(normal.x) > 0.7) {
+							characterMovement.velocity.x = 0;
+						}
+						if (Math.abs(normal.z) > 0.7) {
+							characterMovement.velocity.z = 0;
+						}
+
+						characterEntity.set(Movement, characterMovement);
+					}
+				}
+
+				// Skip further collision checks since we've handled the overlap
+				continue;
+			}
+
+			// Then check for potential future collisions if we're moving
+			if (characterMovement && characterMovement.velocity.lengthSq() > 0) {
+				// Calculate the next position based on velocity
+				const nextPos = characterTransform.position
+					.clone()
+					.add(characterMovement.velocity.clone().multiplyScalar(1 / 60));
+
+				// Perform swept test
+				const sweepResult = sweepTestAgainstTerrain(
+					characterTransform.position,
+					nextPos,
+					characterCollider.radius,
+					terrainTransform.position,
+					terrainCollider.size
+				);
+
+				if (sweepResult.hit) {
+					// Record collision for events
+					recordCollision(characterEntity.id(), terrainEntity.id());
+
+					// Calculate the safe position
+					const safeT = Math.max(0, sweepResult.t - 0.01);
+					const safePos = characterTransform.position.clone().lerp(nextPos, safeT);
+
+					// Update position
+					characterEntity.set(Transform, {
+						position: safePos,
+						rotation: characterTransform.rotation,
+						scale: characterTransform.scale,
+					});
+
+					// Completely stop movement in the collision normal direction
+					if (characterMovement) {
+						const normal = sweepResult.normal;
+						const dot = characterMovement.velocity.dot(normal);
+						if (dot < 0) {
+							// Remove all velocity in the normal direction
+							const normalVel = normal.clone().multiplyScalar(dot);
+							characterMovement.velocity.sub(normalVel);
+
+							// For vertical collisions, handle ground contact
+							if (Math.abs(normal.y) > 0.7) {
+								if (normal.y > 0) {
+									// Ground collision
+									characterMovement.velocity.y = Math.max(0, characterMovement.velocity.y);
+								} else {
+									// Ceiling collision
+									characterMovement.velocity.y = Math.min(0, characterMovement.velocity.y);
+								}
+							}
+
+							// For horizontal collisions, prevent any movement into the wall
+							if (Math.abs(normal.x) > 0.7) {
+								characterMovement.velocity.x = 0;
+							}
+							if (Math.abs(normal.z) > 0.7) {
+								characterMovement.velocity.z = 0;
+							}
+
+							characterEntity.set(Movement, characterMovement);
+						}
+					}
+
+					// Skip regular collision test since we handled it here
+					continue;
+				}
+			}
+		}
+
+		// Regular collision test for other cases
 		const collisionResult = testCollision(transformA, transformB, colliderA, colliderB);
 
 		if (collisionResult.colliding) {
@@ -371,18 +531,8 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 					ratioB = 0;
 				}
 
-				// Special case for CHARACTER vs TERRAIN
-				// Add a bit of extra separation to prevent getting stuck
-				let extraSeparation = 0;
-				if (
-					(colliderA.layer === CollisionLayer.CHARACTER && colliderB.layer === CollisionLayer.TERRAIN) ||
-					(colliderB.layer === CollisionLayer.CHARACTER && colliderA.layer === CollisionLayer.TERRAIN)
-				) {
-					extraSeparation = 0.01;
-				}
-
-				// Calculate penetration resolution with potential extra separation
-				const totalCorrection = collisionResult.penetrationDepth + extraSeparation;
+				// Calculate penetration resolution
+				const totalCorrection = collisionResult.penetrationDepth + 0.01; // Small extra separation
 				const correctionA = collisionResult.normal.clone().multiplyScalar(-totalCorrection * ratioA);
 				const correctionB = collisionResult.normal.clone().multiplyScalar(totalCorrection * ratioB);
 
@@ -395,9 +545,7 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 						scale: transformA.scale,
 					});
 
-					// Adjust velocity for characters to enable wall sliding
-					const movementA = entityA.get(Movement);
-					if (movementA && colliderA.layer === CollisionLayer.CHARACTER) {
+					if (movementA) {
 						const normalVelocity = collisionResult.normal
 							.clone()
 							.multiplyScalar(movementA.velocity.dot(collisionResult.normal));
@@ -417,9 +565,7 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 						scale: transformB.scale,
 					});
 
-					// Apply the same velocity adjustment for the other entity if it's a character
-					const movementB = entityB.get(Movement);
-					if (movementB && colliderB.layer === CollisionLayer.CHARACTER) {
+					if (movementB) {
 						const normalVelocity = collisionResult.normal
 							.clone()
 							.negate()

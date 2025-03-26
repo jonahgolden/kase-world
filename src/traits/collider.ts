@@ -22,6 +22,7 @@ export enum CollisionLayer {
 	PROJECTILE = 16, // 00010000: Projectiles like the baby's scream
 	POWERUP = 32, // 00100000: Power-up items
 	VEHICLE = 64, // 01000000: Vehicles
+	ALL = 0xffffffff, // 11111111: All layers
 }
 
 // Type for collider instance
@@ -46,7 +47,7 @@ export const COLLIDER_DEFAULTS: ColliderInstanceType = {
 	offset: new THREE.Vector3(0, 0, 0), // Offset from entity position
 	isTrigger: false, // If true, detects collisions but doesn't prevent movement
 	layer: CollisionLayer.DEFAULT, // The layer this collider belongs to
-	mask: 0xffffffff, // Collides with all layers by default.  e.g. CollisionLayer.DEFAULT | CollisionLayer.CHARACTER,
+	mask: CollisionLayer.ALL, // Collides with all layers by default.  e.g. CollisionLayer.DEFAULT | CollisionLayer.CHARACTER,
 	friction: 0.3, // Friction coefficient (0-1)
 	restitution: 0.1, // Bounciness coefficient (0-1)
 };

@@ -101,7 +101,7 @@ function ObjectRenderer() {
 	useEffect(() => {
 		entities.forEach((entity) => {
 			const obj = entity.get(Ref);
-			if (obj && !scene.getObjectById(obj.id)) {
+			if (obj && !scene.getObjectById(obj.id())) {
 				scene.add(obj);
 			}
 		});
