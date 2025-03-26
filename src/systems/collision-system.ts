@@ -83,53 +83,92 @@ function testCollision(
 		return { colliding: false };
 	}
 
-	// Box vs Box (AABB collision test)
+	// Box vs Box (OBB collision test using Separating Axis Theorem)
 	if (colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.BOX) {
-		// Calculate half sizes
-		const halfSizeA = colliderA.size.clone().multiplyScalar(0.5);
-		const halfSizeB = colliderB.size.clone().multiplyScalar(0.5);
+		// Calculate half sizes considering scale
+		const halfSizeA = colliderA.size.clone().multiply(transformA.scale).multiplyScalar(0.5);
+		const halfSizeB = colliderB.size.clone().multiply(transformB.scale).multiplyScalar(0.5);
 
-		// Calculate min and max points for each box
-		const minA = new THREE.Vector3(posA.x - halfSizeA.x, posA.y - halfSizeA.y, posA.z - halfSizeA.z);
-		const maxA = new THREE.Vector3(posA.x + halfSizeA.x, posA.y + halfSizeA.y, posA.z + halfSizeA.z);
+		// Create rotation matrices from Euler angles
+		const matrixA = new THREE.Matrix4().makeRotationFromEuler(transformA.rotation);
+		const matrixB = new THREE.Matrix4().makeRotationFromEuler(transformB.rotation);
 
-		const minB = new THREE.Vector3(posB.x - halfSizeB.x, posB.y - halfSizeB.y, posB.z - halfSizeB.z);
-		const maxB = new THREE.Vector3(posB.x + halfSizeB.x, posB.y + halfSizeB.y, posB.z + halfSizeB.z);
+		// Get the box axes (normalized direction vectors)
+		const axesA = [
+			new THREE.Vector3(1, 0, 0).applyMatrix4(matrixA),
+			new THREE.Vector3(0, 1, 0).applyMatrix4(matrixA),
+			new THREE.Vector3(0, 0, 1).applyMatrix4(matrixA),
+		];
+		const axesB = [
+			new THREE.Vector3(1, 0, 0).applyMatrix4(matrixB),
+			new THREE.Vector3(0, 1, 0).applyMatrix4(matrixB),
+			new THREE.Vector3(0, 0, 1).applyMatrix4(matrixB),
+		];
 
-		// Check for overlap along each axis
-		// TODO: Take transform rotation and scale into account
-		if (
-			minA.x <= maxB.x &&
-			maxA.x >= minB.x &&
-			minA.y <= maxB.y &&
-			maxA.y >= minB.y &&
-			minA.z <= maxB.z &&
-			maxA.z >= minB.z
-		) {
-			// Calculate penetration along each axis
-			const penetrationX = Math.min(maxA.x - minB.x, maxB.x - minA.x);
-			const penetrationY = Math.min(maxA.y - minB.y, maxB.y - minA.y);
-			const penetrationZ = Math.min(maxA.z - minB.z, maxB.z - minA.z);
-
-			// Find minimum penetration axis
-			let penetrationDepth: number;
-			const normal = new THREE.Vector3();
-
-			if (penetrationX <= penetrationY && penetrationX <= penetrationZ) {
-				penetrationDepth = penetrationX;
-				normal.set(posA.x < posB.x ? 1 : -1, 0, 0);
-			} else if (penetrationY <= penetrationX && penetrationY <= penetrationZ) {
-				penetrationDepth = penetrationY;
-				normal.set(0, posA.y < posB.y ? 1 : -1, 0);
-			} else {
-				penetrationDepth = penetrationZ;
-				normal.set(0, 0, posA.z < posB.z ? 1 : -1);
+		// Get all axes to test (15 axes total: 3 from A, 3 from B, 9 cross products)
+		const axes = [...axesA, ...axesB];
+		// Add cross products of all pairs of axes
+		for (const axisA of axesA) {
+			for (const axisB of axesB) {
+				const cross = new THREE.Vector3().crossVectors(axisA, axisB);
+				if (cross.lengthSq() > 0.001) {
+					// Ignore parallel axes
+					cross.normalize();
+					axes.push(cross);
+				}
 			}
-
-			return { colliding: true, penetrationDepth, normal };
 		}
 
-		return { colliding: false };
+		// Calculate the vector between box centers
+		const centerDiff = new THREE.Vector3().subVectors(posB, posA);
+
+		let minPenetration = Infinity;
+		let minAxis = axes[0];
+
+		// Test all axes (Separating Axis Theorem)
+		for (const axis of axes) {
+			// Project box A's half-extents onto the axis
+			const projA =
+				Math.abs(axesA[0].dot(axis) * halfSizeA.x) +
+				Math.abs(axesA[1].dot(axis) * halfSizeA.y) +
+				Math.abs(axesA[2].dot(axis) * halfSizeA.z);
+
+			// Project box B's half-extents onto the axis
+			const projB =
+				Math.abs(axesB[0].dot(axis) * halfSizeB.x) +
+				Math.abs(axesB[1].dot(axis) * halfSizeB.y) +
+				Math.abs(axesB[2].dot(axis) * halfSizeB.z);
+
+			// Project the center difference vector onto the axis
+			const centerProj = centerDiff.dot(axis);
+
+			// Calculate overlap
+			const overlap = projA + projB - Math.abs(centerProj);
+
+			// If there's no overlap on any axis, the boxes don't intersect
+			if (overlap <= 0) {
+				return { colliding: false };
+			}
+
+			// Keep track of minimum penetration
+			if (overlap < minPenetration) {
+				minPenetration = overlap;
+				minAxis = axis;
+			}
+		}
+
+		// If we get here, the boxes are colliding
+		// Ensure the normal points from A to B
+		const normal = minAxis.clone();
+		if (centerDiff.dot(normal) < 0) {
+			normal.multiplyScalar(-1);
+		}
+
+		return {
+			colliding: true,
+			penetrationDepth: minPenetration,
+			normal: normal,
+		};
 	}
 
 	// Capsule vs Box (using sphere-sweep test for capsule)
