@@ -41,9 +41,9 @@ export type ColliderInstanceType = {
 
 export const COLLIDER_DEFAULTS: ColliderInstanceType = {
 	type: ColliderType.SPHERE,
-	radius: 0.5,
+	radius: 0.5, // Radius for SPHERE and CAPSULE colliders
 	size: new THREE.Vector3(1, 1, 1), // For BOX colliders
-	height: 0, // Additional height for CAPSULE colliders
+	height: 0, // Height of Cylinder for CAPSULE colliders
 	offset: new THREE.Vector3(0, 0, 0), // Offset from entity position
 	isTrigger: false, // If true, detects collisions but doesn't prevent movement
 	layer: CollisionLayer.DEFAULT, // The layer this collider belongs to
@@ -67,10 +67,25 @@ export const COLLIDER_DEFAULTS: ColliderInstanceType = {
  */
 export const Collider = trait(() => COLLIDER_DEFAULTS);
 
+type CollisionEventsSchema = {
+	// Stores entity IDs for fast lookups
+	contacts: Set<number>;
+
+	// Callbacks for collision events
+	onCollisionEnter: Set<(other: Entity) => void>;
+	onCollisionStay: Set<(other: Entity) => void>;
+	onCollisionExit: Set<(other: Entity) => void>;
+
+	// Callbacks for trigger events
+	onTriggerEnter: Set<(other: Entity) => void>;
+	onTriggerStay: Set<(other: Entity) => void>;
+	onTriggerExit: Set<(other: Entity) => void>;
+};
+
 /**
  * Trait to store collision events and callbacks
  */
-export const CollisionEvents = trait(() => ({
+export const CollisionEvents = trait<() => CollisionEventsSchema>(() => ({
 	// Entities currently in contact with this entity (updated each frame)
 	contacts: new Set<number>(), // Stores entity IDs for fast lookups
 
@@ -84,3 +99,22 @@ export const CollisionEvents = trait(() => ({
 	onTriggerStay: new Set<(other: Entity) => void>(),
 	onTriggerExit: new Set<(other: Entity) => void>(),
 }));
+
+export const CollisionEventsWithDefaults = ({
+	contacts = new Set<number>(),
+	onCollisionEnter = new Set<(other: Entity) => void>(),
+	onCollisionStay = new Set<(other: Entity) => void>(),
+	onCollisionExit = new Set<(other: Entity) => void>(),
+	onTriggerEnter = new Set<(other: Entity) => void>(),
+	onTriggerStay = new Set<(other: Entity) => void>(),
+	onTriggerExit = new Set<(other: Entity) => void>(),
+}: Partial<CollisionEventsSchema>) =>
+	CollisionEvents({
+		contacts,
+		onCollisionEnter,
+		onCollisionStay,
+		onCollisionExit,
+		onTriggerEnter,
+		onTriggerStay,
+		onTriggerExit,
+	});

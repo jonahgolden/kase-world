@@ -25,13 +25,13 @@ function addColliderObject({
 	color,
 	...colliderProps
 }: { world: World; position: THREE.Vector3; color: string } & Partial<ColliderInstanceType>) {
-	const collider = { ...COLLIDER_DEFAULTS, ...colliderProps, layer: CollisionLayer.TERRAIN };
+	const collider = { ...COLLIDER_DEFAULTS, ...colliderProps };
 	// Create a new entity with collider
 	const entity = world.spawn(
 		Transform({ position }),
 		Collider(collider),
 		CollisionEvents(),
-		PhysicsBody({ ...PHYSICS_BODY_DEFAULTS, isStatic: true, isKinematic: true })
+		PhysicsBody({ ...PHYSICS_BODY_DEFAULTS, isStatic: true })
 	);
 
 	// Add a mesh for visualization
@@ -113,7 +113,7 @@ export function collisionDemo(world: World) {
 		isTrigger: true,
 		layer: CollisionLayer.TRIGGER,
 		mask: CollisionLayer.DEFAULT | CollisionLayer.CHARACTER,
-		size: new THREE.Vector3(1, 1, 1),
+		size: new THREE.Vector3(2, 1, 2),
 	});
 
 	// Set demo as created

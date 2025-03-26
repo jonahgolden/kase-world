@@ -34,7 +34,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 		Movement({
 			velocity: new THREE.Vector3(),
 			thrust: PLAYER_BASE_THRUST,
-			damping: 0.85, // More damping for a crawling baby
+			damping: 0.85, // More damping for a player
 			force: new THREE.Vector3(),
 		}),
 		MovementMode(), // Add movement mode trait with default values
@@ -58,7 +58,19 @@ export function createPlayerEntity({ world }: Props): Entity {
 			restitution: 0.1,
 			isTrigger: false,
 		}),
-		CollisionEvents(), // Add collision events for the baby
+		// Collider({
+		// 	type: ColliderType.BOX,
+		// 	radius: 0,
+		// 	height: 0,
+		// 	size: new THREE.Vector3(2.6, 0.75, 0.4),
+		// 	offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
+		// 	layer: CollisionLayer.CHARACTER,
+		// 	mask: CollisionLayer.ALL, // Collides with all layers
+		// 	friction: 0.3,
+		// 	restitution: 0.1,
+		// 	isTrigger: false,
+		// }),
+		CollisionEvents(), // Add collision events for the player
 		PhysicsBody()
 	);
 }

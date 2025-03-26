@@ -197,9 +197,8 @@ export function CollisionDebugRenderer({ enabled = false }: { enabled?: boolean 
 			// Update wireframe position to match entity's transform + collider offset
 			const worldPosition = new THREE.Vector3().copy(transform.position).add(collider.offset);
 			wireframe.position.copy(worldPosition);
-
-			// Update wireframe rotation to match entity's transform rotation
 			wireframe.rotation.copy(transform.rotation);
+			wireframe.scale.copy(transform.scale);
 		});
 	});
 

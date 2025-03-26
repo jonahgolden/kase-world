@@ -46,12 +46,6 @@ export function App() {
 				<CollisionObjectsRenderer />
 				<CollisionDebugRenderer enabled={true} />
 
-				{/* Simple floor */}
-				<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-					<planeGeometry args={[50, 50]} />
-					<meshStandardMaterial color="#8BC34A" />
-				</mesh>
-
 				<ambientLight intensity={1.02} />
 				<directionalLight position={[10.41789, -5.97702, 10]} intensity={1.5} color={'#ffffff'} />
 				<directionalLight position={[10.55754, 5.89323, 9.99894]} intensity={2.0} color={'#ffffff'} />

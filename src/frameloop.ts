@@ -2,7 +2,6 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
-import { collisionDemo } from './systems/collision-demo';
 import { collisionSystem } from './systems/collision-system';
 import { healthSystem } from './systems/health-system';
 import { physicsSystem } from './systems/physics-system';
@@ -15,40 +14,49 @@ import { updateSpatialHashing } from './systems/update-spatial-hashing';
 import { updateTime } from './systems/update-time';
 import { setupTestScene } from './test-scene';
 
+const FPS = 60; // Set your desired FPS here
+const FRAME_TIME = 1000 / FPS; // Time per frame in milliseconds
+
 export function GameLoop() {
 	const world = useWorld();
-
-	// Initialize the collision demo once
-	collisionDemo(world);
+	let lastFrameTime = 0;
 
 	setupTestScene(world);
 
 	useFrame(() => {
-		// Start
-		updateTime(world);
+		const currentTime = performance.now();
+		const timeSinceLastFrame = currentTime - lastFrameTime;
 
-		// Input processing
-		pollInput(world);
-		testDamageSystem(world); // For testing damage (press 'T')
+		// Only update if enough time has passed since the last frame
+		if (timeSinceLastFrame >= FRAME_TIME) {
+			lastFrameTime = currentTime - (timeSinceLastFrame % FRAME_TIME); // Adjust for drift
 
-		// Update game state
-		convertInputToMovement(world);
-		playerMovementMode(world);
+			// Start
+			updateTime(world);
 
-		// Physics and movement - using our unified physics system
-		// Now includes collision detection and resolution
-		physicsSystem(world);
-		collisionSystem(world);
+			// Input processing
+			pollInput(world);
+			testDamageSystem(world); // For testing damage (press 'T')
 
-		// Spatial hashing for broad-phase collision detection
-		updateSpatialHashing(world);
+			// Update game state
+			convertInputToMovement(world);
+			playerMovementMode(world);
 
-		babyScreamSystem(world); // Process baby scream attack
-		healthSystem(world); // Process health updates
-		playerThirdPersonCamera(world);
+			// Physics and movement - using our unified physics system
+			// Now includes collision detection and resolution
+			physicsSystem(world);
+			collisionSystem(world);
 
-		// Sync view state
-		syncView(world);
+			// Spatial hashing for broad-phase collision detection
+			updateSpatialHashing(world);
+
+			babyScreamSystem(world); // Process baby scream attack
+			healthSystem(world); // Process health updates
+			playerThirdPersonCamera(world);
+
+			// Sync view state
+			syncView(world);
+		}
 	});
 
 	return null;

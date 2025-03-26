@@ -5,22 +5,29 @@ import { createPlatform } from './factories/test-objects';
 export function setupTestScene(world: World) {
 	// Create terrain pieces for collision testing
 	// Main ground platform
-	createPlatform(world, new THREE.Vector3(0, -0.25, 0), new THREE.Vector3(50, 0.5, 50));
+	createPlatform(world, new THREE.Vector3(0, 0.125, 0), new THREE.Vector3(50, 0.25, 50));
 
-	createPlatform(world, new THREE.Vector3(5, 2, 0), new THREE.Vector3(0.5, 4, 8));
+	// createPlatform(world, new THREE.Vector3(0, 0, 0), new THREE.Vector3(2, 1, 2));
+
+	// Walls for testing vertical collisions
+	createPlatform(world, new THREE.Vector3(0, 2, -5), new THREE.Vector3(8, 4, 0.5)); // Front wall
+
+	createPlatform(world, new THREE.Vector3(-20, 2, 0), new THREE.Vector3(0.5, 4, 8)); // Left wall
+
+	createPlatform(world, new THREE.Vector3(-10, 2, 4), new THREE.Vector3(8, 4, 0.5)); // Back wall
+
+	// Elevated platform for testing jumping/falling
+	createPlatform(world, new THREE.Vector3(-3, 2, -4), new THREE.Vector3(6, 0.5, 6));
+	// createGiantChickenNPC({
+	// 	world,
+	// 	position: new THREE.Vector3(-2, 4, 0),
+	// 	rotation: new THREE.Euler(0, Math.PI / 3, 0), // Face center
+	// });
 
 	// // Ramp for testing angled collisions
 	// createPlatform(world, new THREE.Vector3(-15, 2, 0), new THREE.Vector3(10, 0.5, 8)).get(
 	// 	Transform
 	// )!.rotation.z = Math.PI / 6; // 30-degree ramp
-
-	// // Walls for testing vertical collisions
-	// createPlatform(world, new THREE.Vector3(-20, 2, 0), new THREE.Vector3(0.5, 4, 8)); // Left wall
-
-	// createPlatform(world, new THREE.Vector3(-10, 2, 4), new THREE.Vector3(8, 4, 0.5)); // Back wall
-
-	// // Elevated platform for testing jumping/falling
-	// createPlatform(world, new THREE.Vector3(-15, 4, -4), new THREE.Vector3(6, 0.5, 6));
 
 	// // Create entities in a semicircle for easy viewing
 	// const radius = 10; // Distance from center

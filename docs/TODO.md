@@ -1,10 +1,16 @@
 To Do List
 
+- Remove unnecessary / unused trait properties
+  - Collider: friction, restitution
+    - What about offset?
+  - PhysicsBody: isGrounded, groundNormal, lastGroundedTime
+  - Movement: damping
 - Allow the mouse to move up and down as well, so the user can look all around
 - Add scope/target where baby is facing
 - Allow for multiple successive jumps
 - Make "s" key move backwards
 - Allow for movement inputs while in the air
+- OrbitControls?
 
 Factories
 

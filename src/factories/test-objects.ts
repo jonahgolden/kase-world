@@ -1,7 +1,7 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Movement, Transform } from '../traits';
-import { Collider, ColliderType, CollisionLayer } from '../traits/collider';
+import { Movement, Ref, Transform } from '../traits';
+import { Collider, ColliderType, CollisionEventsWithDefaults, CollisionLayer } from '../traits/collider';
 import { PhysicsBody } from '../traits/physics-body';
 
 /**
@@ -63,7 +63,8 @@ export function createBouncingBall(
 export function createPlatform(
 	world: World,
 	position: THREE.Vector3,
-	size: THREE.Vector3 = new THREE.Vector3(5, 0.5, 5)
+	size: THREE.Vector3 = new THREE.Vector3(5, 0.5, 5),
+	color: string = '#8BC34A'
 ): Entity {
 	const platform = world.spawn(
 		Transform({
@@ -98,8 +99,19 @@ export function createPlatform(
 			isGrounded: true,
 			groundNormal: new THREE.Vector3(0, 1, 0),
 			lastGroundedTime: 0,
+		}),
+		CollisionEventsWithDefaults({
+			onCollisionEnter: new Set([() => material.color.set('#ff0000')]),
+			onCollisionExit: new Set([() => material.color.set(color)]),
 		})
 	);
+
+	// Add Mesh for platform
+	const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+	const material = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.7 });
+	const mesh = new THREE.Mesh(geometry, material);
+	platform.add(Ref(mesh));
+
 	return platform;
 }
 
