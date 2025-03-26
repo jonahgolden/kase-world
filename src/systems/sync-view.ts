@@ -1,5 +1,5 @@
 import { World } from 'koota';
-import { Transform, Ref } from '../traits';
+import { Ref, Transform } from '../traits';
 
 export function syncView(world: World) {
 	world.query(Transform, Ref).updateEach(([transform, view]) => {
