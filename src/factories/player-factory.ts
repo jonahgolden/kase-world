@@ -62,7 +62,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 		// 	type: ColliderType.BOX,
 		// 	radius: 0,
 		// 	height: 0,
-		// 	size: new THREE.Vector3(2.6, 0.75, 0.4),
+		// 	size: new THREE.Vector3(0.5, 0.75, 0.4),
 		// 	offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
 		// 	layer: CollisionLayer.CHARACTER,
 		// 	mask: CollisionLayer.ALL, // Collides with all layers

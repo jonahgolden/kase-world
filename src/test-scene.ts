@@ -1,6 +1,7 @@
 import { World } from 'koota';
 import * as THREE from 'three';
 import { createPlatform } from './factories/test-objects';
+import { Transform } from './traits';
 
 export function setupTestScene(world: World) {
 	// Create terrain pieces for collision testing
@@ -17,17 +18,17 @@ export function setupTestScene(world: World) {
 	createPlatform(world, new THREE.Vector3(-10, 2, 4), new THREE.Vector3(8, 4, 0.5)); // Back wall
 
 	// Elevated platform for testing jumping/falling
-	createPlatform(world, new THREE.Vector3(-3, 2, -4), new THREE.Vector3(6, 0.5, 6));
+	createPlatform(world, new THREE.Vector3(-3, 3, -4), new THREE.Vector3(6, 0.5, 6));
 	// createGiantChickenNPC({
 	// 	world,
 	// 	position: new THREE.Vector3(-2, 4, 0),
 	// 	rotation: new THREE.Euler(0, Math.PI / 3, 0), // Face center
 	// });
 
-	// // Ramp for testing angled collisions
-	// createPlatform(world, new THREE.Vector3(-15, 2, 0), new THREE.Vector3(10, 0.5, 8)).get(
-	// 	Transform
-	// )!.rotation.z = Math.PI / 6; // 30-degree ramp
+	// Ramp for testing angled collisions
+	createPlatform(world, new THREE.Vector3(-15, 2, 0), new THREE.Vector3(10, 0.5, 8)).get(
+		Transform
+	)!.rotation.z = Math.PI / 6; // 30-degree ramp
 
 	// // Create entities in a semicircle for easy viewing
 	// const radius = 10; // Distance from center
