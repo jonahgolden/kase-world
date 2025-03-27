@@ -9,7 +9,7 @@ import { Transform } from './traits';
 export function setupTestScene(world: World) {
 	// Create terrain pieces for collision testing
 	// Main ground platform
-	createPlatform(world, new THREE.Vector3(0, 0.125, 0), new THREE.Vector3(50, 0.25, 50));
+	createPlatform(world, new THREE.Vector3(0, -0.125, 0), new THREE.Vector3(50, 0.25, 50));
 
 	// Walls for testing vertical collisions
 	createPlatform(world, new THREE.Vector3(0, 2, -5), new THREE.Vector3(8, 4, 0.5)); // Front wall

@@ -13,6 +13,7 @@ const BASE_CORRECTION_SCALE = 1.0; // Reduced from 2.0 to make corrections less 
 const CORRECTION_FALLOFF = 0.5; // How quickly correction reduces per iteration
 const RESTING_VELOCITY_THRESHOLD = 0.1; // Threshold for considering a collision as a resting contact
 const MIN_BOUNCE_VELOCITY = 0.2; // Minimum velocity required for bounce response
+const VERTICAL_COLLISION_THRESHOLD = 0.7; // ~45 degree angle threshold for vertical collisions
 
 // Reusable vectors to avoid allocations
 const tempVecA = new THREE.Vector3();
@@ -108,7 +109,7 @@ function applyCollisionResponse({
 				entityA.movement.velocity.sub(normalVelocity);
 
 				// Set isGrounded if vertical collision and low velocity
-				const verticalCollision = Math.abs(normal.y) > 0.7;
+				const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
 				if (verticalCollision && Math.abs(entityA.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD) {
 					const physics = entityA.entity.get(PhysicsBody);
 					if (physics) {
@@ -143,7 +144,7 @@ function applyCollisionResponse({
 				entityB.movement.velocity.sub(normalVelocity);
 
 				// Set isGrounded if vertical collision and low velocity
-				const verticalCollision = Math.abs(normal.y) > 0.7;
+				const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
 				if (verticalCollision && Math.abs(entityB.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD) {
 					const physics = entityB.entity.get(PhysicsBody);
 					if (physics) {
@@ -663,4 +664,29 @@ function projectPointOnLine(
 	// Clamp to line segment
 	const t = Math.max(0, Math.min(len, dot));
 	return lineStart.clone().add(line.multiplyScalar(t));
+}
+
+// Calculate capsule-to-point normal
+// Currently not used, but could be used to improve the normal calculation
+function capsuleToPointNormal(
+	capsulePos: THREE.Vector3,
+	worldClosestPoint: THREE.Vector3,
+	boxRotationMatrix: THREE.Matrix4
+) {
+	const capsuleToPoint = new THREE.Vector3().subVectors(capsulePos, worldClosestPoint);
+	const capsuleNormal = capsuleToPoint.clone().normalize();
+
+	// Approximate surface normal by using the box's up vector transformed by its rotation
+	const boxUp = new THREE.Vector3(0, 1, 0).applyMatrix4(boxRotationMatrix);
+
+	// Blend between capsule normal and surface normal based on how vertical the collision is
+	// The more vertical the capsule-to-point normal is, the more we use the surface normal
+	const verticalAlignment = Math.abs(capsuleNormal.dot(boxUp));
+
+	// How much to blend with surface normal
+	// Higher values (closer to 1.0) will make the normal more closely match the surface angle
+	// Lower values (closer to 0.0) will keep the original capsule-to-point behavior
+	const blendFactor = 0.0;
+
+	return capsuleNormal.lerp(boxUp, verticalAlignment * blendFactor).normalize();
 }
