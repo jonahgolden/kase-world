@@ -13,6 +13,8 @@ useGLTF.preload(babyRiggedModelUrl);
 
 type AnimationMode = 'crawl-idle' | 'crawl' | 'walk-idle' | 'walk';
 
+export const PLAYER_SCALE = 0.4;
+
 export function PlayerView({ entity }: { entity: Entity }) {
 	const groupRef = useRef<THREE.Group | null>(null);
 	const { scene, animations } = useGLTF(babyRiggedModelUrl);
@@ -124,7 +126,7 @@ export function PlayerView({ entity }: { entity: Entity }) {
 			<group
 				position={[0, 0, 0]}
 				rotation={[0, Math.PI, 0]} // Rotate 180 degrees around Y axis so model is facing the correct way
-				scale={[0.4, 0.4, 0.4]} // Scale the model to appropriate size
+				scale={[PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE]} // Scale the model to appropriate size
 			>
 				<primitive object={scene} />
 			</group>

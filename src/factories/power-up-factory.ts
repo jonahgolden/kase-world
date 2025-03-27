@@ -1,58 +1,63 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Collider, ColliderType, CollisionEvents, CollisionLayer } from '../traits/collider';
-import { Health } from '../traits/health';
-import { Transform } from '../traits/transform';
+import { Collider, ColliderType, CollisionEvents, CollisionLayer, Ref, Transform } from '../traits';
+import { PowerUp, PowerUpType } from '../traits/power-up';
 
-export interface PowerUpProps {
-	world: World;
-	position?: THREE.Vector3;
-	rotation?: THREE.Euler;
-	scale?: THREE.Vector3;
-	activationHealth?: number; // Health needed to be depleted for activation
-	respawnDelay?: number; // Time in seconds before respawning
+export { PowerUpType } from '../traits/power-up';
+
+const HEALTH_POWERUP_COLOR = '#F44336'; // Red
+const SPEED_POWERUP_COLOR = '#2196F3'; // Blue
+const STRENGTH_POWERUP_COLOR = '#FFC107'; // Yellow
+const INVINCIBILITY_POWERUP_COLOR = '#9C27B0'; // Purple
+
+function getPowerUpColor(type: PowerUpType): string {
+	switch (type) {
+		case PowerUpType.HEALTH:
+			return HEALTH_POWERUP_COLOR;
+		case PowerUpType.SPEED:
+			return SPEED_POWERUP_COLOR;
+		case PowerUpType.STRENGTH:
+			return STRENGTH_POWERUP_COLOR;
+		case PowerUpType.INVINCIBILITY:
+			return INVINCIBILITY_POWERUP_COLOR;
+	}
 }
 
-/**
- * Creates a base power-up entity with common traits
- * Properties:
- * - Floats in place
- * - Can be affected by baby's scream
- * - Requires multiple hits to activate
- * - Visual feedback for activation progress
- */
-export function createBasePowerUp({
-	world,
-	position = new THREE.Vector3(),
-	rotation = new THREE.Euler(),
-	scale = new THREE.Vector3(1, 1, 1),
-	activationHealth = 100,
-	respawnDelay = 30,
-}: PowerUpProps): Entity {
-	return world.spawn(
+export function createPowerUp(world: World, position: THREE.Vector3, type: PowerUpType): Entity {
+	const entity = world.spawn(
 		Transform({
 			position: position.clone(),
-			rotation: rotation.clone(),
-			scale: scale.clone(),
-		}),
-		Health({
-			current: activationHealth,
-			max: activationHealth,
-			invulnerabilityTimer: 0,
-			isDamaged: false,
+			rotation: new THREE.Euler(),
+			scale: new THREE.Vector3(0.5, 0.5, 0.5),
 		}),
 		Collider({
 			type: ColliderType.SPHERE,
 			radius: 0.5,
-			size: new THREE.Vector3(1, 1, 1),
 			height: 1,
-			offset: new THREE.Vector3(0, 0.5, 0),
+			size: new THREE.Vector3(1, 1, 1),
+			offset: new THREE.Vector3(0, 0, 0),
 			layer: CollisionLayer.POWERUP,
 			mask: CollisionLayer.CHARACTER,
-			isTrigger: true,
 			friction: 0,
 			restitution: 0,
+			isTrigger: true,
 		}),
-		CollisionEvents()
+		CollisionEvents(),
+		PowerUp({ type })
 	);
+
+	// Add mesh with glow effect
+	const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+	const material = new THREE.MeshStandardMaterial({
+		color: getPowerUpColor(type),
+		emissive: getPowerUpColor(type),
+		emissiveIntensity: 0.5,
+		transparent: true,
+		opacity: 0.8,
+	});
+	const mesh = new THREE.Mesh(geometry, material);
+	mesh.position.y = 0.5; // Match collider offset
+	entity.add(Ref(mesh));
+
+	return entity;
 }

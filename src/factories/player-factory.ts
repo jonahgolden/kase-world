@@ -1,6 +1,7 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
 import { PLAYER_BASE_THRUST, PLAYER_SPAWN_POSITION } from '../actions';
+import { PLAYER_SCALE } from '../components/player-renderer';
 import {
 	Collider,
 	ColliderType,
@@ -48,10 +49,10 @@ export function createPlayerEntity({ world }: Props): Entity {
 		Scream(), // Add scream trait with default values
 		Collider({
 			type: ColliderType.CAPSULE,
-			radius: 0.2,
-			height: 0.4,
-			size: new THREE.Vector3(0.8, 1.0, 0.8),
-			offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
+			radius: PLAYER_SCALE / 2,
+			height: PLAYER_SCALE,
+			size: new THREE.Vector3(0, 0, 0),
+			offset: new THREE.Vector3(0, PLAYER_SCALE, 0), // Slightly higher offset
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.ALL, // Collides with all layers
 			friction: 0.3,

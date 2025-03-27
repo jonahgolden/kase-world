@@ -1,7 +1,7 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
 import { Movement, Ref, Transform } from '../traits';
-import { Collider, ColliderType, CollisionEventsWithDefaults, CollisionLayer } from '../traits/collider';
+import { Collider, ColliderType, CollisionLayer } from '../traits/collider';
 import { PhysicsBody } from '../traits/physics-body';
 
 /**
@@ -13,7 +13,7 @@ export function createBouncingBall(
 	radius: number = 0.5,
 	color: string = '#ff0000'
 ): Entity {
-	const ball = world.spawn(
+	const entity = world.spawn(
 		Transform({
 			position: position.clone(),
 			rotation: new THREE.Euler(),
@@ -54,65 +54,14 @@ export function createBouncingBall(
 			force: new THREE.Vector3(),
 		})
 	);
-	return ball;
-}
 
-/**
- * Creates a static platform/terrain piece
- */
-export function createPlatform(
-	world: World,
-	position: THREE.Vector3,
-	size: THREE.Vector3 = new THREE.Vector3(5, 0.5, 5),
-	color: string = '#8BC34A'
-): Entity {
-	const platform = world.spawn(
-		Transform({
-			position: position.clone(),
-			rotation: new THREE.Euler(),
-			scale: new THREE.Vector3(1, 1, 1),
-		}),
-		Collider({
-			type: ColliderType.BOX,
-			size: size.clone(),
-			radius: 0,
-			height: size.y,
-			offset: new THREE.Vector3(),
-			layer: CollisionLayer.TERRAIN,
-			mask: CollisionLayer.CHARACTER,
-			isTrigger: false,
-			friction: 0.5,
-			restitution: 0.3,
-		}),
-		PhysicsBody({
-			mass: 0,
-			drag: 0,
-			gravity: false,
-			gravityScale: 0,
-			isKinematic: false,
-			isStatic: true,
-			constraints: { x: true, y: true, z: true },
-			terminalVelocity: 0,
-			groundFriction: 0.8,
-			restitution: 0.3,
-			forces: new THREE.Vector3(),
-			isGrounded: true,
-			groundNormal: new THREE.Vector3(0, 1, 0),
-			lastGroundedTime: 0,
-		}),
-		CollisionEventsWithDefaults({
-			onCollisionEnter: new Set([() => material.color.set('#ff0000')]),
-			onCollisionExit: new Set([() => material.color.set(color)]),
-		})
-	);
-
-	// Add Mesh for platform
-	const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
-	const material = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.7 });
+	// Add mesh
+	const geometry = new THREE.SphereGeometry(radius, 16, 16);
+	const material = new THREE.MeshStandardMaterial({ color });
 	const mesh = new THREE.Mesh(geometry, material);
-	platform.add(Ref(mesh));
+	entity.add(Ref(mesh));
 
-	return platform;
+	return entity;
 }
 
 /**
@@ -123,7 +72,7 @@ export function createDynamicBox(
 	position: THREE.Vector3,
 	size: THREE.Vector3 = new THREE.Vector3(1, 1, 1)
 ): Entity {
-	const box = world.spawn(
+	const entity = world.spawn(
 		Transform({
 			position: position.clone(),
 			rotation: new THREE.Euler(),
@@ -164,35 +113,12 @@ export function createDynamicBox(
 			force: new THREE.Vector3(),
 		})
 	);
-	return box;
-}
 
-/**
- * Creates a trigger volume that detects when objects enter/exit
- */
-export function createTriggerZone(
-	world: World,
-	position: THREE.Vector3,
-	size: THREE.Vector3 = new THREE.Vector3(2, 2, 2)
-): Entity {
-	const trigger = world.spawn(
-		Transform({
-			position: position.clone(),
-			rotation: new THREE.Euler(),
-			scale: new THREE.Vector3(1, 1, 1),
-		}),
-		Collider({
-			type: ColliderType.BOX,
-			size: size.clone(),
-			radius: 0,
-			height: size.y,
-			offset: new THREE.Vector3(),
-			layer: CollisionLayer.TERRAIN,
-			mask: CollisionLayer.CHARACTER,
-			isTrigger: true,
-			friction: 0,
-			restitution: 0,
-		})
-	);
-	return trigger;
+	// Add mesh
+	const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+	const material = new THREE.MeshStandardMaterial({ color: '#8B4513' }); // Saddle brown
+	const mesh = new THREE.Mesh(geometry, material);
+	entity.add(Ref(mesh));
+
+	return entity;
 }

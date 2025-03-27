@@ -8,7 +8,7 @@ import { CollisionPair, SpatialHashGrid } from '../utils/spatial-hash-grid';
 // Constants
 const SPATIAL_HASH_CELL_SIZE = 5; // Size of the cells in the spatial hash grid
 const EXTRA_SEPARATION = 0; // Additional Separation for penetration resolution
-const MAX_COLLISION_ITERATIONS = 3; // Maximum number of collision resolution iterations
+const MAX_COLLISION_ITERATIONS = 10; // Maximum number of collision resolution iterations
 const BASE_CORRECTION_SCALE = 1.0; // Reduced from 2.0 to make corrections less aggressive
 const CORRECTION_FALLOFF = 0.5; // How quickly correction reduces per iteration
 const RESTING_VELOCITY_THRESHOLD = 0.1; // Threshold for considering a collision as a resting contact

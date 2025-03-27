@@ -94,58 +94,16 @@ export function CollisionDebugRenderer({ enabled = false }: { enabled?: boolean 
 					})
 				);
 			} else if (collider.type === ColliderType.CAPSULE) {
-				// Create a capsule wireframe (sphere at top, sphere at bottom, cylinder in middle)
-				const group = new THREE.Group();
-
-				// Top sphere
-				const topSphereGeometry = new THREE.SphereGeometry(collider.radius, 16, 12);
-				const topSphereWireframe = new THREE.WireframeGeometry(topSphereGeometry);
-				const topSphere = new THREE.LineSegments(
-					topSphereWireframe,
+				const geometry = new THREE.CapsuleGeometry(collider.radius, collider.height, 8, 16);
+				const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+				wireframe = new THREE.LineSegments(
+					wireframeGeometry,
 					new THREE.LineBasicMaterial({
 						color: collider.isTrigger ? 0x00ffff : 0xff0000,
 						transparent: true,
 						opacity: 0.5,
 					})
 				);
-				topSphere.position.y = collider.height / 2;
-				group.add(topSphere);
-
-				// Bottom sphere
-				const bottomSphereGeometry = new THREE.SphereGeometry(collider.radius, 16, 12);
-				const bottomSphereWireframe = new THREE.WireframeGeometry(bottomSphereGeometry);
-				const bottomSphere = new THREE.LineSegments(
-					bottomSphereWireframe,
-					new THREE.LineBasicMaterial({
-						color: collider.isTrigger ? 0x00ffff : 0xff0000,
-						transparent: true,
-						opacity: 0.5,
-					})
-				);
-				bottomSphere.position.y = -collider.height / 2;
-				group.add(bottomSphere);
-
-				// Cylinder
-				const cylinderGeometry = new THREE.CylinderGeometry(
-					collider.radius,
-					collider.radius,
-					collider.height,
-					16,
-					1,
-					true
-				);
-				const cylinderWireframe = new THREE.WireframeGeometry(cylinderGeometry);
-				const cylinder = new THREE.LineSegments(
-					cylinderWireframe,
-					new THREE.LineBasicMaterial({
-						color: collider.isTrigger ? 0x00ffff : 0xff0000,
-						transparent: true,
-						opacity: 0.5,
-					})
-				);
-				group.add(cylinder);
-
-				wireframe = group;
 			}
 
 			if (wireframe) {

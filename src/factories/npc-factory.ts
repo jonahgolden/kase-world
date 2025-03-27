@@ -1,23 +1,33 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Collider, ColliderType, CollisionEvents, CollisionLayer } from '../traits/collider';
-import { Health } from '../traits/health';
-import { Movement } from '../traits/movement';
+import {
+	Collider,
+	ColliderType,
+	CollisionEvents,
+	CollisionLayer,
+	Health,
+	Movement,
+	Ref,
+	Transform,
+} from '../traits';
 import { PhysicsBody } from '../traits/physics-body';
-import { Transform } from '../traits/transform';
+
+// Character colors
+const DEFAULT_COLOR = '#9C27B0'; // Purple
+const GIANT_CHICKEN_COLOR = '#FFE082'; // Yellow
+const HUMAN_NPC_COLOR = '#90CAF9'; // Light Blue
+const CENTAUR_NPC_COLOR = '#A1887F'; // Brown
 
 export interface NPCProps {
 	world: World;
+	scaleFactor?: number;
+	color?: string;
 	position?: THREE.Vector3;
 	rotation?: THREE.Euler;
-	scale?: THREE.Vector3;
 	health?: number;
 	maxHealth?: number;
-	colliderSize?: THREE.Vector3;
-	colliderOffset?: THREE.Vector3;
 	mass?: number;
 	speed?: number;
-	damage?: number;
 }
 
 /**
@@ -25,22 +35,20 @@ export interface NPCProps {
  */
 export function createBaseNPC({
 	world,
-	position = new THREE.Vector3(),
-	rotation = new THREE.Euler(),
-	scale = new THREE.Vector3(1, 1, 1),
+	scaleFactor = 1,
+	color = DEFAULT_COLOR,
+	position = new THREE.Vector3(0, 0, 0),
+	rotation = new THREE.Euler(0, 0, 0),
 	health = 100,
 	maxHealth = 100,
-	colliderSize = new THREE.Vector3(1, 2, 1),
-	colliderOffset = new THREE.Vector3(0, 1, 0),
 	mass = 1,
 	speed = 5,
-	damage = 10,
 }: NPCProps): Entity {
-	return world.spawn(
+	const entity = world.spawn(
 		Transform({
 			position: position.clone(),
 			rotation: rotation.clone(),
-			scale: scale.clone(),
+			scale: new THREE.Vector3(1, 1, 1),
 		}),
 		Health({
 			current: health,
@@ -50,10 +58,10 @@ export function createBaseNPC({
 		}),
 		Collider({
 			type: ColliderType.CAPSULE,
-			radius: colliderSize.x / 2,
-			height: colliderSize.y,
-			size: colliderSize.clone(),
-			offset: colliderOffset.clone(),
+			radius: scaleFactor / 2,
+			height: scaleFactor,
+			size: new THREE.Vector3(0, 0, 0), // For Boxes , but required
+			offset: new THREE.Vector3(),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.CHARACTER | CollisionLayer.TERRAIN,
 			isTrigger: false,
@@ -84,4 +92,33 @@ export function createBaseNPC({
 		}),
 		CollisionEvents()
 	);
+
+	// Add mesh
+	const geometry = new THREE.CapsuleGeometry(scaleFactor / 2, scaleFactor, 4, 8);
+	const material = new THREE.MeshStandardMaterial({ color });
+	const mesh = new THREE.Mesh(geometry, material);
+
+	entity.add(Ref(mesh));
+
+	return entity;
+}
+
+export function createGiantChicken(world: World, position: THREE.Vector3): Entity {
+	return createBaseNPC({
+		world,
+		position,
+		scaleFactor: 2,
+		color: GIANT_CHICKEN_COLOR,
+	});
+}
+
+export function createHumanNPC(world: World, position: THREE.Vector3, isLarge: boolean = false): Entity {
+	const scale = isLarge ? 1.5 : 0.8;
+
+	return createBaseNPC({
+		world,
+		position,
+		scaleFactor: scale,
+		color: HUMAN_NPC_COLOR,
+	});
 }
