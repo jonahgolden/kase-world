@@ -1,8 +1,8 @@
 import { World } from 'koota';
 import * as THREE from 'three';
+import { createPlatform } from './factories/environment/terrain-factory';
 import { createGiantChicken, createHumanNPC } from './factories/npc-factory';
 import { createPowerUp, PowerUpType } from './factories/power-up-factory';
-import { createPlatform } from './factories/terrain-factory';
 import { createVehicle, VehicleType } from './factories/vehicle-factory';
 import { Transform } from './traits';
 

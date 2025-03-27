@@ -12,7 +12,6 @@ import { syncView } from './systems/sync-view';
 import { testDamageSystem } from './systems/test-damage-system';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
 import { updateTime } from './systems/update-time';
-import { setupTestScene } from './test-scene';
 
 const FPS = 60; // Set your desired FPS here
 const FRAME_TIME = 1000 / FPS; // Time per frame in milliseconds
@@ -21,7 +20,7 @@ export function GameLoop() {
 	const world = useWorld();
 	let lastFrameTime = 0;
 
-	setupTestScene(world);
+	// setupTestScene(world);
 
 	useFrame(() => {
 		const currentTime = performance.now();

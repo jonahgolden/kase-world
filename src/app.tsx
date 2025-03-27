@@ -35,8 +35,8 @@ export function App() {
 
 	return (
 		<>
-			<Canvas style={{ background: 'white' }} shadows={false} gl={{ alpha: false }}>
-				<color attach="background" args={[new Color('#f0f0f0')]} />
+			<Canvas style={{ background: 'white' }} shadows={true} gl={{ alpha: false }}>
+				<color attach="background" args={[new Color('#87CEEB')]} />
 				<Startup initialCameraPosition={[0, 1.5, 4]} />
 				<GameLoop />
 
@@ -46,9 +46,21 @@ export function App() {
 				<CollisionObjectsRenderer />
 				<CollisionDebugRenderer enabled={true} />
 
-				<ambientLight intensity={1.02} />
-				<directionalLight position={[10.41789, -5.97702, 10]} intensity={1.5} color={'#ffffff'} />
-				<directionalLight position={[10.55754, 5.89323, 9.99894]} intensity={2.0} color={'#ffffff'} />
+				<ambientLight intensity={0.5} color="#ffffff" />
+				<directionalLight
+					position={[50, 50, 25]}
+					intensity={1.0}
+					castShadow
+					shadow-mapSize-width={2048}
+					shadow-mapSize-height={2048}
+					shadow-camera-far={100}
+					shadow-camera-left={-50}
+					shadow-camera-right={50}
+					shadow-camera-top={50}
+					shadow-camera-bottom={-50}
+				/>
+				<hemisphereLight intensity={0.3} color="#ffffff" groundColor="#8d7b68" />
+				<fog attach="fog" args={['#87CEEB', 50, 200]} />
 			</Canvas>
 
 			{/* UI components outside Canvas */}

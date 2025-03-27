@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useActions, useWorld } from 'koota/react';
 import { useEffect } from 'react';
 import { actions } from './actions';
+import { setupEnvironment } from './systems/environment-system';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
 
 export function Startup({
@@ -13,10 +14,13 @@ export function Startup({
 	const world = useWorld();
 
 	useEffect(() => {
+		// Set up the environment
+		setupEnvironment(world);
+
 		// Spawn camera for third-person view
 		spawnCamera(initialCameraPosition);
 
-		// Spawn baby entity instead of regular player
+		// Spawn main player
 		const player = spawnPlayer();
 
 		return () => {
