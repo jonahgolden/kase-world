@@ -6,6 +6,8 @@ import { PhysicsBody } from '../traits/physics-body';
 // Physics constants
 const GRAVITY = new THREE.Vector3(0, -9.8, 0);
 const MINIMUM_HORIZONTAL_VELOCITY = 0.01; // Minimum horizontal velocity before velocity goes to 0.  Anything above this is considered moving and friction is applied
+const RESTING_THRESHOLD = 0.1; // Velocity threshold for considering an object at rest
+const RESTING_GRAVITY_SCALE = 0.2; // Reduced gravity scale when object is nearly at rest
 
 // Reusable vectors to avoid allocations
 const tempVec3 = new THREE.Vector3();
@@ -36,9 +38,13 @@ export function physicsSystem(world: World) {
 
 		// Apply accumulated forces
 		if (!physics.isKinematic) {
-			// Apply gravity if enabled
+			// Check if object is nearly at rest
+			const isNearlyAtRest = Math.abs(movement.velocity.y) < RESTING_THRESHOLD && physics.isGrounded;
+
+			// Apply gravity if enabled, with reduced scale when nearly at rest
 			if (physics.gravity) {
-				tempVec3.copy(GRAVITY).multiplyScalar(physics.gravityScale * delta);
+				const gravityScale = isNearlyAtRest ? RESTING_GRAVITY_SCALE : physics.gravityScale;
+				tempVec3.copy(GRAVITY).multiplyScalar(gravityScale * delta);
 				movement.velocity.add(tempVec3);
 			}
 

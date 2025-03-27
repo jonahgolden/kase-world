@@ -24,7 +24,7 @@ We'll implement the systems in the following order to manage dependencies approp
 4. **Health and Damage System**
 
    - Manages entity health, damage application, and death
-   - Required for: baby health, NPC damage, power-up effects
+   - Required for: player health, NPC damage, power-up effects
 
 5. **Interaction System**
 
@@ -32,7 +32,7 @@ We'll implement the systems in the following order to manage dependencies approp
    - Required for: power-up collection, vehicle entry/exit, object interaction
 
 6. **Ability System**
-   - Manages special abilities like the baby's scream
+   - Manages special abilities like the player's scream
    - Required for: scream attack, special moves, power-up usage
 
 ## Detailed Implementation Plans

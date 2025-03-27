@@ -9,8 +9,10 @@ import { CollisionPair, SpatialHashGrid } from '../utils/spatial-hash-grid';
 const SPATIAL_HASH_CELL_SIZE = 5; // Size of the cells in the spatial hash grid
 const EXTRA_SEPARATION = 0; // Additional Separation for penetration resolution
 const MAX_COLLISION_ITERATIONS = 3; // Maximum number of collision resolution iterations
-const BASE_CORRECTION_SCALE = 2.0; // Base scale for correction (1.0 = full correction on first iteration)
-const CORRECTION_FALLOFF = 0.5; // How quickly correction reduces per iteration (1.0 = linear, 2.0 = quadratic, 0.5 = square root)
+const BASE_CORRECTION_SCALE = 1.0; // Reduced from 2.0 to make corrections less aggressive
+const CORRECTION_FALLOFF = 0.5; // How quickly correction reduces per iteration
+const RESTING_VELOCITY_THRESHOLD = 0.1; // Threshold for considering a collision as a resting contact
+const MIN_BOUNCE_VELOCITY = 0.2; // Minimum velocity required for bounce response
 
 // Reusable vectors to avoid allocations
 const tempVecA = new THREE.Vector3();
@@ -63,6 +65,15 @@ function applyCollisionResponse({
 	// Regular collision response
 	const totalCorrection = (penetrationDepth + EXTRA_SEPARATION) * iterationScale;
 
+	// Calculate relative velocity for resting contact detection
+	const relativeVelocity = new THREE.Vector3();
+	if (entityA.movement) relativeVelocity.sub(entityA.movement.velocity);
+	if (entityB.movement) relativeVelocity.add(entityB.movement.velocity);
+	const normalVelocity = relativeVelocity.dot(normal);
+
+	// Detect if this is a resting contact
+	const isRestingContact = Math.abs(normalVelocity) < RESTING_VELOCITY_THRESHOLD;
+
 	// Calculate how to distribute the penetration correction
 	let ratioA = 0.5;
 	let ratioB = 0.5;
@@ -91,9 +102,26 @@ function applyCollisionResponse({
 
 		if (entityA.movement) {
 			const dot = entityA.movement.velocity.dot(normal);
-			if (dot < 0) {
+			if (dot < 0 && Math.abs(dot) > MIN_BOUNCE_VELOCITY) {
+				// Only bounce if velocity is above threshold
 				const normalVelocity = normal.clone().multiplyScalar(dot);
 				entityA.movement.velocity.sub(normalVelocity);
+
+				// Set isGrounded if vertical collision and low velocity
+				const verticalCollision = Math.abs(normal.y) > 0.7;
+				if (verticalCollision && Math.abs(entityA.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD) {
+					const physics = entityA.entity.get(PhysicsBody);
+					if (physics) {
+						physics.isGrounded = true;
+						entityA.entity.set(PhysicsBody, physics);
+					}
+				}
+
+				entityA.entity.set(Movement, entityA.movement);
+			} else if (isRestingContact) {
+				// For resting contacts, zero out the velocity in the normal direction
+				const normalVel = normal.clone().multiplyScalar(dot);
+				entityA.movement.velocity.sub(normalVel);
 				entityA.entity.set(Movement, entityA.movement);
 			}
 		}
@@ -109,9 +137,26 @@ function applyCollisionResponse({
 
 		if (entityB.movement) {
 			const dot = entityB.movement.velocity.dot(normal);
-			if (dot < 0) {
+			if (dot < 0 && Math.abs(dot) > MIN_BOUNCE_VELOCITY) {
+				// Only bounce if velocity is above threshold
 				const normalVelocity = normal.clone().multiplyScalar(dot);
 				entityB.movement.velocity.sub(normalVelocity);
+
+				// Set isGrounded if vertical collision and low velocity
+				const verticalCollision = Math.abs(normal.y) > 0.7;
+				if (verticalCollision && Math.abs(entityB.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD) {
+					const physics = entityB.entity.get(PhysicsBody);
+					if (physics) {
+						physics.isGrounded = true;
+						entityB.entity.set(PhysicsBody, physics);
+					}
+				}
+
+				entityB.entity.set(Movement, entityB.movement);
+			} else if (isRestingContact) {
+				// For resting contacts, zero out the velocity in the normal direction
+				const normalVel = normal.clone().multiplyScalar(dot);
+				entityB.movement.velocity.sub(normalVel);
 				entityB.entity.set(Movement, entityB.movement);
 			}
 		}
