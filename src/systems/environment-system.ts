@@ -23,6 +23,8 @@ export function setupEnvironment(world: World) {
 	createRockFormations(world, new THREE.Vector3(-30, 0, 30), 10);
 	createRockFormations(world, new THREE.Vector3(20, 0, 40), 8);
 
+	createRockFormations(world, new THREE.Vector3(10, 0, -10), 4);
+
 	// Add scattered bushes
 	for (let i = 0; i < 50; i++) {
 		const x = (Math.random() - 0.5) * 160; // Spread across terrain

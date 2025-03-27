@@ -110,22 +110,14 @@ export function createRock(world: World, position: THREE.Vector3, scale: number 
 		})
 	);
 
-	// Create rock mesh with random variations
-	const rockGeometry = new THREE.DodecahedronGeometry(0.8);
-
-	// Add some random variations to vertices
-	const vertices = rockGeometry.attributes.position.array;
-	for (let i = 0; i < vertices.length; i += 3) {
-		vertices[i] += (Math.random() - 0.5) * 0.2;
-		vertices[i + 1] += (Math.random() - 0.5) * 0.2;
-		vertices[i + 2] += (Math.random() - 0.5) * 0.2;
-	}
-	rockGeometry.computeVertexNormals();
+	// Create rock mesh with basic dodecahedron shape
+	const rockGeometry = new THREE.DodecahedronGeometry(0.8, 0);
 
 	const rockMaterial = new THREE.MeshStandardMaterial({
 		color: ROCK_COLORS[Math.floor(Math.random() * ROCK_COLORS.length)],
 		roughness: 0.8,
 		metalness: 0.2,
+		flatShading: true, // Keep flat shading for rocky look
 	});
 
 	const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
