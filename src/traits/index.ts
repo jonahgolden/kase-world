@@ -12,5 +12,6 @@ export * from './ref';
 export * from './scream';
 export * from './spatial-hash-map';
 export * from './spatial-tracking';
+export * from './system-timing';
 export * from './time';
 export * from './transform';
