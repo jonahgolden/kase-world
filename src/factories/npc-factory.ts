@@ -1,8 +1,7 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
 import {
-	Collider,
-	ColliderType,
+	CapsuleCollider,
 	CollisionEvents,
 	CollisionLayer,
 	Health,
@@ -56,15 +55,11 @@ export function createBaseNPC({
 			invulnerabilityTimer: 0,
 			isDamaged: false,
 		}),
-		Collider({
-			type: ColliderType.CAPSULE,
+		CapsuleCollider({
 			radius: scaleFactor / 2,
 			height: scaleFactor,
-			size: new THREE.Vector3(0, 0, 0), // For Boxes , but required
-			offset: new THREE.Vector3(),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.CHARACTER | CollisionLayer.TERRAIN,
-			isTrigger: false,
 			friction: 0.3,
 			restitution: 0.1,
 		}),

@@ -1,10 +1,12 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Ref, Transform } from '../../traits';
-import { Collider, ColliderType, CollisionLayer } from '../../traits/collider';
+import { BoxCollider, CollisionLayer, HeightfieldCollider, Ref, Transform } from '../../traits';
 import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
 
-const TERRAIN_COLOR = '#8BC34A';
+const GRASS_LIGHT = '#8BC34A'; // Lighter grass color
+const GRASS_DARK = '#4a8505'; // Darker grass color
+const DIRT = '#8B4513'; // Dirt color
+const SAND = '#F4A460'; // Sand color
 
 // Constants for terrain generation
 const TERRAIN_SEGMENTS = 128; // Number of segments in the terrain grid
@@ -49,7 +51,7 @@ export function createTerrain(world: World): Entity {
 
 	// Create terrain material with grass-like appearance
 	const material = new THREE.MeshStandardMaterial({
-		color: '#4a8505', // Base grass color
+		color: GRASS_DARK,
 		roughness: 0.8,
 		metalness: 0.1,
 		flatShading: false,
@@ -64,21 +66,16 @@ export function createTerrain(world: World): Entity {
 			rotation: new THREE.Euler(),
 			scale: new THREE.Vector3(1, 1, 1),
 		}),
-		Collider({
-			type: ColliderType.HEIGHTFIELD,
-			size: new THREE.Vector3(TERRAIN_SIZE, maxHeight - minHeight, TERRAIN_SIZE),
-			layer: CollisionLayer.TERRAIN,
-			mask: CollisionLayer.ALL,
-			isTrigger: false,
-			radius: 0,
-			height: 0,
-			offset: new THREE.Vector3(0, 0, 0),
-			friction: 0.3,
-			restitution: 0.1,
+		HeightfieldCollider({
 			heightData: heightData,
 			resolution: TERRAIN_SEGMENTS + 1,
 			minHeight: minHeight,
 			maxHeight: maxHeight,
+			size: new THREE.Vector3(TERRAIN_SIZE, maxHeight - minHeight, TERRAIN_SIZE),
+			layer: CollisionLayer.TERRAIN,
+			mask: CollisionLayer.ALL,
+			friction: 0.3,
+			restitution: 0.1,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,
@@ -100,20 +97,12 @@ export function createPlatform(world: World, position: THREE.Vector3, size: THRE
 			rotation: new THREE.Euler(),
 			scale: new THREE.Vector3(1, 1, 1),
 		}),
-		Collider({
-			type: ColliderType.BOX,
+		BoxCollider({
 			size: size.clone(),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			isTrigger: false,
-			radius: 0,
-			height: size.y,
-			offset: new THREE.Vector3(0, 0, 0),
 			friction: 0.3,
 			restitution: 0.1,
-			resolution: 1,
-			minHeight: 0,
-			maxHeight: size.y,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,
@@ -124,7 +113,7 @@ export function createPlatform(world: World, position: THREE.Vector3, size: THRE
 	// Create mesh
 	const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
 	const material = new THREE.MeshStandardMaterial({
-		color: '#8B4513', // Saddle brown color
+		color: DIRT, // Saddle brown color
 		roughness: 0.9,
 		metalness: 0.1,
 	});

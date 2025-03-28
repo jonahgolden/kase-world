@@ -1,6 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Collider, ColliderType, CollisionLayer, Ref, Transform } from '../traits';
+import { BoxCollider, CollisionLayer, Ref, Transform } from '../traits';
 
 const TRIGGER_ZONE_COLOR = '#B39DDB';
 
@@ -18,12 +18,8 @@ export function createTriggerZone(
 			rotation: new THREE.Euler(),
 			scale: new THREE.Vector3(1, 1, 1),
 		}),
-		Collider({
-			type: ColliderType.BOX,
+		BoxCollider({
 			size: size.clone(),
-			radius: 0,
-			height: size.y,
-			offset: new THREE.Vector3(),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.CHARACTER,
 			isTrigger: true,

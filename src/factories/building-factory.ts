@@ -1,8 +1,7 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
 import {
-	Collider,
-	ColliderType,
+	BoxCollider,
 	CollisionEvents,
 	CollisionLayer,
 	PHYSICS_BODY_DEFAULTS,
@@ -34,15 +33,10 @@ export function createBuilding({
 	// Create building entity with required traits
 	const entity = world.spawn(
 		Transform({ position, rotation }),
-		Collider({
-			type: ColliderType.BOX,
+		BoxCollider({
 			size,
 			layer: CollisionLayer.TERRAIN, // Buildings use TERRAIN layer
 			mask: CollisionLayer.ALL, // Collide with everything
-			isTrigger: false, // Real physical collision
-			radius: 0.5, // Default radius (not used for BOX but required)
-			height: 0, // Default height (not used for BOX but required)
-			offset: new THREE.Vector3(0, 0, 0), // No offset
 			friction: 0.3, // Default friction
 			restitution: 0, // Low bounciness
 		}),

@@ -3,8 +3,7 @@ import * as THREE from 'three';
 import { PLAYER_BASE_THRUST, PLAYER_SPAWN_POSITION } from '../actions';
 import { PLAYER_SCALE } from '../components/player-renderer';
 import {
-	Collider,
-	ColliderType,
+	CapsuleCollider,
 	CollisionEvents,
 	CollisionLayer,
 	Health,
@@ -47,30 +46,15 @@ export function createPlayerEntity({ world }: Props): Entity {
 			isDamaged: false,
 		}),
 		Scream(), // Add scream trait with default values
-		Collider({
-			type: ColliderType.CAPSULE,
+		CapsuleCollider({
 			radius: PLAYER_SCALE / 2,
 			height: PLAYER_SCALE,
-			size: new THREE.Vector3(0.4, 0.8, 0.4), // Only matters if type is ColliderType.BOX
-			offset: new THREE.Vector3(0, PLAYER_SCALE, 0), // Slightly higher offset
+			offset: new THREE.Vector3(0, PLAYER_SCALE, 0),
 			layer: CollisionLayer.CHARACTER,
-			mask: CollisionLayer.ALL, // Collides with all layers
+			mask: CollisionLayer.ALL,
 			friction: 0.3,
 			restitution: 0.1,
-			isTrigger: false,
 		}),
-		// Collider({
-		// 	type: ColliderType.BOX,
-		// 	radius: 0,
-		// 	height: 0,
-		// 	size: new THREE.Vector3(0.5, 0.75, 0.4),
-		// 	offset: new THREE.Vector3(0, 0.4, 0), // Slightly higher offset
-		// 	layer: CollisionLayer.CHARACTER,
-		// 	mask: CollisionLayer.ALL, // Collides with all layers
-		// 	friction: 0.3,
-		// 	restitution: 0.1,
-		// 	isTrigger: false,
-		// }),
 		CollisionEvents(), // Add collision events for the player
 		PhysicsBody()
 	);

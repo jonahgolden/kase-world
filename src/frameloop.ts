@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
-import { collisionSystem } from './systems/collision-system';
+import { collisionSystem } from './systems/collision/collision-system';
 import { healthSystem } from './systems/health-system';
 import { physicsSystem } from './systems/physics-system';
 import { playerThirdPersonCamera } from './systems/player-camera';

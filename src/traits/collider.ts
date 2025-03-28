@@ -1,14 +1,14 @@
-import { Entity, trait } from 'koota';
+import { trait } from 'koota';
 import * as THREE from 'three';
 
 /**
  * Enum defining the supported collider shape types
  */
 export enum ColliderType {
-	SPHERE,
 	BOX,
 	CAPSULE,
 	HEIGHTFIELD,
+	SPHERE,
 }
 
 /**
@@ -26,104 +26,128 @@ export enum CollisionLayer {
 	ALL = 0xffffffff, // 11111111: All layers
 }
 
-// Type for collider instance
+/**
+ * Type for Collider instance
+ * - type: The shape of the collider (SPHERE, BOX, or CAPSULE)
+ * - layer: Collision layer this collider belongs to (for filtering)
+ * - mask: Bitmask of layers this collider should interact with
+ * - isTrigger: If true, detects collisions but doesn't prevent movement
+ * - offset: Offset from the entity position
+ * - friction: Friction coefficient (0-1) for physics responses
+ * - restitution: Bounciness coefficient (0-1) for physics responses
+ * - radius: Radius for SPHERE and CAPSULE colliders
+ * - size: Dimensions for BOX and HEIGHTFIELD colliders
+ * - height: Additional height for CAPSULE colliders (total height is 2*radius + height)
+ * - heightData: HEIGHTFIELD data for terrain colliders
+ * - resolution: Resolution of the HEIGHTFIELD grid
+ * - minHeight: Minimum height for the HEIGHTFIELD collider
+ * - maxHeight: Maximum height for the HEIGHTFIELD collider
+ */
 export type ColliderInstanceType = {
+	// Common to all colliders
 	type: ColliderType;
+	layer: CollisionLayer;
+	mask: number;
+	isTrigger: boolean;
+	offset: THREE.Vector3;
+	friction: number;
+	restitution: number;
+	// Specific to certain Collider Types
 	radius: number;
 	size: THREE.Vector3;
 	height: number;
-	offset: THREE.Vector3;
-	isTrigger: boolean;
-	layer: CollisionLayer;
-	mask: number;
-	friction: number;
-	restitution: number;
-	// Heightfield specific data
-	heightData?: Float32Array; // Height values
-	resolution: number; // Grid resolution
+	heightData?: Float32Array;
+	resolution: number;
 	minHeight: number;
 	maxHeight: number;
 };
 
 export const COLLIDER_DEFAULTS: ColliderInstanceType = {
-	type: ColliderType.SPHERE,
-	radius: 0.5, // Radius for SPHERE and CAPSULE colliders
-	size: new THREE.Vector3(1, 1, 1), // For BOX colliders
-	height: 0, // Height of Cylinder for CAPSULE colliders
-	offset: new THREE.Vector3(0, 0, 0), // Offset from entity position
-	isTrigger: false, // If true, detects collisions but doesn't prevent movement
-	layer: CollisionLayer.DEFAULT, // The layer this collider belongs to
-	mask: CollisionLayer.ALL, // Collides with all layers by default
-	friction: 0.3, // Friction coefficient (0-1)
-	restitution: 0.1, // Bounciness coefficient (0-1)
-	resolution: 1, // Default resolution for heightfield
+	type: ColliderType.BOX,
+	layer: CollisionLayer.DEFAULT,
+	mask: CollisionLayer.ALL,
+	isTrigger: false,
+	offset: new THREE.Vector3(0, 0, 0),
+	friction: 0.3,
+	restitution: 0.1,
+	radius: 0,
+	size: new THREE.Vector3(1, 1, 1),
+	height: 0,
+	resolution: 0,
 	minHeight: 0,
 	maxHeight: 0,
 };
 
 /**
  * Collider trait for collision detection
- * - type: The shape of the collider (SPHERE, BOX, or CAPSULE)
- * - radius: Radius for SPHERE and CAPSULE colliders
- * - size: Dimensions for BOX colliders
- * - height: Additional height for CAPSULE colliders (total height is 2*radius + height)
- * - offset: Offset from the entity position
- * - isTrigger: If true, detects collisions but doesn't prevent movement
- * - layer: Collision layer this collider belongs to (for filtering)
- * - mask: Bitmask of layers this collider should interact with
- * - friction: Friction coefficient (0-1) for physics responses
- * - restitution: Bounciness coefficient (0-1) for physics responses
  */
-export const Collider = trait(() => COLLIDER_DEFAULTS);
-
-type CollisionEventsSchema = {
-	// Stores entity IDs for fast lookups
-	contacts: Set<number>;
-
-	// Callbacks for collision events
-	onCollisionEnter: Set<(other: Entity) => void>;
-	onCollisionStay: Set<(other: Entity) => void>;
-	onCollisionExit: Set<(other: Entity) => void>;
-
-	// Callbacks for trigger events
-	onTriggerEnter: Set<(other: Entity) => void>;
-	onTriggerStay: Set<(other: Entity) => void>;
-	onTriggerExit: Set<(other: Entity) => void>;
-};
+export const Collider = trait<() => ColliderInstanceType>(() => COLLIDER_DEFAULTS);
 
 /**
- * Trait to store collision events and callbacks
+ * Common options that apply to all collider types
  */
-export const CollisionEvents = trait<() => CollisionEventsSchema>(() => ({
-	// Entities currently in contact with this entity (updated each frame)
-	contacts: new Set<number>(), // Stores entity IDs for fast lookups
+interface CommonColliderOptions {
+	layer?: CollisionLayer;
+	mask?: number;
+	isTrigger?: boolean;
+	offset?: THREE.Vector3;
+	friction?: number;
+	restitution?: number;
+}
 
-	// Callbacks for collision events
-	onCollisionEnter: new Set<(other: Entity) => void>(),
-	onCollisionStay: new Set<(other: Entity) => void>(),
-	onCollisionExit: new Set<(other: Entity) => void>(),
+type SphereColliderOptions = CommonColliderOptions & Pick<ColliderInstanceType, 'radius'>;
 
-	// Callbacks for trigger events
-	onTriggerEnter: new Set<(other: Entity) => void>(),
-	onTriggerStay: new Set<(other: Entity) => void>(),
-	onTriggerExit: new Set<(other: Entity) => void>(),
-}));
+type BoxColliderOptions = CommonColliderOptions & Pick<ColliderInstanceType, 'size'>;
 
-export const CollisionEventsWithDefaults = ({
-	contacts = new Set<number>(),
-	onCollisionEnter = new Set<(other: Entity) => void>(),
-	onCollisionStay = new Set<(other: Entity) => void>(),
-	onCollisionExit = new Set<(other: Entity) => void>(),
-	onTriggerEnter = new Set<(other: Entity) => void>(),
-	onTriggerStay = new Set<(other: Entity) => void>(),
-	onTriggerExit = new Set<(other: Entity) => void>(),
-}: Partial<CollisionEventsSchema>) =>
-	CollisionEvents({
-		contacts,
-		onCollisionEnter,
-		onCollisionStay,
-		onCollisionExit,
-		onTriggerEnter,
-		onTriggerStay,
-		onTriggerExit,
+type CapsuleColliderOptions = CommonColliderOptions & Pick<ColliderInstanceType, 'radius' | 'height'>;
+
+type HeightfieldColliderOptions = CommonColliderOptions &
+	Pick<ColliderInstanceType, 'size' | 'heightData' | 'resolution' | 'minHeight' | 'maxHeight'>;
+
+/**
+ * Creates a sphere collider with the specified radius
+ * @param options Sphere collider configuration
+ */
+export function SphereCollider(options: SphereColliderOptions) {
+	return Collider({
+		...COLLIDER_DEFAULTS,
+		type: ColliderType.SPHERE,
+		...options,
 	});
+}
+
+/**
+ * Creates a box collider with the specified size
+ * @param options Box collider configuration
+ */
+export function BoxCollider(options: BoxColliderOptions) {
+	return Collider({
+		...COLLIDER_DEFAULTS,
+		type: ColliderType.BOX,
+		...options,
+	});
+}
+
+/**
+ * Creates a capsule collider with the specified radius and height
+ * @param options Capsule collider configuration
+ */
+export function CapsuleCollider(options: CapsuleColliderOptions) {
+	return Collider({
+		...COLLIDER_DEFAULTS,
+		type: ColliderType.CAPSULE,
+		...options,
+	});
+}
+
+/**
+ * Creates a heightfield collider for terrain
+ * @param options Heightfield collider configuration
+ */
+export function HeightfieldCollider(options: HeightfieldColliderOptions) {
+	return Collider({
+		...COLLIDER_DEFAULTS,
+		type: ColliderType.HEIGHTFIELD,
+		...options,
+	});
+}

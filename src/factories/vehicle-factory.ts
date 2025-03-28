@@ -1,6 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Collider, ColliderType, CollisionEvents, CollisionLayer, Movement, Ref, Transform } from '../traits';
+import { BoxCollider, CollisionEvents, CollisionLayer, Movement, Ref, Transform } from '../traits';
 import { PhysicsBody } from '../traits/physics-body';
 
 // Vehicle colors
@@ -56,17 +56,12 @@ export function createVehicle(world: World, position: THREE.Vector3, type: Vehic
 			damping: 0.7,
 			force: new THREE.Vector3(),
 		}),
-		Collider({
-			type: ColliderType.BOX,
+		BoxCollider({
 			size: config.size.clone(),
-			radius: 0,
-			height: config.size.y,
-			offset: new THREE.Vector3(0, 0, 0),
 			layer: CollisionLayer.VEHICLE,
 			mask: CollisionLayer.ALL,
 			friction: 0.5,
 			restitution: 0.2,
-			isTrigger: false,
 		}),
 		CollisionEvents(),
 		PhysicsBody({

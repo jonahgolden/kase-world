@@ -1,6 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Collider, ColliderType, CollisionEvents, CollisionLayer, Ref, Transform } from '../traits';
+import { CollisionEvents, CollisionLayer, Ref, SphereCollider, Transform } from '../traits';
 import { PowerUp, PowerUpType } from '../traits/power-up';
 
 export { PowerUpType } from '../traits/power-up';
@@ -30,12 +30,8 @@ export function createPowerUp(world: World, position: THREE.Vector3, type: Power
 			rotation: new THREE.Euler(),
 			scale: new THREE.Vector3(0.5, 0.5, 0.5),
 		}),
-		Collider({
-			type: ColliderType.SPHERE,
+		SphereCollider({
 			radius: 0.5,
-			height: 1,
-			size: new THREE.Vector3(1, 1, 1),
-			offset: new THREE.Vector3(0, 0, 0),
 			layer: CollisionLayer.POWERUP,
 			mask: CollisionLayer.CHARACTER,
 			friction: 0,

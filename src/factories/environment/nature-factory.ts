@@ -1,7 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Ref, Transform } from '../../traits';
-import { Collider, ColliderType, CollisionLayer } from '../../traits/collider';
+import { BoxCollider, CapsuleCollider, CollisionLayer, Ref, SphereCollider, Transform } from '../../traits';
 import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
 
 // Tree configuration
@@ -26,14 +25,11 @@ export function createTree(world: World, position: THREE.Vector3, scale: number 
 			rotation: new THREE.Euler(0, Math.random() * Math.PI * 2, 0), // Random rotation
 			scale: new THREE.Vector3(scale, scale, scale),
 		}),
-		Collider({
-			type: ColliderType.CAPSULE,
+		CapsuleCollider({
 			radius: 0.3,
 			height: 4,
-			size: new THREE.Vector3(0.6, 4, 0.6),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			isTrigger: false,
 			offset: new THREE.Vector3(0, 2, 0),
 			friction: 0.3,
 			restitution: 0.1,
@@ -92,14 +88,10 @@ export function createRock(world: World, position: THREE.Vector3, scale: number 
 			rotation: new THREE.Euler(Math.random() * 0.3, Math.random() * Math.PI * 2, Math.random() * 0.3),
 			scale: new THREE.Vector3(scale, scale, scale),
 		}),
-		Collider({
-			type: ColliderType.BOX,
+		BoxCollider({
 			size: new THREE.Vector3(1.5, 1, 1.5),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			isTrigger: false,
-			radius: 0,
-			height: 1,
 			offset: new THREE.Vector3(0, 0.5, 0),
 			friction: 0.4,
 			restitution: 0.1,
@@ -137,14 +129,10 @@ export function createBush(world: World, position: THREE.Vector3, scale: number 
 			rotation: new THREE.Euler(0, Math.random() * Math.PI * 2, 0),
 			scale: new THREE.Vector3(scale, scale, scale),
 		}),
-		Collider({
-			type: ColliderType.SPHERE,
+		SphereCollider({
 			radius: 0.5,
-			size: new THREE.Vector3(1, 1, 1),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			isTrigger: false,
-			height: 1,
 			offset: new THREE.Vector3(0, 0.5, 0),
 			friction: 0.3,
 			restitution: 0.1,

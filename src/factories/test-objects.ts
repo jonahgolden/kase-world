@@ -1,7 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Movement, Ref, Transform } from '../traits';
-import { Collider, ColliderType, CollisionLayer } from '../traits/collider';
+import { BoxCollider, CollisionLayer, Movement, Ref, SphereCollider, Transform } from '../traits';
 import { PhysicsBody } from '../traits/physics-body';
 
 /**
@@ -19,15 +18,10 @@ export function createBouncingBall(
 			rotation: new THREE.Euler(),
 			scale: new THREE.Vector3(1, 1, 1),
 		}),
-		Collider({
-			type: ColliderType.SPHERE,
+		SphereCollider({
 			radius,
-			size: new THREE.Vector3(radius * 2, radius * 2, radius * 2),
-			height: radius * 2,
-			offset: new THREE.Vector3(),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.TERRAIN | CollisionLayer.CHARACTER,
-			isTrigger: false,
 			friction: 0.5,
 			restitution: 0.7,
 		}),
@@ -78,15 +72,10 @@ export function createDynamicBox(
 			rotation: new THREE.Euler(),
 			scale: new THREE.Vector3(1, 1, 1),
 		}),
-		Collider({
-			type: ColliderType.BOX,
+		BoxCollider({
 			size: size.clone(),
-			radius: 0,
-			height: size.y,
-			offset: new THREE.Vector3(),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.TERRAIN | CollisionLayer.CHARACTER,
-			isTrigger: false,
 			friction: 0.5,
 			restitution: 0.3,
 		}),
