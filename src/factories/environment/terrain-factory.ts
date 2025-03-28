@@ -74,8 +74,6 @@ export function createTerrain(world: World): Entity {
 			size: new THREE.Vector3(TERRAIN_SIZE, maxHeight - minHeight, TERRAIN_SIZE),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			friction: 0.3,
-			restitution: 0.1,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,
@@ -101,8 +99,6 @@ export function createPlatform(world: World, position: THREE.Vector3, size: THRE
 			size: size.clone(),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			friction: 0.3,
-			restitution: 0.1,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,

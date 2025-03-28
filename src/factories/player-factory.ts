@@ -52,8 +52,6 @@ export function createPlayerEntity({ world }: Props): Entity {
 			offset: new THREE.Vector3(0, PLAYER_SCALE, 0),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.ALL,
-			friction: 0.3,
-			restitution: 0.1,
 		}),
 		CollisionEvents(), // Add collision events for the player
 		PhysicsBody()

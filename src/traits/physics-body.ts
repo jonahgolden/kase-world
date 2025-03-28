@@ -38,7 +38,6 @@ export const PhysicsBody = trait(() => {
 		// Other physics properties
 		terminalVelocity: 20, // Max speed in any direction
 		groundFriction: 0.3, // Friction when in contact with ground
-		restitution: 0.1, // Bounciness (0-1)
 
 		// Accumulated forces (reset each frame)
 		forces,
@@ -71,7 +70,6 @@ export const PHYSICS_BODY_DEFAULTS = {
 	// Other physics properties
 	terminalVelocity: 20, // Max speed in any direction
 	groundFriction: 0.3, // Friction when in contact with ground
-	restitution: 0.1, // Bounciness (0-1)
 
 	// Accumulated forces (reset each frame)
 	forces: new THREE.Vector3(),

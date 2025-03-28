@@ -34,8 +34,6 @@ export function createPowerUp(world: World, position: THREE.Vector3, type: Power
 			radius: 0.5,
 			layer: CollisionLayer.POWERUP,
 			mask: CollisionLayer.CHARACTER,
-			friction: 0,
-			restitution: 0,
 			isTrigger: true,
 		}),
 		CollisionEvents(),

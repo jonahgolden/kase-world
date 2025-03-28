@@ -37,8 +37,6 @@ export function createBuilding({
 			size,
 			layer: CollisionLayer.TERRAIN, // Buildings use TERRAIN layer
 			mask: CollisionLayer.ALL, // Collide with everything
-			friction: 0.3, // Default friction
-			restitution: 0, // Low bounciness
 		}),
 		CollisionEvents(), // Add collision events
 		PhysicsBody({ ...PHYSICS_BODY_DEFAULTS, isStatic: true }) // Buildings are static and immovable

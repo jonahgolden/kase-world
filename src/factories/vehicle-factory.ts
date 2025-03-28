@@ -60,8 +60,6 @@ export function createVehicle(world: World, position: THREE.Vector3, type: Vehic
 			size: config.size.clone(),
 			layer: CollisionLayer.VEHICLE,
 			mask: CollisionLayer.ALL,
-			friction: 0.5,
-			restitution: 0.2,
 		}),
 		CollisionEvents(),
 		PhysicsBody({
@@ -74,7 +72,6 @@ export function createVehicle(world: World, position: THREE.Vector3, type: Vehic
 			constraints: { x: false, y: false, z: false },
 			terminalVelocity: 20,
 			groundFriction: 0.8,
-			restitution: 0.2,
 			forces: new THREE.Vector3(),
 			isGrounded: false,
 			groundNormal: new THREE.Vector3(0, 1, 0),

@@ -23,8 +23,6 @@ export function createTriggerZone(
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.CHARACTER,
 			isTrigger: true,
-			friction: 0,
-			restitution: 0,
 		})
 	);
 

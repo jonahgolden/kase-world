@@ -60,8 +60,6 @@ export function createBaseNPC({
 			height: scaleFactor,
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.CHARACTER | CollisionLayer.TERRAIN,
-			friction: 0.3,
-			restitution: 0.1,
 		}),
 		PhysicsBody({
 			mass,
@@ -73,7 +71,6 @@ export function createBaseNPC({
 			constraints: { x: false, y: false, z: false },
 			terminalVelocity: 20,
 			groundFriction: 0.8,
-			restitution: 0.1,
 			forces: new THREE.Vector3(),
 			isGrounded: false,
 			groundNormal: new THREE.Vector3(0, 1, 0),

@@ -31,8 +31,6 @@ export function createTree(world: World, position: THREE.Vector3, scale: number 
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
 			offset: new THREE.Vector3(0, 2, 0),
-			friction: 0.3,
-			restitution: 0.1,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,
@@ -93,8 +91,6 @@ export function createRock(world: World, position: THREE.Vector3, scale: number 
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
 			offset: new THREE.Vector3(0, 0.5, 0),
-			friction: 0.4,
-			restitution: 0.1,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,
@@ -134,8 +130,6 @@ export function createBush(world: World, position: THREE.Vector3, scale: number 
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
 			offset: new THREE.Vector3(0, 0.5, 0),
-			friction: 0.3,
-			restitution: 0.1,
 		}),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,

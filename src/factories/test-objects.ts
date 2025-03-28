@@ -22,8 +22,6 @@ export function createBouncingBall(
 			radius,
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.TERRAIN | CollisionLayer.CHARACTER,
-			friction: 0.5,
-			restitution: 0.7,
 		}),
 		PhysicsBody({
 			mass: 1,
@@ -35,7 +33,6 @@ export function createBouncingBall(
 			constraints: { x: false, y: false, z: false },
 			terminalVelocity: 20,
 			groundFriction: 0.1,
-			restitution: 0.7,
 			forces: new THREE.Vector3(),
 			isGrounded: false,
 			groundNormal: new THREE.Vector3(0, 1, 0),
@@ -76,8 +73,6 @@ export function createDynamicBox(
 			size: size.clone(),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.TERRAIN | CollisionLayer.CHARACTER,
-			friction: 0.5,
-			restitution: 0.3,
 		}),
 		PhysicsBody({
 			mass: 2,
@@ -89,7 +84,6 @@ export function createDynamicBox(
 			constraints: { x: false, y: false, z: false },
 			terminalVelocity: 20,
 			groundFriction: 0.8,
-			restitution: 0.3,
 			forces: new THREE.Vector3(),
 			isGrounded: false,
 			groundNormal: new THREE.Vector3(0, 1, 0),
