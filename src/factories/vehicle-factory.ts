@@ -1,6 +1,14 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { BoxCollider, CollisionEvents, CollisionLayer, Movement, Ref, Transform } from '../traits';
+import {
+	BoxCollider,
+	CollisionEvents,
+	CollisionLayer,
+	Movement,
+	Ref,
+	SpatialTracking,
+	Transform,
+} from '../traits';
 import { PhysicsBody } from '../traits/physics-body';
 
 // Vehicle colors
@@ -76,7 +84,8 @@ export function createVehicle(world: World, position: THREE.Vector3, type: Vehic
 			isGrounded: false,
 			groundNormal: new THREE.Vector3(0, 1, 0),
 			lastGroundedTime: 0,
-		})
+		}),
+		SpatialTracking()
 	);
 
 	// Add mesh

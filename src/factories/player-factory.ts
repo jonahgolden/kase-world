@@ -12,6 +12,7 @@ import {
 	Movement,
 	MovementMode,
 	Scream,
+	SpatialTracking,
 	Transform,
 } from '../traits';
 import { PhysicsBody } from '../traits/physics-body';
@@ -48,7 +49,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 		Scream(), // Add scream trait with default values
 		BoxCollider({
 			size: new THREE.Vector3(PLAYER_SCALE, 0.7, PLAYER_SCALE),
-			offset: new THREE.Vector3(0, PLAYER_SCALE, 0),
+			offset: new THREE.Vector3(0, 0.35, 0),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.ALL,
 		}),
@@ -60,6 +61,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 		// 	mask: CollisionLayer.ALL,
 		// }),
 		CollisionEvents(), // Add collision events for the player
-		PhysicsBody()
+		PhysicsBody(),
+		SpatialTracking()
 	);
 }
