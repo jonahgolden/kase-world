@@ -37,6 +37,7 @@ export function GameLoop() {
 			convertInputToMovement(world);
 			physicsSystem(world);
 			collisionSystem(world);
+			playerThirdPersonCamera(world);
 
 			// HIGH PRIORITY - Run at ~30fps
 			// These systems affect gameplay but can run at lower frequency
@@ -45,9 +46,6 @@ export function GameLoop() {
 			}
 			if (shouldRunSystem(world, 'spatialHashing', SystemPriority.HIGH)) {
 				updateSpatialHashing(world);
-			}
-			if (shouldRunSystem(world, 'playerCamera', SystemPriority.HIGH)) {
-				playerThirdPersonCamera(world);
 			}
 
 			// MEDIUM PRIORITY - Run at ~15fps
