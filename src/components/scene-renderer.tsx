@@ -137,15 +137,7 @@ export function SceneRenderer() {
 
 	return (
 		<>
-			<color ref={backgroundRef} attach="background" />
-			{/* <Startup initialCameraPosition={[0, 1.5, 4]} />
-			<GameLoop />
-
-			<CameraRenderer />
-			<PlayerRenderer />
-			<ScreamEffect />
-			<CollisionObjectsRenderer />
-			<CollisionDebugRenderer enabled={true} /> */}
+			<color ref={backgroundRef} attach="background" args={[config.skyColor]} />
 
 			<ambientLight ref={ambientLightRef} intensity={config.ambientIntensity} color="#ffffff" />
 			<directionalLight
