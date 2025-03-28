@@ -4,6 +4,7 @@ import { checkCapsuleVsBox } from './capsule-vs-box-collision';
 import { checkCapsuleVsCapsule } from './capsule-vs-capsule-collision';
 import { checkCapsuleVsSphere } from './capsule-vs-sphere-collision';
 import { checkHeightfieldCollision } from './heightfield-collision';
+import { checkSphereVsBox } from './sphere-vs-box-collision';
 import { checkSphereVsSphere } from './sphere-vs-sphere-collision';
 
 export interface CheckCollisionProps {
@@ -54,16 +55,6 @@ export function checkCollision({ transformA, colliderA, transformB, colliderB }:
 		return checkBoxVsBox({ transformA, colliderA, transformB, colliderB });
 	}
 
-	// Capsule vs Box (using sphere-sweep test for capsule)
-	if (colliderA.type === ColliderType.CAPSULE && colliderB.type === ColliderType.BOX) {
-		return checkCapsuleVsBox({
-			capsuleTransform: transformA,
-			capsuleCollider: colliderA,
-			boxTransform: transformB,
-			boxCollider: colliderB,
-		});
-	}
-
 	// Box vs Capsule (using sphere-sweep test for capsule)
 	if (colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.CAPSULE) {
 		return checkCapsuleVsBox({
@@ -72,6 +63,21 @@ export function checkCollision({ transformA, colliderA, transformB, colliderB }:
 			boxTransform: transformA,
 			boxCollider: colliderA,
 		});
+	}
+
+	// Capsule vs Box (using sphere-sweep test for capsule)
+	if (colliderA.type === ColliderType.CAPSULE && colliderB.type === ColliderType.BOX) {
+		const result = checkCapsuleVsBox({
+			capsuleTransform: transformA,
+			capsuleCollider: colliderA,
+			boxTransform: transformB,
+			boxCollider: colliderB,
+		});
+		if (result) {
+			result.normal.multiplyScalar(-1); // Flip normal since we swapped A/B
+			return result;
+		}
+		return null;
 	}
 
 	// Capsule vs Sphere
@@ -99,9 +105,34 @@ export function checkCollision({ transformA, colliderA, transformB, colliderB }:
 		return null;
 	}
 
-	// Capsule vs Capsule
+	// Capsule vs Capsule - still not working
 	if (colliderA.type === ColliderType.CAPSULE && colliderB.type === ColliderType.CAPSULE) {
 		return checkCapsuleVsCapsule({ transformA, colliderA, transformB, colliderB });
+	}
+
+	// Box vs Sphere
+	if (colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.SPHERE) {
+		return checkSphereVsBox({
+			sphereTransform: transformB,
+			sphereCollider: colliderB,
+			boxTransform: transformA,
+			boxCollider: colliderA,
+		});
+	}
+
+	// Sphere vs Box
+	if (colliderA.type === ColliderType.SPHERE && colliderB.type === ColliderType.BOX) {
+		const result = checkSphereVsBox({
+			sphereTransform: transformA,
+			sphereCollider: colliderA,
+			boxTransform: transformB,
+			boxCollider: colliderB,
+		});
+		if (result) {
+			result.normal.multiplyScalar(-1); // Flip normal since we swapped A/B
+			return result;
+		}
+		return null;
 	}
 
 	return null;

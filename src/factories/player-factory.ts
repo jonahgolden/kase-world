@@ -47,7 +47,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 		}),
 		Scream(), // Add scream trait with default values
 		BoxCollider({
-			size: new THREE.Vector3(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE),
+			size: new THREE.Vector3(PLAYER_SCALE, 0.8, PLAYER_SCALE),
 			offset: new THREE.Vector3(0, PLAYER_SCALE, 0),
 			layer: CollisionLayer.CHARACTER,
 			mask: CollisionLayer.ALL,
