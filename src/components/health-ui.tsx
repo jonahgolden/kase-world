@@ -49,31 +49,54 @@ export function HealthUI() {
 	const healthPercentage = (current / max) * 100;
 
 	// Determine health bar color based on health level
-	let healthBarColor = 'bg-green-500'; // Default: high health (>70%)
+	let healthBarColor = '#4CAF50'; // Default: high health (>70%)
 	if (healthPercentage <= 30) {
-		healthBarColor = 'bg-red-500'; // Low health (<30%)
+		healthBarColor = '#F44336'; // Low health (<30%)
 	} else if (healthPercentage <= 70) {
-		healthBarColor = 'bg-yellow-500'; // Medium health (30-70%)
+		healthBarColor = '#FFA500'; // Medium health (30-70%)
 	}
-
-	// Get animation class for damage feedback
-	const damageAnimationClass = isDamaged ? 'animate-pulse' : '';
 
 	return (
 		<div
-			className={`fixed top-4 left-4 bg-black bg-opacity-50 p-3 rounded-md text-white z-50 ${
-				isDamaged ? 'border border-red-500' : ''
-			}`}
-			style={{ pointerEvents: 'none' }}
+			style={{
+				position: 'fixed',
+				top: '280px', // Moved down to be below the scream UI
+				right: '20px',
+				backgroundColor: 'rgba(0, 0, 0, 0.5)',
+				padding: '10px',
+				borderRadius: '10px',
+				color: 'white',
+				fontFamily: 'Arial, sans-serif',
+				backdropFilter: 'blur(5px)',
+				minWidth: '200px',
+			}}
 		>
-			<div className="text-md font-semibold mb-1">Health</div>
-			<div className="w-48 h-5 bg-gray-700 rounded-full overflow-hidden">
+			<div style={{ marginBottom: '10px' }}>
+				<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+					<span>Health</span>
+					<span>{Math.round(healthPercentage)}%</span>
+				</div>
+				{/* Health bar */}
 				<div
-					className={`h-full ${healthBarColor} ${damageAnimationClass} transition-all duration-300`}
-					style={{ width: `${healthPercentage}%` }}
-				/>
+					style={{
+						width: '100%',
+						height: '10px',
+						backgroundColor: 'rgba(255, 255, 255, 0.2)',
+						borderRadius: '5px',
+					}}
+				>
+					<div
+						style={{
+							width: `${healthPercentage}%`,
+							height: '100%',
+							backgroundColor: healthBarColor,
+							borderRadius: '5px',
+							transition: 'width 0.1s ease-out',
+							animation: isDamaged ? 'pulse 0.5s ease-in-out' : 'none',
+						}}
+					/>
+				</div>
 			</div>
-			<div className="text-xs mt-1 text-right">{`${Math.ceil(current)} / ${max}`}</div>
 		</div>
 	);
 }

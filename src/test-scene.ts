@@ -6,7 +6,10 @@ import { createPowerUp, PowerUpType } from './factories/power-up-factory';
 import { createVehicle, VehicleType } from './factories/vehicle-factory';
 import { Transform } from './traits';
 
+let created = false;
+
 export function setupTestScene(world: World) {
+	if (created) return;
 	// Create terrain pieces for collision testing
 	// Main ground platform
 	createPlatform(world, new THREE.Vector3(0, -0.125, 0), new THREE.Vector3(50, 0.25, 50));
@@ -41,4 +44,6 @@ export function setupTestScene(world: World) {
 	createVehicle(world, new THREE.Vector3(-5, 1, -5), VehicleType.TRICYCLE);
 	createVehicle(world, new THREE.Vector3(-8, 1, -5), VehicleType.WAGON);
 	createVehicle(world, new THREE.Vector3(-11, 1, -5), VehicleType.TOY_CAR);
+
+	created = true;
 }

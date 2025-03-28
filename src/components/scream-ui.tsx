@@ -58,60 +58,57 @@ export function ScreamUI() {
 	let statusLabel = '';
 
 	if (isCharging) {
-		// When charging, show charge percentage (0% to 100%)
 		statusPercentage = (chargeTime / maxChargeTime) * 100;
-		statusColor = 'bg-blue-500';
-		statusLabel = `${chargeTime.toFixed(1)}s`;
+		statusColor = '#4CAF50'; // Green
+		statusLabel = 'Charging';
 	} else if (cooldown > 0) {
-		// When cooling down, show cooldown percentage (0% to 100%)
-		statusPercentage = (cooldown / maxChargeTime) * 100;
-		statusColor = 'bg-yellow-500';
-		statusLabel = `${cooldown.toFixed(1)}s`;
+		statusPercentage = (cooldown / 3.0) * 100; // 3.0 is the cooldown duration
+		statusColor = '#FFA500'; // Orange
+		statusLabel = 'Cooldown';
 	} else {
-		// When ready, show empty bar
-		statusPercentage = 0;
-		statusColor = 'bg-green-500';
-		statusLabel = 'READY';
+		statusLabel = 'Ready';
 	}
-
-	// Determine if scream is ready
-	const isReady = cooldown <= 0 && !isCharging;
-
-	// Add pulse effect for charging
-	const pulseClass = isCharging ? 'animate-pulse' : '';
 
 	return (
 		<div
-			className="fixed top-32 right-4 bg-black bg-opacity-50 p-3 rounded-md text-white z-50"
-			style={{ pointerEvents: 'none' }}
+			style={{
+				position: 'fixed',
+				top: '180px', // Moved down to be below the movement mode UI
+				right: '20px',
+				backgroundColor: 'rgba(0, 0, 0, 0.5)',
+				padding: '10px',
+				borderRadius: '10px',
+				color: 'white',
+				fontFamily: 'Arial, sans-serif',
+				backdropFilter: 'blur(5px)',
+				minWidth: '200px',
+			}}
 		>
-			<div className="text-md font-semibold mb-1 flex justify-between">
-				<span>bébé crie</span>
-				<span
-					className={`ml-3 px-2 py-0 rounded ${
-						isReady ? 'text-green-500' : isCharging ? 'text-blue-500' : 'text-yellow-400'
-					}`}
-				>
-					{statusLabel}
-				</span>
-			</div>
-			<div className="w-48 h-5 bg-gray-700 rounded-full overflow-hidden">
-				<div
-					className={`h-full ${statusColor} transition-all duration-100 ${pulseClass}`}
-					style={{ width: `${statusPercentage}%` }}
-				/>
-			</div>
-			<div className="text-xs mt-1 text-center">
-				{isCharging ? (
-					<span>
-						Hold <span className="px-2 py-0.5 bg-gray-700 rounded">LMB</span> to charge
-					</span>
-				) : cooldown > 0 ? (
-					<span>Cooling down...</span>
-				) : (
-					<span>
-						Click <span className="px-2 py-0.5 bg-gray-700 rounded">LMB</span> to scream
-					</span>
+			<div style={{ marginBottom: '10px' }}>
+				<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+					<span>Scream</span>
+					<span>{statusLabel}</span>
+				</div>
+				{/* Status bar */}
+				{(isCharging || cooldown > 0) && (
+					<div
+						style={{
+							width: '100%',
+							height: '10px',
+							backgroundColor: 'rgba(255, 255, 255, 0.2)',
+							borderRadius: '5px',
+						}}
+					>
+						<div
+							style={{
+								width: `${statusPercentage}%`,
+								height: '100%',
+								backgroundColor: statusColor,
+								borderRadius: '5px',
+								transition: 'width 0.1s ease-out',
+							}}
+						/>
+					</div>
 				)}
 			</div>
 		</div>

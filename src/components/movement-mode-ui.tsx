@@ -60,42 +60,68 @@ export function MovementModeUI() {
 
 	return (
 		<div
-			className="fixed top-4 right-4 bg-black bg-opacity-50 p-3 rounded-md text-white z-50"
-			style={{ pointerEvents: 'none' }}
+			style={{
+				position: 'fixed',
+				top: '80px', // Moved down to be below the visual mode toggle
+				right: '20px',
+				backgroundColor: 'rgba(0, 0, 0, 0.5)',
+				padding: '10px',
+				borderRadius: '10px',
+				color: 'white',
+				fontFamily: 'Arial, sans-serif',
+				backdropFilter: 'blur(5px)',
+				minWidth: '200px',
+			}}
 		>
-			<div className="text-md font-semibold mb-1">
-				{mode === 'walk' ? 'Walking' : 'Crawling'}
-				{!canWalk && mode === 'crawl' && ' (Cooldown)'}
+			<div style={{ marginBottom: '10px' }}>
+				<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+					<span>Mode: {mode.charAt(0).toUpperCase() + mode.slice(1)}</span>
+					<span>{canWalk ? 'Ready' : 'Cooldown'}</span>
+				</div>
+				{/* Walk duration bar */}
+				{mode === 'walk' && (
+					<div
+						style={{
+							width: '100%',
+							height: '10px',
+							backgroundColor: 'rgba(255, 255, 255, 0.2)',
+							borderRadius: '5px',
+						}}
+					>
+						<div
+							style={{
+								width: `${walkPercentage}%`,
+								height: '100%',
+								backgroundColor: '#4CAF50',
+								borderRadius: '5px',
+								transition: 'width 0.1s ease-out',
+							}}
+						/>
+					</div>
+				)}
+				{/* Cooldown bar */}
+				{walkCooldown > 0 && (
+					<div
+						style={{
+							width: '100%',
+							height: '10px',
+							backgroundColor: 'rgba(255, 255, 255, 0.2)',
+							borderRadius: '5px',
+							marginTop: '5px',
+						}}
+					>
+						<div
+							style={{
+								width: `${cooldownPercentage}%`,
+								height: '100%',
+								backgroundColor: '#FFA500',
+								borderRadius: '5px',
+								transition: 'width 0.1s ease-out',
+							}}
+						/>
+					</div>
+				)}
 			</div>
-
-			{/* Walk duration bar */}
-			{mode === 'walk' && (
-				<div className="mb-2">
-					<div className="text-xs mb-1">Walk Duration</div>
-					<div className="w-48 h-3 bg-gray-700 rounded-full overflow-hidden">
-						<div
-							className="h-full bg-green-500 transition-all duration-100"
-							style={{ width: `${walkPercentage}%` }}
-						/>
-					</div>
-				</div>
-			)}
-
-			{/* Cooldown bar - only show when in cooldown */}
-			{walkCooldown > 0 && (
-				<div>
-					<div className="text-xs mb-1">Cooldown</div>
-					<div className="w-48 h-3 bg-gray-700 rounded-full overflow-hidden">
-						<div
-							className="h-full bg-red-500 transition-all duration-100"
-							style={{ width: `${cooldownPercentage}%` }}
-						/>
-					</div>
-				</div>
-			)}
-
-			{/* Instructions */}
-			<div className="text-xs mt-2 text-gray-300">Hold [Shift] to walk</div>
 		</div>
 	);
 }
