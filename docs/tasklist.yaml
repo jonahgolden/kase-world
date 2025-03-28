@@ -29,7 +29,7 @@ stories:
   - id: '2.1'
     title: 'Basic World Environment'
     file: 'docs/stories/2.1-basic-world-environment.md'
-    status: 'Todo'
+    status: 'Done'
   - id: '2.2'
     title: 'Day/Night Visual Mode Toggle'
     file: 'docs/stories/2.2-day-night-visual-mode-toggle.md'
