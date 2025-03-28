@@ -104,8 +104,21 @@ export function createGiantChicken(world: World, position: THREE.Vector3): Entit
 	});
 }
 
-export function createHumanNPC(world: World, position: THREE.Vector3, isLarge: boolean = false): Entity {
-	const scale = isLarge ? 1.5 : 0.8;
+type HumanNPCSize = 'baby' | 'child' | 'adult';
+
+export function createHumanNPC(world: World, position: THREE.Vector3, size: HumanNPCSize = 'child'): Entity {
+	let scale = 0.4;
+	switch (size) {
+		case 'baby':
+			scale = 0.4;
+			break;
+		case 'child':
+			scale = 0.8;
+			break;
+		case 'adult':
+			scale = 1.5;
+			break;
+	}
 
 	return createBaseNPC({
 		world,

@@ -23,7 +23,10 @@ export function setupEnvironment(world: World) {
 	createRockFormations(world, new THREE.Vector3(-30, 0, 30), 10);
 	createRockFormations(world, new THREE.Vector3(20, 0, 40), 8);
 
+	// Near origin
+	createForestArea(world, new THREE.Vector3(0, 0, 0), 10);
 	createRockFormations(world, new THREE.Vector3(10, 0, -10), 4);
+	createRockFormations(world, new THREE.Vector3(-10, 0, 10), 4);
 
 	// Add scattered bushes
 	for (let i = 0; i < 50; i++) {

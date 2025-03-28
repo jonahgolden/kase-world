@@ -28,8 +28,9 @@ export function setupTestScene(world: World) {
 
 	// Add NPCs
 	createGiantChicken(world, new THREE.Vector3(5, 3, 5));
-	createHumanNPC(world, new THREE.Vector3(-5, 1, 5), true); // Large human
-	createHumanNPC(world, new THREE.Vector3(-7, 1, 5), false); // Small human
+	createHumanNPC(world, new THREE.Vector3(-3, 1, 5), 'baby');
+	createHumanNPC(world, new THREE.Vector3(-5, 5, 5), 'adult'); // Large human
+	createHumanNPC(world, new THREE.Vector3(-7, 1, 5), 'child'); // Small human
 
 	// Add power-ups
 	createPowerUp(world, new THREE.Vector3(3, 1, -3), PowerUpType.HEALTH);
