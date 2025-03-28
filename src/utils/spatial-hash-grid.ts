@@ -186,47 +186,64 @@ export class SpatialHashGrid {
 		position: THREE.Vector3,
 		collider: ColliderInstanceType
 	): { min: THREE.Vector3; max: THREE.Vector3 } {
-		// Position with offset applied
+		// Add collider offset to position
 		const pos = position.clone().add(collider.offset);
 
-		// Create bounding box based on collider type
-		let halfSize: THREE.Vector3;
-
 		switch (collider.type) {
-			case ColliderType.SPHERE:
+			case ColliderType.SPHERE: {
 				return {
 					min: new THREE.Vector3(pos.x - collider.radius, pos.y - collider.radius, pos.z - collider.radius),
 					max: new THREE.Vector3(pos.x + collider.radius, pos.y + collider.radius, pos.z + collider.radius),
 				};
-
-			case ColliderType.BOX:
-				halfSize = collider.size.clone().multiplyScalar(0.5);
+			}
+			case ColliderType.BOX: {
+				const halfSize = collider.size.clone().multiplyScalar(0.5);
 				return {
 					min: new THREE.Vector3(pos.x - halfSize.x, pos.y - halfSize.y, pos.z - halfSize.z),
 					max: new THREE.Vector3(pos.x + halfSize.x, pos.y + halfSize.y, pos.z + halfSize.z),
 				};
-
-			case ColliderType.CAPSULE:
-				// For capsule, create a bounding box that contains the entire capsule
-				// Capsule has radius and height (extends along y-axis)
+			}
+			case ColliderType.CAPSULE: {
+				const halfHeight = collider.height / 2;
 				return {
 					min: new THREE.Vector3(
 						pos.x - collider.radius,
-						pos.y - collider.radius - collider.height * 0.5,
+						pos.y - halfHeight - collider.radius,
 						pos.z - collider.radius
 					),
 					max: new THREE.Vector3(
 						pos.x + collider.radius,
-						pos.y + collider.radius + collider.height * 0.5,
+						pos.y + halfHeight + collider.radius,
 						pos.z + collider.radius
 					),
 				};
-
-			default:
-				// Default to a small sphere if type is unknown
+			}
+			case ColliderType.HEIGHTFIELD: {
+				// For heightfield, use its full size centered at its position
+				// Add some padding below minHeight to ensure we catch objects approaching from below
+				const halfSizeX = collider.size.x / 2;
+				const halfSizeZ = collider.size.z / 2;
+				const verticalPadding = 10; // Add padding below to catch falling objects
 				return {
-					min: new THREE.Vector3(pos.x - 0.5, pos.y - 0.5, pos.z - 0.5),
-					max: new THREE.Vector3(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5),
+					// min: new THREE.Vector3(pos.x - halfSizeX, pos.y, pos.z - halfSizeZ),
+					// max: new THREE.Vector3(pos.x + halfSizeX, pos.y + collider.maxHeight, pos.z + halfSizeZ),
+					min: new THREE.Vector3(
+						pos.x - halfSizeX,
+						pos.y + collider.minHeight - verticalPadding, // Start below minHeight
+						pos.z - halfSizeZ
+					),
+					max: new THREE.Vector3(
+						pos.x + halfSizeX,
+						pos.y + collider.maxHeight, // Use maxHeight instead of size.y
+						pos.z + halfSizeZ
+					),
+				};
+			}
+			default:
+				console.warn('Unknown collider type:', collider.type);
+				return {
+					min: pos.clone(),
+					max: pos.clone(),
 				};
 		}
 	}

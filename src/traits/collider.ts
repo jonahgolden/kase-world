@@ -8,6 +8,7 @@ export enum ColliderType {
 	SPHERE,
 	BOX,
 	CAPSULE,
+	HEIGHTFIELD,
 }
 
 /**
@@ -37,6 +38,11 @@ export type ColliderInstanceType = {
 	mask: number;
 	friction: number;
 	restitution: number;
+	// Heightfield specific data
+	heightData?: Float32Array; // Height values
+	resolution: number; // Grid resolution
+	minHeight: number;
+	maxHeight: number;
 };
 
 export const COLLIDER_DEFAULTS: ColliderInstanceType = {
@@ -47,9 +53,12 @@ export const COLLIDER_DEFAULTS: ColliderInstanceType = {
 	offset: new THREE.Vector3(0, 0, 0), // Offset from entity position
 	isTrigger: false, // If true, detects collisions but doesn't prevent movement
 	layer: CollisionLayer.DEFAULT, // The layer this collider belongs to
-	mask: CollisionLayer.ALL, // Collides with all layers by default.  e.g. CollisionLayer.DEFAULT | CollisionLayer.CHARACTER,
+	mask: CollisionLayer.ALL, // Collides with all layers by default
 	friction: 0.3, // Friction coefficient (0-1)
 	restitution: 0.1, // Bounciness coefficient (0-1)
+	resolution: 1, // Default resolution for heightfield
+	minHeight: 0,
+	maxHeight: 0,
 };
 
 /**

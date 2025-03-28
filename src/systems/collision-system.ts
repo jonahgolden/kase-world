@@ -53,6 +53,13 @@ interface CollisionResponse {
 	iterationScale: number;
 }
 
+// Types for collision detection
+type CollisionResult = {
+	normal: THREE.Vector3;
+	penetration: number;
+	point: THREE.Vector3;
+};
+
 /**
  * Apply collision response between two entities
  */
@@ -185,6 +192,7 @@ export function collisionSystem(world: World) {
 
 	// Step 2: Get potential collision pairs and process them
 	const potentialCollisions = spatialGrid.getPotentialCollisions();
+	console.log('Potential collisions:', potentialCollisions.length);
 	processCollisions(potentialCollisions, world);
 
 	// Step 3: Update collision events (enter/stay/exit)
@@ -504,14 +512,10 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 				continue;
 			}
 
-			const { colliding, penetrationDepth, normal } = testCollision(
-				transformA,
-				transformB,
-				colliderA,
-				colliderB
-			);
+			const result = checkCollision(transformA, colliderA, transformB, colliderB);
+			const colliding = result !== null;
 
-			if (colliding) {
+			if (colliding && result) {
 				hasCollision = true;
 
 				// Record the collision for handling enter/stay/exit events
@@ -525,34 +529,31 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 					continue;
 				}
 
-				// Only if we have penetration depth and normal
-				if (penetrationDepth && normal) {
-					// Get physics bodies if available
-					const physicsA = entA.get(PhysicsBody);
-					const physicsB = entB.get(PhysicsBody);
+				// Get physics bodies if available
+				const physicsA = entA.get(PhysicsBody);
+				const physicsB = entB.get(PhysicsBody);
 
-					const iterationScale = BASE_CORRECTION_SCALE * Math.pow(iteration + 1, -CORRECTION_FALLOFF);
+				const iterationScale = BASE_CORRECTION_SCALE * Math.pow(iteration + 1, -CORRECTION_FALLOFF);
 
-					applyCollisionResponse({
-						entityA: {
-							entity: entA,
-							transform: transformA,
-							movement: movementA,
-							isStatic: physicsA?.isStatic ?? false,
-							collider: colliderA,
-						},
-						entityB: {
-							entity: entB,
-							transform: transformB,
-							movement: movementB,
-							isStatic: physicsB?.isStatic ?? false,
-							collider: colliderB,
-						},
-						normal,
-						penetrationDepth,
-						iterationScale,
-					});
-				}
+				applyCollisionResponse({
+					entityA: {
+						entity: entA,
+						transform: transformA,
+						movement: movementA,
+						isStatic: physicsA?.isStatic ?? false,
+						collider: colliderA,
+					},
+					entityB: {
+						entity: entB,
+						transform: transformB,
+						movement: movementB,
+						isStatic: physicsB?.isStatic ?? false,
+						collider: colliderB,
+					},
+					normal: result.normal,
+					penetrationDepth: result.penetration,
+					iterationScale,
+				});
 			}
 		}
 
@@ -689,4 +690,454 @@ function capsuleToPointNormal(
 	const blendFactor = 0.0;
 
 	return capsuleNormal.lerp(boxUp, verticalAlignment * blendFactor).normalize();
+}
+
+/**
+ * Gets the height and normal at a specific point on a heightfield
+ */
+function getHeightfieldData(
+	heightfield: ColliderInstanceType,
+	worldX: number,
+	worldZ: number
+): { height: number; normal: THREE.Vector3 } | null {
+	// Convert world coordinates to heightfield grid coordinates
+	const gridSize = heightfield.size.x / (heightfield.resolution - 1);
+
+	// Convert world coordinates to heightfield-local coordinates by subtracting heightfield position
+	const localX = worldX - heightfield.offset.x;
+	const localZ = worldZ - heightfield.offset.z;
+
+	// Convert to grid coordinates
+	const x = (localX + heightfield.size.x / 2) / gridSize;
+	const z = (localZ + heightfield.size.z / 2) / gridSize;
+
+	// Get grid cell indices
+	const x0 = Math.floor(x);
+	const z0 = Math.floor(z);
+	const x1 = Math.min(x0 + 1, heightfield.resolution - 1);
+	const z1 = Math.min(z0 + 1, heightfield.resolution - 1);
+
+	// Check if point is within bounds
+	if (x0 < 0 || x0 >= heightfield.resolution - 1 || z0 < 0 || z0 >= heightfield.resolution - 1) {
+		return null;
+	}
+
+	// Get fractional position within cell
+	const fx = x - x0;
+	const fz = z - z0;
+
+	// Get heights at cell corners
+	const h00 = heightfield.heightData![z0 * heightfield.resolution + x0];
+	const h10 = heightfield.heightData![z0 * heightfield.resolution + x1];
+	const h01 = heightfield.heightData![z1 * heightfield.resolution + x0];
+	const h11 = heightfield.heightData![z1 * heightfield.resolution + x1];
+
+	// Bilinear interpolation of height
+	const height = h00 * (1 - fx) * (1 - fz) + h10 * fx * (1 - fz) + h01 * (1 - fx) * fz + h11 * fx * fz;
+
+	// Calculate normal using proper surface gradients
+	// For a heightfield surface z = f(x,y), the normal is proportional to (-dz/dx, 1, -dz/dy)
+	const dx = (h10 - h00) / gridSize; // x gradient in world units
+	const dz = (h01 - h00) / gridSize; // z gradient in world units
+
+	// Create normal vector pointing perpendicular to surface
+	const normal = new THREE.Vector3(
+		-dx, // x component (negative gradient in x)
+		1.0, // y component (always positive to ensure upward normal)
+		-dz // z component (negative gradient in z)
+	).normalize();
+
+	return { height, normal };
+}
+
+/**
+ * Checks collision between an entity and a heightfield
+ */
+function checkHeightfieldCollision(
+	transform: TransformType,
+	collider: ColliderInstanceType,
+	heightfield: ColliderInstanceType,
+	heightfieldTransform: TransformType
+): CollisionResult | null {
+	// Get entity position in world space
+	const position = new THREE.Vector3();
+	position.copy(transform.position).add(collider.offset);
+
+	// Different collision checks based on collider type
+	switch (collider.type) {
+		case ColliderType.SPHERE: {
+			// Get height data at sphere position
+			const heightData = getHeightfieldData(heightfield, position.x, position.z);
+
+			if (!heightData) {
+				console.log('No height data found for sphere');
+				return null;
+			}
+
+			const terrainY = heightData.height + heightfieldTransform.position.y + heightfield.offset.y;
+			const penetration = collider.radius - (position.y - terrainY);
+
+			if (penetration > 0) {
+				return {
+					normal: heightData.normal,
+					penetration,
+					point: new THREE.Vector3(position.x, terrainY, position.z),
+				};
+			}
+			break;
+		}
+
+		case ColliderType.CAPSULE: {
+			// Calculate capsule endpoints
+			const capsuleUp = new THREE.Vector3(0, 1, 0)
+				.applyEuler(transform.rotation)
+				.multiplyScalar(collider.height / 2);
+			const topPoint = position.clone().add(capsuleUp);
+			const bottomPoint = position.clone().sub(capsuleUp);
+
+			// Check multiple points along the capsule
+			const numPoints = 4; // Check 4 points along the capsule length
+			let maxPenetration = -Infinity;
+			const collisionNormal = new THREE.Vector3();
+			const collisionPoint = new THREE.Vector3();
+
+			for (let i = 0; i < numPoints; i++) {
+				const t = i / (numPoints - 1);
+				const checkPoint = new THREE.Vector3().lerpVectors(bottomPoint, topPoint, t);
+
+				const heightData = getHeightfieldData(heightfield, checkPoint.x, checkPoint.z);
+
+				if (heightData) {
+					const terrainY = heightData.height + heightfieldTransform.position.y + heightfield.offset.y;
+					const penetration = collider.radius - (checkPoint.y - terrainY);
+
+					if (penetration > maxPenetration) {
+						maxPenetration = penetration;
+						collisionNormal.copy(heightData.normal);
+						collisionPoint.set(checkPoint.x, terrainY, checkPoint.z);
+					}
+				}
+			}
+
+			if (maxPenetration > 0) {
+				return {
+					normal: collisionNormal,
+					penetration: maxPenetration,
+					point: collisionPoint,
+				};
+			}
+			break;
+		}
+
+		case ColliderType.BOX: {
+			// Get height data at box center
+			const heightData = getHeightfieldData(heightfield, position.x, position.z);
+
+			if (!heightData) return null;
+
+			const terrainY = heightData.height + heightfieldTransform.position.y + heightfield.offset.y;
+			const penetration = collider.size.y / 2 - (position.y - terrainY);
+
+			if (penetration > 0) {
+				return {
+					normal: heightData.normal,
+					penetration,
+					point: new THREE.Vector3(position.x, terrainY, position.z),
+				};
+			}
+			break;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Checks for collision between two colliders
+ */
+function checkCollision(
+	transformA: TransformType,
+	colliderA: ColliderInstanceType,
+	transformB: TransformType,
+	colliderB: ColliderInstanceType
+): CollisionResult | null {
+	// Handle heightfield collisions
+	if (colliderB.type === ColliderType.HEIGHTFIELD) {
+		return checkHeightfieldCollision(transformA, colliderA, colliderB, transformB);
+	}
+	if (colliderA.type === ColliderType.HEIGHTFIELD) {
+		const result = checkHeightfieldCollision(transformB, colliderB, colliderA, transformA);
+		if (result) {
+			// result.normal.multiplyScalar(-1); // Flip normal
+			return result;
+		}
+		return null;
+	}
+
+	// Apply collider offsets to positions
+	const posA = tempVecA.copy(transformA.position).add(colliderA.offset);
+	const posB = tempVecB.copy(transformB.position).add(colliderB.offset);
+
+	// Sphere vs Sphere
+	if (colliderA.type === ColliderType.SPHERE && colliderB.type === ColliderType.SPHERE) {
+		const distance = posA.distanceTo(posB);
+		const combinedRadius = colliderA.radius + colliderB.radius;
+
+		if (distance < combinedRadius) {
+			const penetration = combinedRadius - distance;
+			const normal = new THREE.Vector3().subVectors(posB, posA).normalize();
+
+			// Normal on y axis if they are very close
+			if (distance < 0.0001) {
+				normal.set(0, 1, 0);
+			}
+
+			return {
+				normal,
+				penetration,
+				point: new THREE.Vector3().addVectors(posA, normal.clone().multiplyScalar(colliderA.radius)),
+			};
+		}
+	}
+
+	// Box vs Box
+	if (colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.BOX) {
+		// Calculate half sizes considering scale
+		const halfSizeA = colliderA.size.clone().multiply(transformA.scale).multiplyScalar(0.5);
+		const halfSizeB = colliderB.size.clone().multiply(transformB.scale).multiplyScalar(0.5);
+
+		// Create rotation matrices from Euler angles
+		const matrixA = new THREE.Matrix4().makeRotationFromEuler(transformA.rotation);
+		const matrixB = new THREE.Matrix4().makeRotationFromEuler(transformB.rotation);
+
+		// Get the box axes (normalized direction vectors)
+		const axesA = [
+			new THREE.Vector3(1, 0, 0).applyMatrix4(matrixA),
+			new THREE.Vector3(0, 1, 0).applyMatrix4(matrixA),
+			new THREE.Vector3(0, 0, 1).applyMatrix4(matrixA),
+		];
+		const axesB = [
+			new THREE.Vector3(1, 0, 0).applyMatrix4(matrixB),
+			new THREE.Vector3(0, 1, 0).applyMatrix4(matrixB),
+			new THREE.Vector3(0, 0, 1).applyMatrix4(matrixB),
+		];
+
+		// Get all axes to test
+		const axes = [...axesA, ...axesB];
+		// Add cross products of all pairs of axes
+		for (const axisA of axesA) {
+			for (const axisB of axesB) {
+				const cross = new THREE.Vector3().crossVectors(axisA, axisB);
+				if (cross.lengthSq() > 0.001) {
+					// Ignore parallel axes
+					cross.normalize();
+					axes.push(cross);
+				}
+			}
+		}
+
+		// Calculate the vector between box centers
+		const centerDiff = new THREE.Vector3().subVectors(posB, posA);
+
+		let minPenetration = Infinity;
+		let minAxis = axes[0];
+
+		// Test all axes (Separating Axis Theorem)
+		for (const axis of axes) {
+			// Project box A's half-extents onto the axis
+			const projA =
+				Math.abs(axesA[0].dot(axis) * halfSizeA.x) +
+				Math.abs(axesA[1].dot(axis) * halfSizeA.y) +
+				Math.abs(axesA[2].dot(axis) * halfSizeA.z);
+
+			// Project box B's half-extents onto the axis
+			const projB =
+				Math.abs(axesB[0].dot(axis) * halfSizeB.x) +
+				Math.abs(axesB[1].dot(axis) * halfSizeB.y) +
+				Math.abs(axesB[2].dot(axis) * halfSizeB.z);
+
+			// Project the center difference vector onto the axis
+			const centerProj = centerDiff.dot(axis);
+
+			// Calculate overlap
+			const overlap = projA + projB - Math.abs(centerProj);
+
+			// If there's no overlap on any axis, the boxes don't intersect
+			if (overlap <= 0) {
+				return null;
+			}
+
+			// Keep track of minimum penetration
+			if (overlap < minPenetration) {
+				minPenetration = overlap;
+				minAxis = axis;
+			}
+		}
+
+		// Ensure the normal points from A to B
+		const normal = minAxis.clone();
+		if (centerDiff.dot(normal) < 0) {
+			normal.multiplyScalar(-1);
+		}
+
+		return {
+			normal,
+			penetration: minPenetration,
+			point: new THREE.Vector3().addVectors(posA, normal.clone().multiplyScalar(minPenetration * 0.5)),
+		};
+	}
+
+	// Capsule vs Box
+	if (
+		(colliderA.type === ColliderType.CAPSULE && colliderB.type === ColliderType.BOX) ||
+		(colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.CAPSULE)
+	) {
+		// Ensure A is the capsule and B is the box
+		let capsulePos: THREE.Vector3;
+		let capsuleHeight: number;
+		let capsuleRadius: number;
+		let boxPos: THREE.Vector3;
+		let boxSize: THREE.Vector3;
+		let boxTransform: TransformType;
+		let capsuleTransform: TransformType;
+		let swapped = false;
+
+		if (colliderA.type === ColliderType.CAPSULE) {
+			capsulePos = posA;
+			capsuleHeight = colliderA.height;
+			capsuleRadius = colliderA.radius;
+			boxPos = posB;
+			boxSize = colliderB.size;
+			boxTransform = transformB;
+			capsuleTransform = transformA;
+		} else {
+			capsulePos = posB;
+			capsuleHeight = colliderB.height;
+			capsuleRadius = colliderB.radius;
+			boxPos = posA;
+			boxSize = colliderA.size;
+			boxTransform = transformA;
+			capsuleTransform = transformB;
+			swapped = true;
+		}
+
+		// Create box's world-to-local transform matrix
+		const boxRotationMatrix = new THREE.Matrix4().makeRotationFromEuler(boxTransform.rotation);
+		const boxScaleMatrix = new THREE.Matrix4().makeScale(
+			boxTransform.scale.x,
+			boxTransform.scale.y,
+			boxTransform.scale.z
+		);
+		const boxTranslationMatrix = new THREE.Matrix4().makeTranslation(-boxPos.x, -boxPos.y, -boxPos.z);
+
+		// Combine matrices
+		const worldToBoxLocal = new THREE.Matrix4()
+			.multiply(boxRotationMatrix.clone().invert())
+			.multiply(boxScaleMatrix.clone().invert())
+			.multiply(boxTranslationMatrix);
+
+		// Transform capsule to box local space
+		const localCapsulePos = capsulePos.clone().applyMatrix4(worldToBoxLocal);
+
+		// Calculate local radius
+		const radiusPoint = capsulePos.clone().add(new THREE.Vector3(capsuleRadius, 0, 0));
+		const localRadiusPoint = radiusPoint.clone().applyMatrix4(worldToBoxLocal);
+		const localRadius = localRadiusPoint.distanceTo(localCapsulePos);
+
+		// Calculate capsule endpoints in local space
+		const capsuleUp = new THREE.Vector3(0, 1, 0)
+			.applyEuler(capsuleTransform.rotation)
+			.multiplyScalar(capsuleHeight / 2);
+		const localCapsuleUp = capsuleUp
+			.clone()
+			.applyMatrix4(new THREE.Matrix4().extractRotation(worldToBoxLocal));
+
+		const localCapsuleTop = localCapsulePos.clone().add(localCapsuleUp);
+		const localCapsuleBottom = localCapsulePos.clone().sub(localCapsuleUp);
+
+		// Box bounds in local space
+		const halfSize = boxSize.clone().multiplyScalar(0.5);
+		const boxMin = halfSize.clone().multiplyScalar(-1);
+		const boxMax = halfSize.clone();
+
+		// Clamp capsule endpoints to box
+		const clampedTop = new THREE.Vector3(
+			Math.max(boxMin.x, Math.min(localCapsuleTop.x, boxMax.x)),
+			Math.max(boxMin.y, Math.min(localCapsuleTop.y, boxMax.y)),
+			Math.max(boxMin.z, Math.min(localCapsuleTop.z, boxMax.z))
+		);
+
+		const clampedBottom = new THREE.Vector3(
+			Math.max(boxMin.x, Math.min(localCapsuleBottom.x, boxMax.x)),
+			Math.max(boxMin.y, Math.min(localCapsuleBottom.y, boxMax.y)),
+			Math.max(boxMin.z, Math.min(localCapsuleBottom.z, boxMax.z))
+		);
+
+		// Find closest point
+		const capsuleLine = localCapsuleTop.clone().sub(localCapsuleBottom);
+		const capsuleLength = capsuleLine.length();
+
+		let closestPoint: THREE.Vector3;
+		let distanceToLine: number;
+
+		if (capsuleLength < 0.0001) {
+			closestPoint = clampedTop;
+			distanceToLine = localCapsulePos.distanceTo(clampedTop);
+		} else {
+			const capsuleDir = capsuleLine.clone().normalize();
+			const topProjection = projectPointOnLine(clampedTop, localCapsuleBottom, localCapsuleTop);
+			const bottomProjection = projectPointOnLine(clampedBottom, localCapsuleBottom, localCapsuleTop);
+
+			const topDistance = clampedTop.distanceTo(topProjection);
+			const bottomDistance = clampedBottom.distanceTo(bottomProjection);
+
+			const topParam = capsuleDir.dot(topProjection.clone().sub(localCapsuleBottom));
+			const bottomParam = capsuleDir.dot(bottomProjection.clone().sub(localCapsuleBottom));
+
+			const topInSegment = topParam >= 0 && topParam <= capsuleLength;
+			const bottomInSegment = bottomParam >= 0 && bottomParam <= capsuleLength;
+
+			const distanceToTop = clampedTop.distanceTo(localCapsuleTop);
+			const distanceToBottom = clampedBottom.distanceTo(localCapsuleBottom);
+
+			if (topInSegment && (!bottomInSegment || topDistance <= bottomDistance)) {
+				closestPoint = clampedTop;
+				distanceToLine = topDistance;
+			} else if (bottomInSegment) {
+				closestPoint = clampedBottom;
+				distanceToLine = bottomDistance;
+			} else if (distanceToTop <= distanceToBottom) {
+				closestPoint = clampedTop;
+				distanceToLine = distanceToTop;
+			} else {
+				closestPoint = clampedBottom;
+				distanceToLine = distanceToBottom;
+			}
+		}
+
+		// Transform back to world space
+		const boxToWorld = new THREE.Matrix4()
+			.multiply(boxTranslationMatrix.clone().invert())
+			.multiply(boxScaleMatrix)
+			.multiply(boxRotationMatrix);
+
+		const worldClosestPoint = closestPoint.applyMatrix4(boxToWorld);
+
+		if (distanceToLine < localRadius) {
+			const normal = new THREE.Vector3().subVectors(capsulePos, worldClosestPoint).normalize();
+			const penetration = localRadius - distanceToLine;
+
+			if (swapped) {
+				normal.multiplyScalar(-1);
+			}
+
+			return {
+				normal,
+				penetration,
+				point: worldClosestPoint,
+			};
+		}
+	}
+
+	return null;
 }

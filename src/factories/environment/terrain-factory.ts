@@ -1,6 +1,8 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { Collider, ColliderType, CollisionLayer, PhysicsBody, Ref, Transform } from '../../traits';
+import { Ref, Transform } from '../../traits';
+import { Collider, ColliderType, CollisionLayer } from '../../traits/collider';
+import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
 
 const TERRAIN_COLOR = '#8BC34A';
 
@@ -18,15 +20,28 @@ export function createTerrain(world: World): Entity {
 	const geometry = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS);
 	geometry.rotateX(-Math.PI / 2); // Rotate to be horizontal
 
-	// Generate height data
+	// Generate height data and store it for collision detection
 	const vertices = geometry.attributes.position.array;
+	const heightData = new Float32Array((TERRAIN_SEGMENTS + 1) * (TERRAIN_SEGMENTS + 1));
+	let minHeight = Infinity;
+	let maxHeight = -Infinity;
+
+	// Fill height data and track min/max heights
 	for (let i = 0; i < vertices.length; i += 3) {
 		const x = vertices[i];
 		const z = vertices[i + 2];
-
-		// Generate height using multiple noise octaves for more natural terrain
 		const height = generateHeight(x * NOISE_SCALE, z * NOISE_SCALE);
 		vertices[i + 1] = height; // Y coordinate
+
+		// Store in heightData grid
+		const gridX = Math.floor((x / TERRAIN_SIZE + 0.5) * TERRAIN_SEGMENTS);
+		const gridZ = Math.floor((z / TERRAIN_SIZE + 0.5) * TERRAIN_SEGMENTS);
+		const index = gridZ * (TERRAIN_SEGMENTS + 1) + gridX;
+		heightData[index] = height;
+
+		// Track min/max heights
+		minHeight = Math.min(minHeight, height);
+		maxHeight = Math.max(maxHeight, height);
 	}
 
 	// Update normals for proper lighting
@@ -42,7 +57,7 @@ export function createTerrain(world: World): Entity {
 
 	const mesh = new THREE.Mesh(geometry, material);
 
-	// Create the terrain entity
+	// Create the terrain entity with heightfield collider
 	const entity = world.spawn(
 		Transform({
 			position: new THREE.Vector3(0, 0, 0),
@@ -50,8 +65,8 @@ export function createTerrain(world: World): Entity {
 			scale: new THREE.Vector3(1, 1, 1),
 		}),
 		Collider({
-			type: ColliderType.BOX, // Using box collider for simplicity
-			size: new THREE.Vector3(TERRAIN_SIZE, 0.1, TERRAIN_SIZE),
+			type: ColliderType.HEIGHTFIELD,
+			size: new THREE.Vector3(TERRAIN_SIZE, maxHeight - minHeight, TERRAIN_SIZE),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
 			isTrigger: false,
@@ -60,22 +75,14 @@ export function createTerrain(world: World): Entity {
 			offset: new THREE.Vector3(0, 0, 0),
 			friction: 0.3,
 			restitution: 0.1,
+			heightData: heightData,
+			resolution: TERRAIN_SEGMENTS + 1,
+			minHeight: minHeight,
+			maxHeight: maxHeight,
 		}),
 		PhysicsBody({
-			mass: 0,
-			drag: 0,
-			gravity: false,
-			gravityScale: 0,
-			isKinematic: false,
+			...PHYSICS_BODY_DEFAULTS,
 			isStatic: true,
-			constraints: { x: true, y: true, z: true },
-			terminalVelocity: 0,
-			groundFriction: 0.8,
-			restitution: 0.3,
-			forces: new THREE.Vector3(),
-			isGrounded: true,
-			groundNormal: new THREE.Vector3(0, 1, 0),
-			lastGroundedTime: 0,
 		})
 	);
 
@@ -104,22 +111,13 @@ export function createPlatform(world: World, position: THREE.Vector3, size: THRE
 			offset: new THREE.Vector3(0, 0, 0),
 			friction: 0.3,
 			restitution: 0.1,
+			resolution: 1,
+			minHeight: 0,
+			maxHeight: size.y,
 		}),
 		PhysicsBody({
-			mass: 0,
-			drag: 0,
-			gravity: false,
-			gravityScale: 0,
-			isKinematic: false,
+			...PHYSICS_BODY_DEFAULTS,
 			isStatic: true,
-			constraints: { x: true, y: true, z: true },
-			terminalVelocity: 0,
-			groundFriction: 0.8,
-			restitution: 0.3,
-			forces: new THREE.Vector3(),
-			isGrounded: true,
-			groundNormal: new THREE.Vector3(0, 1, 0),
-			lastGroundedTime: 0,
 		})
 	);
 
