@@ -34,7 +34,7 @@ export function createPowerUp(world: World, position: THREE.Vector3, type: Power
 			radius: 0.5,
 			layer: CollisionLayer.POWERUP,
 			mask: CollisionLayer.CHARACTER,
-			// isTrigger: true,
+			isTrigger: true,
 		}),
 		CollisionEvents(),
 		PowerUp({ type })
