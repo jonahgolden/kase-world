@@ -6,7 +6,7 @@ export function Clouds() {
 	const cloudsRef = useRef<THREE.Group>(null);
 
 	// Generate random cloud positions with more variation
-	const cloudCount = 25;
+	const cloudCount = 75;
 	const clouds = Array.from({ length: cloudCount }, () => {
 		// More dramatic size variation
 		const cloudType = Math.random(); // Used to determine cloud size category
@@ -27,7 +27,7 @@ export function Clouds() {
 			position: new THREE.Vector3(
 				(Math.random() - 0.5) * 200,
 				// Higher altitude for bigger clouds
-				20 + Math.random() * 30 + baseScale * 5,
+				20 + Math.random() * 15 + baseScale * 5,
 				(Math.random() - 0.5) * 200
 			),
 			rotation: new THREE.Euler(
