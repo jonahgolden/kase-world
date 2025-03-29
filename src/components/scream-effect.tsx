@@ -10,6 +10,9 @@ const INITIAL_RING_SIZE = 0.05; // 1/3 of the original size (0.2)
 const RING_SCALE_FACTOR = 1.15; // Controls how fast the rings grow
 const WAVE_FREQUENCY = 4; // Controls how fast the waves oscillate
 const WAVE_AMPLITUDE = 0.03; // Controls how much the rings wave
+const BASE_FORWARD_SPEED = 10; // Base speed for ring movement
+const MIN_SCALE_SPEED = 0.7; // Minimum scale speed multiplier for fully charged screams
+const MAX_TRAVEL_DISTANCE_MULT = 2; // Maximum travel distance multiplier for fully charged screams
 
 // Ring interface for type safety
 interface ScreamRing {
@@ -20,6 +23,7 @@ interface ScreamRing {
 	life: number;
 	offset: number; // Random offset for wave effect
 	color: THREE.Color; // Color based on charge amount
+	chargeRatio: number; // Store charge ratio for movement calculations
 }
 
 /**
@@ -64,6 +68,7 @@ export function ScreamEffect() {
 				life: 1.0, // Start with full life
 				offset: randomOffset,
 				color: ringColor.clone(),
+				chargeRatio: chargeRatio, // Store charge ratio for movement calculations
 			});
 		}
 
@@ -106,7 +111,7 @@ export function ScreamEffect() {
 					newScreams.forEach((newScream) => {
 						// Baby's current position
 						const startPos = babyPositionRef.current.clone();
-						startPos.y += 0.2; // Position at the level of baby's head
+						startPos.y += 0.5; // Position at the level of baby's mouth (increased from 0.2)
 
 						// Calculate charge ratio
 						const chargeRatio = newScream.chargeAmount / scream.maxChargeTime;
@@ -141,14 +146,23 @@ export function ScreamEffect() {
 						// Get forward direction
 						const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, ring.rotation.y, 0));
 
-						// Move ring forward
-						const newPos = ring.position.clone().addScaledVector(forwardDir, 10 * delta);
+						// Calculate movement speed based on charge
+						// More charged = slower movement but travels farther
+						const speedMultiplier = 1 - ring.chargeRatio * 0.5; // Reduces speed up to 50% for fully charged
+						const lifeMultiplier = 1 + ring.chargeRatio * MAX_TRAVEL_DISTANCE_MULT; // Increases life/distance up to 2x for fully charged
 
-						// Grow the ring
-						const newScale = ring.scale + RING_SCALE_FACTOR * delta * 0.5;
+						// Move ring forward with adjusted speed
+						const newPos = ring.position
+							.clone()
+							.addScaledVector(forwardDir, BASE_FORWARD_SPEED * speedMultiplier * delta);
 
-						// Decrease life
-						const newLife = ring.life - delta * 0.5; // Slowed down life decrease for test ring
+						// Calculate scale speed based on charge
+						// More charged = slower scaling
+						const scaleSpeedMultiplier = 1 - ring.chargeRatio * (1 - MIN_SCALE_SPEED); // Reduces scale speed up to MIN_SCALE_SPEED for fully charged
+						const newScale = ring.scale + RING_SCALE_FACTOR * delta * 0.5 * scaleSpeedMultiplier;
+
+						// Decrease life more slowly for charged shots
+						const newLife = ring.life - (delta * 0.5) / lifeMultiplier;
 
 						return {
 							...ring,

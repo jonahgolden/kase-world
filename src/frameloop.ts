@@ -54,7 +54,7 @@ export function GameLoop() {
 			// MEDIUM PRIORITY - Run at ~15fps
 			// These systems are important but not time-critical
 			if (shouldRunSystem(world, 'babyScream', SystemPriority.MEDIUM)) {
-				babyScreamSystem(world);
+				babyScreamSystem(world, 15);
 			}
 			if (shouldRunSystem(world, 'health', SystemPriority.MEDIUM)) {
 				healthSystem(world);

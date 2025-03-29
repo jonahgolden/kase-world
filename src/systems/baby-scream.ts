@@ -75,11 +75,17 @@ function calculateDamage(
 
 /**
  * Baby scream attack system
+ * @param world The game world
+ * @param targetFps The target frame rate for this system (defaults to 60)
  */
-export function babyScreamSystem(world: World) {
+export function babyScreamSystem(world: World, targetFps: number = 60) {
 	// Get the time trait for delta time
 	const time = world.get(Time);
 	if (!time) return;
+
+	// Adjust delta time based on target FPS
+	const timeScale = 60 / targetFps;
+	const adjustedDelta = time.delta * timeScale;
 
 	// Find baby entity and associated traits
 	const player = world.queryFirst(IsPlayer, Input, Transform, Scream);
@@ -124,7 +130,7 @@ export function babyScreamSystem(world: World) {
 		screamHasUpdates = true;
 
 		// Increment charge time, but cap at max charge time
-		const newChargeTime = Math.min(scream.chargeTime + time.delta, MAX_CHARGE_TIME);
+		const newChargeTime = Math.min(scream.chargeTime + adjustedDelta, MAX_CHARGE_TIME);
 
 		screamUpdates.chargeTime = newChargeTime;
 	}
@@ -190,7 +196,7 @@ export function babyScreamSystem(world: World) {
 		// Update each active scream
 		const updatedScreams = scream.activeScreams.map((activeScream) => ({
 			...activeScream,
-			effectTimer: Math.max(0, activeScream.effectTimer - time.delta),
+			effectTimer: Math.max(0, activeScream.effectTimer - adjustedDelta),
 		}));
 
 		// Filter out expired screams
@@ -207,11 +213,11 @@ export function babyScreamSystem(world: World) {
 		}
 	}
 
-	// Update cooldown timer (always decrease regardless of active state) - MOVED TO END OF SYSTEM
+	// Update cooldown timer (always decrease regardless of active state)
 	if (scream.cooldown > 0) {
 		screamHasUpdates = true;
 
-		screamUpdates.cooldown = Math.max(0, scream.cooldown - time.delta);
+		screamUpdates.cooldown = Math.max(0, scream.cooldown - adjustedDelta);
 	}
 
 	if (screamHasUpdates) {

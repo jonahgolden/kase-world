@@ -8,8 +8,8 @@ import { trait } from 'koota';
  * - zoomSpeed: Speed of zoom when scrolling
  */
 export const CameraZoom = trait({
-	distance: 4, // Default distance matches the original camera offset
-	minDistance: 2, // Minimum zoom distance
-	maxDistance: 8, // Maximum zoom distance
-	zoomSpeed: 0.5, // Zoom speed multiplier
+	distance: 3,
+	minDistance: 3,
+	maxDistance: 8,
+	zoomSpeed: 0.5,
 });

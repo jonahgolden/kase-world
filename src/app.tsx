@@ -36,7 +36,7 @@ export function App() {
 		<>
 			<Canvas style={{ background: 'white' }} shadows={true} gl={{ alpha: false }}>
 				<SceneRenderer />
-				<Startup initialCameraPosition={[0, 1.5, 4]} />
+				<Startup initialCameraPosition={[0, 2.4, 5]} />
 				<GameLoop />
 
 				<CameraRenderer />

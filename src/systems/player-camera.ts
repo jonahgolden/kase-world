@@ -4,8 +4,8 @@ import { CameraZoom, IsCamera, IsPlayer, MovementMode, Transform } from '../trai
 
 // Third person camera position relative to baby
 const CAMERA_OFFSET = {
-	crawl: new THREE.Vector3(0, 1.2, 1), // Base offset when crawling (z will be multiplied by zoom)
-	walk: new THREE.Vector3(0, 1.8, 1), // Base offset when walking (z will be multiplied by zoom)
+	crawl: new THREE.Vector3(0, 1.8, 1), // Higher and further back when crawling
+	walk: new THREE.Vector3(0, 2.4, 1), // Higher and further back when walking
 };
 
 export function playerThirdPersonCamera(world: World) {
@@ -27,14 +27,18 @@ export function playerThirdPersonCamera(world: World) {
 			direction.multiplyScalar(offset.z * zoom.distance) // Move behind the player based on orientation and apply zoom to the z offset
 		);
 
-		// Add height offset based on movement mode
-		cameraPosition.y += offset.y;
+		// Add height offset based on movement mode and zoom level
+		const heightScale = 1 + (zoom.distance - zoom.minDistance) * 0.3; // Increase height as we zoom out
+		cameraPosition.y += offset.y * heightScale;
 
 		// Update camera position
 		cameraTransform.position.copy(cameraPosition);
 
 		// Make the camera look at the player
-		const lookTarget = playerTransform.position.clone().add(new THREE.Vector3(0, 0.3, 0)); // Look at player's head
+		const lookTarget = playerTransform.position
+			.clone()
+			.add(new THREE.Vector3(0, 0.3, 0)) // Base head offset
+			.add(new THREE.Vector3(0, offset.y * heightScale * 0.5, 0)); // Scale the upward offset with zoom too
 
 		// Create a temporary matrix for the lookAt operation
 		const lookMatrix = new THREE.Matrix4();
