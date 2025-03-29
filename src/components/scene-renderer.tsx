@@ -1,6 +1,8 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useRef, useState } from 'react';
 import { AmbientLight, Color, DirectionalLight, Fog, HemisphereLight } from 'three';
+import { Clouds } from './clouds';
+import { NightSky } from './night-sky';
 
 export type VisualMode = 'day' | 'night';
 
@@ -160,6 +162,12 @@ export function SceneRenderer() {
 				groundColor="#8d7b68"
 			/>
 			<fog ref={fogRef} attach="fog" args={[config.fogColor, config.fogNear, config.fogFar]} />
+
+			{/* Render night sky elements when in night mode */}
+			{(mode === 'night' || (isTransitioning && targetMode === 'night')) && <NightSky />}
+
+			{/* Render clouds when in day mode */}
+			{(mode === 'day' || (isTransitioning && targetMode === 'day')) && <Clouds />}
 		</>
 	);
 }
