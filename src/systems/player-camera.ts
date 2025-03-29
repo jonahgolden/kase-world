@@ -1,11 +1,11 @@
 import { World } from 'koota';
 import * as THREE from 'three';
-import { IsCamera, IsPlayer, MovementMode, Transform } from '../traits';
+import { CameraZoom, IsCamera, IsPlayer, MovementMode, Transform } from '../traits';
 
 // Third person camera position relative to baby
 const CAMERA_OFFSET = {
-	crawl: new THREE.Vector3(0, 1.2, 4), // Lower camera when crawling
-	walk: new THREE.Vector3(0, 1.8, 4), // Higher camera when walking
+	crawl: new THREE.Vector3(0, 1.2, 1), // Base offset when crawling (z will be multiplied by zoom)
+	walk: new THREE.Vector3(0, 1.8, 1), // Base offset when walking (z will be multiplied by zoom)
 };
 
 export function playerThirdPersonCamera(world: World) {
@@ -16,15 +16,15 @@ export function playerThirdPersonCamera(world: World) {
 	const playerTransform = player.get(Transform)!;
 	const movementMode = player.get(MovementMode)!;
 
-	// Determine camera offset based on movement mode
-	const offset = movementMode.mode === 'walk' ? CAMERA_OFFSET.walk : CAMERA_OFFSET.crawl;
-
 	// Find the camera entity
-	world.query(IsCamera, Transform).updateEach(([cameraTransform]) => {
+	world.query(IsCamera, Transform, CameraZoom).updateEach(([cameraTransform, zoom]) => {
+		// Determine camera offset based on movement mode
+		const offset = movementMode.mode === 'walk' ? CAMERA_OFFSET.walk : CAMERA_OFFSET.crawl;
+
 		// Calculate camera position behind the player
 		const direction = new THREE.Vector3(0, 0, 1).applyEuler(playerTransform.rotation);
 		const cameraPosition = playerTransform.position.clone().add(
-			direction.multiplyScalar(offset.z) // Move behind the player based on its orientation
+			direction.multiplyScalar(offset.z * zoom.distance) // Move behind the player based on orientation and apply zoom to the z offset
 		);
 
 		// Add height offset based on movement mode
@@ -42,5 +42,21 @@ export function playerThirdPersonCamera(world: World) {
 
 		// Convert matrix to euler angles
 		cameraTransform.rotation.setFromRotationMatrix(lookMatrix);
+	});
+}
+
+// Handle zoom input
+export function cameraZoomSystem(world: World) {
+	// Get the wheel delta from the world state
+	const wheelDelta = (world as any).wheelDelta || 0;
+	if (wheelDelta === 0) return;
+
+	// Update zoom for all cameras
+	world.query(IsCamera, CameraZoom).updateEach(([zoom]) => {
+		// Update zoom distance based on wheel delta
+		zoom.distance = Math.max(
+			zoom.minDistance,
+			Math.min(zoom.maxDistance, zoom.distance - wheelDelta * zoom.zoomSpeed)
+		);
 	});
 }

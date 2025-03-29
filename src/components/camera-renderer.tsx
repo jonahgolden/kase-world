@@ -1,8 +1,8 @@
-import { useQueryFirst } from 'koota/react';
-import { IsCamera, Ref, Transform } from '../traits';
 import { PerspectiveCamera } from '@react-three/drei';
 import { Entity } from 'koota';
+import { useQueryFirst } from 'koota/react';
 import { ComponentRef, useCallback } from 'react';
+import { IsCamera, Ref, Transform } from '../traits';
 
 function CameraView({ entity }: { entity: Entity }) {
 	const setInitial = useCallback(

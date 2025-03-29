@@ -1,3 +1,4 @@
+export * from './camera-zoom';
 export * from './collider';
 export * from './collision-events';
 export * from './health';

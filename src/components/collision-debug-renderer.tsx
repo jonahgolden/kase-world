@@ -22,7 +22,7 @@ export function CollisionDebugRenderer({ enabled = false }: { enabled?: boolean 
 	// Toggle debug rendering with the 'D' key
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === 'c' || e.key === 'C') {
+			if (e.key === 'x' || e.key === 'X') {
 				setShowDebug((prev) => !prev);
 			}
 		};
@@ -173,7 +173,7 @@ export function CollisionDebugRenderer({ enabled = false }: { enabled?: boolean 
 		instructionsDiv.style.fontFamily = 'monospace';
 		instructionsDiv.style.fontSize = '12px';
 		instructionsDiv.style.borderRadius = '4px';
-		instructionsDiv.innerHTML = 'Press C to toggle collision wireframes';
+		instructionsDiv.innerHTML = 'Press X to toggle collision wireframes';
 
 		if (typeof document !== 'undefined') {
 			document.body.appendChild(instructionsDiv);

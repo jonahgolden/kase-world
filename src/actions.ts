@@ -1,7 +1,7 @@
 import { Entity, createActions } from 'koota';
 import * as THREE from 'three';
 import { createPlayerEntity } from './factories/player-factory';
-import { Health, IsCamera, Transform } from './traits';
+import { CameraZoom, Health, IsCamera, Transform } from './traits';
 
 // Define the invulnerability period in seconds
 const INVULNERABILITY_PERIOD = 0.8;
@@ -14,7 +14,7 @@ export const PLAYER_BASE_THRUST = 3;
 
 export const actions = createActions((world) => ({
 	spawnCamera: (position: [number, number, number]) => {
-		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera);
+		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera, CameraZoom());
 	},
 	spawnPlayer: () => createPlayerEntity({ world }),
 

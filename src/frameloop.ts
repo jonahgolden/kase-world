@@ -4,8 +4,9 @@ import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
 import { collisionSystem } from './systems/collision/collision-system';
 import { healthSystem } from './systems/health-system';
+import { inputSystem } from './systems/input-system';
 import { physicsSystem } from './systems/physics-system';
-import { playerThirdPersonCamera } from './systems/player-camera';
+import { cameraZoomSystem, playerThirdPersonCamera } from './systems/player-camera';
 import { playerMovementMode } from './systems/player-movement-mode';
 import { pollInput } from './systems/poll-input';
 import { syncView } from './systems/sync-view';
@@ -33,11 +34,13 @@ export function GameLoop() {
 			// CRITICAL PRIORITY - Run every frame
 			// These systems are essential for game feel and responsiveness
 			updateTime(world);
+			inputSystem(world);
 			pollInput(world);
 			convertInputToMovement(world);
 			physicsSystem(world);
 			collisionSystem(world);
 			playerThirdPersonCamera(world);
+			cameraZoomSystem(world);
 
 			// HIGH PRIORITY - Run at ~30fps
 			// These systems affect gameplay but can run at lower frequency
