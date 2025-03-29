@@ -20,6 +20,15 @@ const TERRAIN_SIZE = 200;
 const MAX_HEIGHT = 14;
 const BASE_NOISE_SCALE = 0.01;
 
+// Lake constants
+const LAKE_CENTER = new THREE.Vector3(-40, 0, 0);
+const LAKE_RADIUS = 15;
+const LAKE_BLEND_DISTANCE = 10; // Terrain height blending distance
+const LAKE_SAND_BLEND_DISTANCE = 5; // Sand color blending distance
+const LAKE_EDGE_HEIGHT = MAX_HEIGHT * 0.15; // Height of terrain at lake edge
+const LAKE_WATER_LEVEL = MAX_HEIGHT * 0.075; // Actual water surface height
+const LAKE_DEPTH = MAX_HEIGHT * 0.12; // Maximum depth of lake below edge
+
 // Biome thresholds
 const SNOW_HEIGHT = MAX_HEIGHT * 0.65;
 const ROCK_HEIGHT = MAX_HEIGHT * 0.55;
@@ -51,13 +60,53 @@ export function createTerrain(world: World): Entity {
 	let maxHeight = -Infinity;
 
 	// Helper function to get biome color based on height and slope
-	function getBiomeColor(height: number, slope: number): THREE.Color {
+	function getBiomeColor(height: number, slope: number, x: number, z: number): THREE.Color {
 		const color = new THREE.Color();
 
+		// Calculate distance from lake center for any point
+		const distanceToLake = Math.sqrt(Math.pow(x - LAKE_CENTER.x, 2) + Math.pow(z - LAKE_CENTER.z, 2));
+
+		// Inside lake: pure sand color (only if we're below water level)
+		if (distanceToLake < LAKE_RADIUS && height < LAKE_WATER_LEVEL) {
+			color.setStyle(TERRAIN_COLORS.SAND);
+			return color;
+		}
+
+		// Lake edge blend zone: blend sand with normal biome color
+		if (distanceToLake < LAKE_RADIUS + LAKE_SAND_BLEND_DISTANCE && height < LAKE_WATER_LEVEL) {
+			const blendFactor = (distanceToLake - LAKE_RADIUS) / LAKE_SAND_BLEND_DISTANCE;
+			const smoothBlend = Math.pow(blendFactor, 2);
+
+			// Get the normal biome color that would be here
+			const normalColor = new THREE.Color();
+			if (height > SNOW_HEIGHT) {
+				normalColor.setStyle(TERRAIN_COLORS.Snow);
+			} else if ((height > ROCK_HEIGHT && slope > MODERATE_SLOPE) || slope > STEEP_SLOPE) {
+				normalColor.setStyle(TERRAIN_COLORS.ROCK);
+			} else if (height > GRASS_HEIGHT || slope > MODERATE_SLOPE) {
+				normalColor.setStyle(TERRAIN_COLORS.GRASS_LIGHT);
+				const darkGrassInfluence =
+					Math.min(
+						1.0,
+						Math.max((height - GRASS_HEIGHT) / (ROCK_HEIGHT - GRASS_HEIGHT), slope / MODERATE_SLOPE)
+					) * 0.9;
+				normalColor.lerp(new THREE.Color(TERRAIN_COLORS.GRASS_DARK), darkGrassInfluence);
+			} else if (height > SAND_HEIGHT) {
+				normalColor.setStyle(TERRAIN_COLORS.GRASS_LIGHT);
+			} else {
+				normalColor.setStyle(TERRAIN_COLORS.SAND);
+			}
+
+			// Blend from sand to normal color
+			color.setStyle(TERRAIN_COLORS.SAND);
+			color.lerp(normalColor, smoothBlend);
+			return color;
+		}
+
+		// Normal biome coloring for everything else
 		if (height > SNOW_HEIGHT) {
 			color.setStyle(TERRAIN_COLORS.Snow);
 		} else if ((height > ROCK_HEIGHT && slope > MODERATE_SLOPE) || slope > STEEP_SLOPE) {
-			// Rock only appears on steep high areas or very steep slopes
 			color.setStyle(TERRAIN_COLORS.ROCK);
 		} else if (height > GRASS_HEIGHT || slope > MODERATE_SLOPE) {
 			const darkGrassInfluence =
@@ -86,10 +135,46 @@ export function createTerrain(world: World): Entity {
 		const detailHeight = generateDetailHeight(x, z, detailNoise);
 		const biomeVariation = generateBiomeVariation(x, z, biomeNoise);
 
-		// Adjusted height calculation with increased detail influence in peaks
-		const heightRatio = Math.pow(baseHeight, 2); // Square for sharper transition
-		const detailInfluence = 0.15 + heightRatio * 0.15; // More detail in higher areas
-		const height = (baseHeight + detailHeight * detailInfluence + biomeVariation * 0.02) * MAX_HEIGHT;
+		// Calculate distance from lake for height adjustments
+		const distanceToLake = Math.sqrt(Math.pow(x - LAKE_CENTER.x, 2) + Math.pow(z - LAKE_CENTER.z, 2));
+
+		let height;
+		if (distanceToLake < LAKE_RADIUS) {
+			// Inside lake: create depression below water level
+			const depthNoise = (detailNoise(x * 0.1, z * 0.1) + 1) * 0.5;
+			const depthVariation = depthNoise * LAKE_DEPTH * 0.2; // 20% depth variation
+
+			// Make it deeper towards the center
+			const centerFactor = 1 - distanceToLake / LAKE_RADIUS;
+			const centerDepth = centerFactor * centerFactor * LAKE_DEPTH;
+
+			// Start at edge height and subtract depths
+			height = LAKE_EDGE_HEIGHT - LAKE_DEPTH * 0.5 - depthVariation - centerDepth;
+		} else if (distanceToLake < LAKE_RADIUS + LAKE_BLEND_DISTANCE) {
+			// Blend zone: smoothly transition from lake to detailed terrain
+			const blendFactor = (distanceToLake - LAKE_RADIUS) / LAKE_BLEND_DISTANCE;
+			const smoothBlend = Math.pow(blendFactor, 2); // Quadratic blend for smoother transition
+
+			// Calculate detailed terrain height
+			const heightRatio = Math.pow(baseHeight, 2);
+			const detailInfluence = 0.15 + heightRatio * 0.15;
+			const detailedHeight =
+				(baseHeight + detailHeight * detailInfluence + biomeVariation * 0.02) * MAX_HEIGHT;
+
+			// Calculate lake edge height (using same logic as inside lake, but at the edge)
+			const depthNoise = (detailNoise(x * 0.1, z * 0.1) + 1) * 0.5;
+			const depthVariation = depthNoise * LAKE_DEPTH * 0.2;
+			const lakeEdgeHeight = LAKE_EDGE_HEIGHT - LAKE_DEPTH * 0.5 - depthVariation;
+
+			// Blend between lake edge and detailed terrain
+			height = lakeEdgeHeight * (1 - smoothBlend) + detailedHeight * smoothBlend;
+		} else {
+			// Outside lake: normal terrain generation
+			const heightRatio = Math.pow(baseHeight, 2);
+			const detailInfluence = 0.15 + heightRatio * 0.15;
+			height = (baseHeight + detailHeight * detailInfluence + biomeVariation * 0.02) * MAX_HEIGHT;
+		}
+
 		vertices[i + 1] = height;
 
 		// Calculate slope for terrain type determination
@@ -102,7 +187,7 @@ export function createTerrain(world: World): Entity {
 		heightData[index] = height;
 
 		// Set vertex colors based on height and slope
-		const color = getBiomeColor(height, slope);
+		const color = getBiomeColor(height, slope, x, z);
 		colors[i] = color.r;
 		colors[i + 1] = color.g;
 		colors[i + 2] = color.b;
@@ -158,46 +243,8 @@ export function createTerrain(world: World): Entity {
 function generateHeight(x: number, z: number, noise: (x: number, y: number) => number): number {
 	const scale = BASE_NOISE_SCALE;
 	const rawNoise = (noise(x * scale, z * scale) + 1) * 0.5;
-
-	// Create more dramatic mountains with sharper peaks but less steep overall
-	const baseShape = Math.pow(rawNoise, 3.0); // Increased from 2.8 but not back to 3.2
-
-	// Peak generation with more variation
-	const peakShape = Math.pow(rawNoise, 10); // Increased from 8 but not back to 12
-
-	// Enhanced cragginess system
-	const cragginess = (noise(x * scale * 4, z * scale * 4) + 1) * 0.5;
-	const highFreqCrags = (noise(x * scale * 8, z * scale * 8) + 1) * 0.5;
-	const ultraCrags = (noise(x * scale * 16, z * scale * 16) + 1) * 0.5;
-	const combinedCrags = (cragginess * 0.5 + highFreqCrags * 0.3 + ultraCrags * 0.2) * peakShape;
-
-	// Multi-directional ridge system
-	const angles = [Math.atan2(z, x), Math.atan2(x, z), Math.atan2(z + x, x - z)];
-
-	let ridgeSum = 0;
-	for (let i = 0; i < angles.length; i++) {
-		const angle = angles[i];
-		const ridgeNoise = Math.abs(
-			noise(x * scale * (2 + i * 0.5) + Math.cos(angle), z * scale * (2 + i * 0.5) + Math.sin(angle))
-		);
-		const ridgeDirection = (Math.sin(angle * (2 + i)) + 1) * 0.5;
-		ridgeSum += Math.pow(ridgeNoise * ridgeDirection, 1.2) * (0.6 - i * 0.15);
-	}
-
-	// Add erosion-like patterns
-	const erosion = (noise(x * scale * 5 + combinedCrags, z * scale * 5 + ridgeSum) + 1) * 0.5;
-	const erosionDetail = Math.pow(erosion, 1.5) * peakShape;
-
-	// Combine all factors for final height with more varied peak features
-	const peakMultiplier =
-		peakShape *
-		(1.6 + // Increased from 1.5
-			combinedCrags * 1.2 +
-			ridgeSum * 0.8 +
-			erosionDetail * 0.4 +
-			Math.pow(noise(x * scale * 12, z * scale * 12) + 1, 2) * 0.3 * peakShape);
-
-	return baseShape * (1 + peakMultiplier);
+	const baseShape = Math.pow(rawNoise, 3.0);
+	return Math.max(0.1, baseShape);
 }
 
 // Helper function to generate detail noise
