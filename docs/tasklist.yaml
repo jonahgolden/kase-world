@@ -33,7 +33,7 @@ stories:
   - id: '2.2'
     title: 'Day/Night Visual Mode Toggle'
     file: 'docs/stories/2.2-day-night-visual-mode-toggle.md'
-    status: 'Todo'
+    status: 'Done'
   - id: '2.3'
     title: 'Enhanced Landscape Features'
     file: 'docs/stories/2.3-enhanced-landscape-features.md'
