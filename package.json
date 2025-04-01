@@ -4,12 +4,12 @@
 	"description": "First Baby Game",
 	"type": "module",
 	"scripts": {
-		"start": "vite",
+		"start": "npm run preview",
 		"dev": "vite",
 		"build": "vite build",
 		"lint": "eslint .",
 		"clean": "npx rimraf node_modules && npm install",
-		"preview": "vite preview"
+		"preview": "vite preview --port $PORT --host $HOST"
 	},
 	"repository": {
 		"type": "git",
