@@ -14,20 +14,20 @@ const SAND_HEIGHT = MAX_TERRAIN_HEIGHT * 0.06;
 
 // Lake constants
 const LAKE_BLEND_DISTANCE_DEFAULT = 10; // Terrain height blending distance
-const LAKE_DEPTH_DEFAULT = MAX_TERRAIN_HEIGHT * 0.12; // Maximum depth of lake below edge
+const LAKE_DEPTH_DEFAULT = MAX_TERRAIN_HEIGHT * 0.12 * 5; // Maximum depth of lake below edge
 const LAKE_EDGE_HEIGHT_DEFAULT = SAND_HEIGHT - 0.01;
 
 export const LAKES_DATA: LakeData[] = [
 	{
 		center: new THREE.Vector3(-40, 0, 0),
-		radius: 35, //15,
+		radius: 28,
 		depth: LAKE_DEPTH_DEFAULT,
 		waterLevel: LAKE_EDGE_HEIGHT_DEFAULT,
 		blendDistance: LAKE_BLEND_DISTANCE_DEFAULT,
 	},
 	{
 		center: new THREE.Vector3(40, 0, 0),
-		radius: 20, //10,
+		radius: 19,
 		depth: LAKE_DEPTH_DEFAULT,
 		waterLevel: LAKE_EDGE_HEIGHT_DEFAULT,
 		blendDistance: LAKE_BLEND_DISTANCE_DEFAULT,
@@ -213,7 +213,7 @@ export const FRAGMENT_SHADER = `
     finalWaterColor = mix(finalWaterColor, foamColor, foamFactor * 0.5); // Reduced from 0.7
     
     // Adjust opacity to be more consistent
-    float alpha = mix(0.75, 0.92, vEdgeFactor);
+    float alpha = mix(0.92, 0.99, vEdgeFactor);
     
     gl_FragColor = vec4(finalWaterColor, alpha);
   }

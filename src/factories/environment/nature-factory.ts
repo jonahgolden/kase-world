@@ -1,6 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { BoxCollider, CapsuleCollider, CollisionLayer, Ref, SphereCollider, Transform } from '../../traits';
+import { BoxCollider, CollisionLayer, Ref, SphereCollider, Transform } from '../../traits';
 import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
 
 // Tree configuration
@@ -25,13 +25,18 @@ export function createTree(world: World, position: THREE.Vector3, scale: number 
 			rotation: new THREE.Euler(0, Math.random() * Math.PI * 2, 0), // Random rotation
 			scale: new THREE.Vector3(scale, scale, scale),
 		}),
-		CapsuleCollider({
-			radius: 0.3,
-			height: 4,
+		BoxCollider({
+			size: new THREE.Vector3(0.5, 9, 0.5),
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			offset: new THREE.Vector3(0, 2, 0),
 		}),
+		// CapsuleCollider({
+		// 	radius: 0.3,
+		// 	height: 4,
+		// 	layer: CollisionLayer.TERRAIN,
+		// 	mask: CollisionLayer.ALL,
+		// 	offset: new THREE.Vector3(0, 2, 0),
+		// }),
 		PhysicsBody({
 			...PHYSICS_BODY_DEFAULTS,
 			isStatic: true,

@@ -51,32 +51,29 @@ export function setupEnvironment(world: World) {
 	}
 
 	// Helper function to check if a position is suitable for object placement
-	function isSuitablePosition(
-		x: number,
-		z: number,
-		minFlatness: number = 0.3,
-		maxHeight: number | null = null
-	): boolean {
+	function isSuitablePosition(x: number, z: number, minFlatness?: number, maxHeight?: number): boolean {
 		const centerHeight = getTerrainHeightAt(x, z);
 
 		// Check height constraints
-		if (maxHeight !== null && centerHeight > maxHeight) {
+		if (maxHeight !== undefined && centerHeight > maxHeight) {
 			return false;
 		}
 
 		// Check surrounding points for slope
-		const checkRadius = 2;
-		const points = [
-			{ dx: -checkRadius, dz: 0 },
-			{ dx: checkRadius, dz: 0 },
-			{ dx: 0, dz: -checkRadius },
-			{ dx: 0, dz: checkRadius },
-		];
+		if (minFlatness !== undefined) {
+			const checkRadius = 2;
+			const points = [
+				{ dx: -checkRadius, dz: 0 },
+				{ dx: checkRadius, dz: 0 },
+				{ dx: 0, dz: -checkRadius },
+				{ dx: 0, dz: checkRadius },
+			];
 
-		for (const point of points) {
-			const heightDiff = Math.abs(centerHeight - getTerrainHeightAt(x + point.dx, z + point.dz));
-			if (heightDiff > minFlatness) {
-				return false;
+			for (const point of points) {
+				const heightDiff = Math.abs(centerHeight - getTerrainHeightAt(x + point.dx, z + point.dz));
+				if (heightDiff > minFlatness) {
+					return false;
+				}
 			}
 		}
 
@@ -399,13 +396,11 @@ export function setupEnvironment(world: World) {
 	createLakes(world, getTerrainHeightAt);
 
 	// Add Lake shore decorations
-	const SHORE_DECORATION_COUNT = {
-		LARGE_ROCKS: 4,
-		SMALL_ROCKS: 12,
-		BUSHES: 12,
-	};
+	LAKES_DATA.forEach(({ center, radius }) => {
+		const largeRocks = radius * Math.random();
+		const smallRocks = radius * Math.random() * 2;
+		const bushes = radius * Math.random();
 
-	LAKES_DATA.forEach(({ center, radius, waterLevel }) => {
 		// Helper to get random position around or in lake
 		function getRandomLakePosition(minDist: number, maxDist: number): THREE.Vector3 {
 			const angle = Math.random() * Math.PI * 2;
@@ -417,22 +412,15 @@ export function setupEnvironment(world: World) {
 		}
 
 		// Add large rocks (some in water, some on shore)
-		for (let i = 0; i < SHORE_DECORATION_COUNT.LARGE_ROCKS; i++) {
-			// Bias placement towards the shore rather than inside lake
-			const pos = getRandomLakePosition(radius * 0.7, radius * 1.2);
+		for (let i = 0; i < largeRocks; i++) {
+			// No bias for placement
+			const pos = getRandomLakePosition(0, radius * 1.2);
 			const scale = 1.5 + Math.random() * 1.0;
 
-			// Adjust y position if rock is in water
 			const distToCenter = Math.sqrt(Math.pow(pos.x - center.x, 2) + Math.pow(pos.z - center.z, 2));
-			if (distToCenter < radius) {
-				// If in water, make sure rock sticks out
-				pos.y = Math.max(pos.y, waterLevel - scale * 0.3);
-				// Only 30% chance to place rocks if they're in the water
-				if (Math.random() > 0.3) continue;
-			}
 
 			// Only place if the slope isn't too steep
-			if (isSuitablePosition(pos.x, pos.z, 1.0)) {
+			if (isSuitablePosition(pos.x, pos.z)) {
 				createRock(world, pos, scale);
 
 				// Add cluster of smaller rocks around large ones, but only if not in water
@@ -446,7 +434,7 @@ export function setupEnvironment(world: World) {
 						const clusterY = getTerrainHeightAt(clusterX, clusterZ);
 						const clusterPos = new THREE.Vector3(clusterX, clusterY, clusterZ);
 
-						if (isSuitablePosition(clusterX, clusterZ, 0.5)) {
+						if (isSuitablePosition(clusterX, clusterZ)) {
 							createRock(world, clusterPos, scale * 0.3);
 						}
 					}
@@ -455,28 +443,24 @@ export function setupEnvironment(world: World) {
 		}
 
 		// Add small rocks around shore
-		for (let i = 0; i < SHORE_DECORATION_COUNT.SMALL_ROCKS; i++) {
-			// Place small rocks primarily around the shoreline, biased towards land
-			const pos = getRandomLakePosition(radius * 0.9, radius * 1.3);
+		for (let i = 0; i < smallRocks; i++) {
+			// No bias for placement
+			const pos = getRandomLakePosition(0, radius * 1.3);
 			const scale = 0.4 + Math.random() * 0.4;
 
-			// Skip 80% of rocks that would be in water
-			const distToCenter = Math.sqrt(Math.pow(pos.x - center.x, 2) + Math.pow(pos.z - center.z, 2));
-			if (distToCenter < radius && Math.random() > 0.2) continue;
-
-			if (isSuitablePosition(pos.x, pos.z, 0.3)) {
+			if (isSuitablePosition(pos.x, pos.z)) {
 				createRock(world, pos, scale);
 			}
 		}
 
 		// Add bushes around shore (not in water)
-		for (let i = 0; i < SHORE_DECORATION_COUNT.BUSHES; i++) {
+		for (let i = 0; i < bushes; i++) {
 			// Place bushes only on shore, not in water
 			const pos = getRandomLakePosition(radius * 1.1, radius * 1.8);
 			const scale = 0.6 + Math.random() * 0.8;
 
 			// Only place bushes if terrain is suitable and not too steep
-			if (isSuitablePosition(pos.x, pos.z, 0.4)) {
+			if (isSuitablePosition(pos.x, pos.z)) {
 				createBush(world, pos, scale);
 
 				// Sometimes add a smaller companion bush
@@ -488,7 +472,7 @@ export function setupEnvironment(world: World) {
 					const companionY = getTerrainHeightAt(companionX, companionZ);
 					const companionPos = new THREE.Vector3(companionX, companionY, companionZ);
 
-					if (isSuitablePosition(companionX, companionZ, 0.3)) {
+					if (isSuitablePosition(companionX, companionZ)) {
 						createBush(world, companionPos, scale * 0.7);
 					}
 				}

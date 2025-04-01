@@ -11,6 +11,7 @@ To Do List
 - Make "s" key move backwards
 - Allow for movement inputs while in the air
 - OrbitControls?
+- Update physics when swimming
 
 Factories
 

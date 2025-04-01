@@ -47,20 +47,7 @@ export function createLake(
 			const sandFactor = terrainHeight <= waterLevel ? 1.0 : 0.0;
 			sandFactors.push(sandFactor);
 
-			// Calculate vertex position
-			// Inside lake radius: use water level
-			// At edges: blend between water level and terrain height
-
-			// const distanceFromCenter = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(z - center.z, 2));
-			// let vertexY;
-			// if (distanceFromCenter <= radius) {
-			// 	vertexY = waterLevel;
-			// } else {
-			// 	// Only blend at the very edge if needed
-			// 	const edgeT = Math.max(0, Math.min(1, (distanceFromCenter - radius) / transitionWidth));
-			// 	vertexY = THREE.MathUtils.lerp(waterLevel, terrainHeight, edgeT);
-			// }
-
+			// Vertex position always at waterLevel
 			positions.push(x, waterLevel, z);
 			uvs.push(u, v);
 		}

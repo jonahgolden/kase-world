@@ -50,8 +50,8 @@ function calculateHeightAtPoint(x: number, z: number): { height: number; inLake:
 	let inLake = false;
 	if (closestLake && distanceToClosestLake < closestLake.radius) {
 		// Inside lake: create depression below water level
-		const depthNoise = (detailNoise(x * 0.1, z * 0.1) + 1) * 0.5;
-		const depthVariation = depthNoise * closestLake.depth; // * 0.2; TODO? // 20% depth variation
+		const depthNoise = detailNoise(x * 0.1, z * 0.1) + 1;
+		const depthVariation = depthNoise * closestLake.depth * 0.2; // 20% depth variation
 
 		// Make it deeper towards the center
 		const centerFactor = 1 - distanceToClosestLake / closestLake.radius;
@@ -172,12 +172,14 @@ export function createTerrain(world: World): Entity {
 function getBiomeColor(height: number, slope: number, inLake: boolean): THREE.Color {
 	const color = new THREE.Color();
 
+	if (inLake) return color.setStyle(TERRAIN_COLORS.SAND);
+
 	// Normal biome coloring
 	if (height > SNOW_HEIGHT) {
 		color.setStyle(TERRAIN_COLORS.SNOW);
 	} else if ((height > ROCK_HEIGHT && slope > MODERATE_SLOPE) || slope > STEEP_SLOPE) {
 		color.setStyle(TERRAIN_COLORS.ROCK);
-	} else if (!inLake && (height > GRASS_HEIGHT || slope > MODERATE_SLOPE)) {
+	} else if (height > GRASS_HEIGHT || slope > MODERATE_SLOPE) {
 		const darkGrassInfluence =
 			Math.min(
 				1.0,
