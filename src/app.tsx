@@ -43,7 +43,7 @@ export function App() {
 				<PlayerRenderer />
 				<ScreamEffect />
 				<CollisionObjectsRenderer />
-				<CollisionDebugRenderer enabled={true} />
+				<CollisionDebugRenderer />
 			</Canvas>
 
 			{/* UI components outside Canvas */}
