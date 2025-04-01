@@ -4,7 +4,6 @@
 	"description": "First Baby Game",
 	"type": "module",
 	"scripts": {
-		"heroku-prebuild": "npm install -g serve",
 		"start": "vite",
 		"dev": "vite",
 		"build": "vite build",
