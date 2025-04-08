@@ -40,6 +40,10 @@ stories:
     status: 'Todo'
 
   # Phase 3: NPC Characters
+  - id: '3.0'
+    title: 'Duogringo Boss Character'
+    file: 'docs/stories/3.0-duogringo.md'
+    status: 'Todo'
   - id: '3.1'
     title: 'Giant Chicken NPCs'
     file: 'docs/stories/3.1-giant-chicken-npcs.md'

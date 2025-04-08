@@ -19,21 +19,13 @@ const state = {
 const requestPointerLock = () => {
 	const canvas = document.querySelector('canvas');
 	if (canvas && !state.pointerLocked) {
-		canvas.requestPointerLock =
-			canvas.requestPointerLock ||
-			(canvas as HTMLCanvasElement).mozRequestPointerLock ||
-			(canvas as HTMLCanvasElement).webkitRequestPointerLock;
-
 		canvas.requestPointerLock();
 	}
 };
 
 // Function to handle pointer lock change
 const handlePointerLockChange = () => {
-	state.pointerLocked =
-		document.pointerLockElement === document.querySelector('canvas') ||
-		(document as Document).mozPointerLockElement === document.querySelector('canvas') ||
-		(document as Document).webkitPointerLockElement === document.querySelector('canvas');
+	state.pointerLocked = document.pointerLockElement === document.querySelector('canvas');
 };
 
 // Set up pointer lock event listeners
