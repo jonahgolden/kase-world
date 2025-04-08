@@ -1,13 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import {
-	BoxCollider,
-	CollisionEvents,
-	CollisionLayer,
-	PHYSICS_BODY_DEFAULTS,
-	PhysicsBody,
-	Transform,
-} from '../traits';
+import { BoxCollider, CollisionEvents, CollisionLayer, getPhysicsBody, Transform } from '../traits';
 import { Ref } from '../traits/ref';
 
 // Building properties interface
@@ -39,7 +32,7 @@ export function createBuilding({
 			mask: CollisionLayer.ALL, // Collide with everything
 		}),
 		CollisionEvents(), // Add collision events
-		PhysicsBody({ ...PHYSICS_BODY_DEFAULTS, isStatic: true }) // Buildings are static and immovable
+		getPhysicsBody({ isStatic: true }) // Buildings are static and immovable
 	);
 
 	// Create mesh for visualization

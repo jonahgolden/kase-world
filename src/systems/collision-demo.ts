@@ -7,8 +7,7 @@ import {
 	ColliderType,
 	CollisionEvents,
 	CollisionLayer,
-	PHYSICS_BODY_DEFAULTS,
-	PhysicsBody,
+	getPhysicsBody,
 	Transform,
 } from '../traits';
 import { Ref } from '../traits/ref';
@@ -31,7 +30,7 @@ function addColliderObject({
 		Transform({ position }),
 		Collider(collider),
 		CollisionEvents(),
-		PhysicsBody({ ...PHYSICS_BODY_DEFAULTS, isStatic: true })
+		getPhysicsBody({ isStatic: true })
 	);
 
 	// Add a mesh for visualization

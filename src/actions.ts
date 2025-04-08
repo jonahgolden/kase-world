@@ -1,10 +1,11 @@
 import { Entity, createActions } from 'koota';
 import * as THREE from 'three';
+import { createDuogringoEntity } from './factories/duogringo-factory';
 import { createPlayerEntity } from './factories/player-factory';
 import { CameraZoom, Health, IsCamera, Transform } from './traits';
 
 // Define the invulnerability period in seconds
-const INVULNERABILITY_PERIOD = 0.8;
+const INVULNERABILITY_PERIOD = 0.6;
 
 // Player spawn position
 export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 10, 0);
@@ -17,6 +18,7 @@ export const actions = createActions((world) => ({
 		return world.spawn(Transform({ position: new THREE.Vector3(...position) }), IsCamera, CameraZoom());
 	},
 	spawnPlayer: () => createPlayerEntity({ world }),
+	spawnDuogringo: (position?: THREE.Vector3) => createDuogringoEntity({ world, position }),
 
 	// Apply damage to an entity with health
 	applyDamage: (entity: Entity, amount: number) => {

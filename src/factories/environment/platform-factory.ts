@@ -1,7 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { BoxCollider, CollisionLayer, Ref, Transform } from '../../traits';
-import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
+import { BoxCollider, CollisionLayer, getPhysicsBody, Ref, Transform } from '../../traits';
 import { TERRAIN_COLORS } from './terrain-factory';
 
 /**
@@ -19,10 +18,7 @@ export function createPlatform(world: World, position: THREE.Vector3, size: THRE
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
 		}),
-		PhysicsBody({
-			...PHYSICS_BODY_DEFAULTS,
-			isStatic: true,
-		})
+		getPhysicsBody({ isStatic: true })
 	);
 
 	// Create mesh

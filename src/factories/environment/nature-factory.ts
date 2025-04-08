@@ -1,7 +1,7 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
 import { BoxCollider, CollisionLayer, Ref, SphereCollider, Transform } from '../../traits';
-import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
+import { getPhysicsBody } from '../../traits/physics-body';
 
 // Tree configuration
 const TREE_COLORS = {
@@ -37,10 +37,7 @@ export function createTree(world: World, position: THREE.Vector3, scale: number 
 		// 	mask: CollisionLayer.ALL,
 		// 	offset: new THREE.Vector3(0, 2, 0),
 		// }),
-		PhysicsBody({
-			...PHYSICS_BODY_DEFAULTS,
-			isStatic: true,
-		})
+		getPhysicsBody({ isStatic: true })
 	);
 
 	// Create tree group
@@ -97,10 +94,7 @@ export function createRock(world: World, position: THREE.Vector3, scale: number 
 			mask: CollisionLayer.ALL,
 			offset: new THREE.Vector3(0, 0.5, 0),
 		}),
-		PhysicsBody({
-			...PHYSICS_BODY_DEFAULTS,
-			isStatic: true,
-		})
+		getPhysicsBody({ isStatic: true })
 	);
 
 	// Create rock mesh with basic dodecahedron shape
@@ -136,10 +130,7 @@ export function createBush(world: World, position: THREE.Vector3, scale: number 
 			mask: CollisionLayer.ALL,
 			offset: new THREE.Vector3(0, 0.5, 0),
 		}),
-		PhysicsBody({
-			...PHYSICS_BODY_DEFAULTS,
-			isStatic: true,
-		})
+		getPhysicsBody({ isStatic: true })
 	);
 
 	// Create bush mesh (multiple spheres for more natural look)

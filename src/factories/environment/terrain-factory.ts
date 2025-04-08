@@ -2,7 +2,7 @@ import { Entity, World } from 'koota';
 import { createNoise2D } from 'simplex-noise';
 import * as THREE from 'three';
 import { CollisionLayer, HeightfieldCollider, Ref, Transform } from '../../traits';
-import { PHYSICS_BODY_DEFAULTS, PhysicsBody } from '../../traits/physics-body';
+import { getPhysicsBody } from '../../traits/physics-body';
 import { closestLakeToPoint } from '../lakes/helpers';
 
 // Terrain colors and materials
@@ -158,10 +158,7 @@ export function createTerrain(world: World): Entity {
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
 		}),
-		PhysicsBody({
-			...PHYSICS_BODY_DEFAULTS,
-			isStatic: true,
-		})
+		getPhysicsBody({ isStatic: true })
 	);
 
 	entity.add(Ref(mesh));

@@ -4,6 +4,7 @@ import { CameraRenderer } from './components/camera-renderer';
 import { CollisionDebugRenderer } from './components/collision-debug-renderer';
 import { CollisionObjectsRenderer } from './components/collision-objects-renderer';
 import { DamageEffect } from './components/damage-effect';
+import { DuogringoRenderer } from './components/duogringo-renderer';
 import { GameOverScreen } from './components/game-over-screen';
 import { HealthUI } from './components/health-ui';
 import { MovementModeUI } from './components/movement-mode-ui';
@@ -41,6 +42,7 @@ export function App() {
 
 				<CameraRenderer />
 				<PlayerRenderer />
+				<DuogringoRenderer />
 				<ScreamEffect />
 				<CollisionObjectsRenderer />
 				<CollisionDebugRenderer />

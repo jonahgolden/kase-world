@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 /**
  * PhysicsBody trait for physics simulation
- * - mass: Mass of the entity (affects force application)
+ * - mass: Mass of the entity in kg (affects force application)
  * - drag: Air resistance factor (0-1)
  * - gravity: Whether gravity affects this body
  * - gravityScale: Multiplier for gravity strength (1.0 = normal)
@@ -11,71 +11,80 @@ import * as THREE from 'three';
  * - isStatic: If true, won't move but affects other bodies
  * - constraints: Movement constraints for each axis
  * - terminalVelocity: Maximum speed in any direction
+ * - groundFriction: Friction when in contact with ground
+ * - forces: Accumulated forces (reset each frame)
+ * - isGrounded: Whether the entity is on the ground
+ * - groundNormal: Normal vector of the ground surface
+ * - lastGroundedTime: Timestamp of last ground contact
  */
-export const PhysicsBody = trait(() => {
-	// Create objects once to avoid recreating them
-	const forces = new THREE.Vector3();
-	const groundNormal = new THREE.Vector3(0, 1, 0);
-
-	return {
-		// Physical properties
-		mass: 1.0, // Mass in kg
-		drag: 0.01, // Air resistance (0-1)
-		gravity: true, // Whether gravity affects this body
-		gravityScale: 1.0, // Multiplier for gravity strength
-
-		// Body type
-		isKinematic: false, // Kinematic bodies are moved by code, not physics
-		isStatic: false, // Static bodies don't move but can be collided with
-
-		// Movement constraints
-		constraints: {
-			x: false, // Lock movement on X axis
-			y: false, // Lock movement on Y axis
-			z: false, // Lock movement on Z axis
-		},
-
-		// Other physics properties
-		terminalVelocity: 20, // Max speed in any direction
-		groundFriction: 0.3, // Friction when in contact with ground
-
-		// Accumulated forces (reset each frame)
-		forces,
-
-		// Tracking ground contact
-		isGrounded: false, // Whether the entity is on the ground
-		groundNormal, // Normal vector of the ground surface
-		lastGroundedTime: 0, // Timestamp of last ground contact
-	};
-});
-
-export const PHYSICS_BODY_DEFAULTS = {
+export type PhysicsBodyInstanceType = {
 	// Physical properties
-	mass: 1.0, // Mass in kg
-	drag: 0.01, // Air resistance (0-1)
-	gravity: true, // Whether gravity affects this body
-	gravityScale: 1.0, // Multiplier for gravity strength
+	mass: number;
+	drag: number;
+	gravity: boolean;
+	gravityScale: number;
 
 	// Body type
-	isKinematic: false, // Kinematic bodies are moved by code, not physics
-	isStatic: false, // Static bodies don't move but can be collided with
+	isKinematic: boolean;
+	isStatic: boolean;
 
 	// Movement constraints
 	constraints: {
-		x: false, // Lock movement on X axis
-		y: false, // Lock movement on Y axis
-		z: false, // Lock movement on Z axis
-	},
+		x: boolean;
+		y: boolean;
+		z: boolean;
+	};
 
 	// Other physics properties
-	terminalVelocity: 20, // Max speed in any direction
-	groundFriction: 0.3, // Friction when in contact with ground
+	terminalVelocity: number;
+	groundFriction: number;
 
 	// Accumulated forces (reset each frame)
-	forces: new THREE.Vector3(),
+	forces: THREE.Vector3;
 
 	// Tracking ground contact
-	isGrounded: false, // Whether the entity is on the ground
-	groundNormal: new THREE.Vector3(0, 1, 0), // Normal vector of the ground surface
-	lastGroundedTime: 0, // Timestamp of last ground contact
+	isGrounded: boolean;
+	groundNormal: THREE.Vector3;
+	lastGroundedTime: number;
 };
+
+const PHYSICS_BODY_DEFAULTS: Omit<PhysicsBodyInstanceType, 'forces' | 'groundNormal'> = {
+	mass: 1.0,
+	drag: 0.01,
+	gravity: true,
+	gravityScale: 1.0,
+
+	isKinematic: false,
+	isStatic: false,
+
+	constraints: {
+		x: false,
+		y: false,
+		z: false,
+	},
+
+	terminalVelocity: 20,
+	groundFriction: 0.3,
+
+	isGrounded: false,
+	lastGroundedTime: 0,
+};
+
+export const PhysicsBody = trait<() => PhysicsBodyInstanceType>(() => {
+	const forces = new THREE.Vector3();
+	const groundNormal = new THREE.Vector3(0, 1, 0);
+
+	return { ...PHYSICS_BODY_DEFAULTS, forces, groundNormal };
+});
+
+export function getPhysicsBody(options: Partial<PhysicsBodyInstanceType>) {
+	const forces = new THREE.Vector3();
+	const groundNormal = new THREE.Vector3(0, 1, 0);
+
+	return PhysicsBody({
+		forces,
+		groundNormal,
+		...PHYSICS_BODY_DEFAULTS,
+		...options,
+	});
+}

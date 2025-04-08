@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useActions, useWorld } from 'koota/react';
 import { useEffect } from 'react';
+import { Vector3 } from 'three';
 import { actions } from './actions';
 import { setupEnvironment } from './systems/environment-system';
 import { updateSpatialHashing } from './systems/update-spatial-hashing';
@@ -10,7 +11,7 @@ export function Startup({
 }: {
 	initialCameraPosition?: [number, number, number];
 }) {
-	const { spawnCamera, spawnPlayer } = useActions(actions);
+	const { spawnCamera, spawnPlayer, spawnDuogringo } = useActions(actions);
 	const world = useWorld();
 
 	useEffect(() => {
@@ -25,10 +26,14 @@ export function Startup({
 		// Spawn main player
 		const player = spawnPlayer();
 
+		// Spawn Duogringo
+		const duogringo = spawnDuogringo(new Vector3(0, 0, -5)); // Start 5 units in front of origin
+
 		return () => {
 			player.destroy();
+			duogringo.destroy();
 		};
-	}, [spawnCamera, spawnPlayer, initialCameraPosition, world]);
+	}, [spawnCamera, spawnPlayer, spawnDuogringo, initialCameraPosition, world]);
 
 	useFrame(() => {
 		updateSpatialHashing(world);

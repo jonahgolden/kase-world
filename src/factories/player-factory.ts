@@ -15,7 +15,7 @@ import {
 	SpatialTracking,
 	Transform,
 } from '../traits';
-import { PhysicsBody } from '../traits/physics-body';
+import { getPhysicsBody } from '../traits/physics-body';
 
 interface Props {
 	world: World;
@@ -61,7 +61,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 		// 	mask: CollisionLayer.ALL,
 		// }),
 		CollisionEvents(), // Add collision events for the player
-		PhysicsBody(),
+		getPhysicsBody({}),
 		SpatialTracking()
 	);
 }

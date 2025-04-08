@@ -10,6 +10,9 @@ const JUMP_FORCE = {
 	walk: 12, // Higher jump force when walking
 };
 
+// Force multiplier for player movement
+const MOVEMENT_FORCE_MULTIPLIER = 10;
+
 // Simple state object to track if the space was pressed in the previous frame
 let wasJumpPressed = false;
 
@@ -44,7 +47,7 @@ export function convertInputToMovement(world: World) {
 
 		// Calculate the force to apply based on input
 		// Only apply horizontal movement forces if on the ground
-		const forceMultiplier = movement.thrust * 10; // Higher value for force-based movement
+		const forceMultiplier = movement.thrust * MOVEMENT_FORCE_MULTIPLIER; // Higher value for force-based movement
 		const moveForce = new THREE.Vector3();
 
 		// Forward movement (W key)

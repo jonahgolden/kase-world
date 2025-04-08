@@ -4,32 +4,32 @@ import { Health, IsPlayer } from '../traits';
 
 export function DamageEffect() {
 	// Get the baby entity using useQueryFirst
-	const babyEntity = useQueryFirst(IsPlayer, Health);
+	const playerEntity = useQueryFirst(IsPlayer, Health);
 
 	const [isDamaged, setIsDamaged] = useState(false);
 
-	// Check for baby damage state
+	// Check for damage to player
 	useEffect(() => {
-		if (!babyEntity) return;
+		if (!playerEntity) return;
 
 		// Initial update using current entity data
-		const health = babyEntity.get(Health);
+		const health = playerEntity.get(Health);
 		if (health) {
 			setIsDamaged(health.isDamaged);
 		}
 
 		// Set up polling to track changes
 		const intervalId = setInterval(() => {
-			if (!babyEntity) return;
+			if (!playerEntity) return;
 
-			const health = babyEntity.get(Health);
+			const health = playerEntity.get(Health);
 			if (health) {
 				setIsDamaged(health.isDamaged);
 			}
-		}, 50); // Check more frequently for responsive feedback
+		}, 50);
 
 		return () => clearInterval(intervalId);
-	}, [babyEntity]); // Re-run when the entity reference changes
+	}, [playerEntity]); // Re-run when the entity reference changes
 
 	// Return null if not damaged
 	if (!isDamaged) return null;
@@ -37,9 +37,13 @@ export function DamageEffect() {
 	// Show red overlay when damaged
 	return (
 		<div
-			className="fixed inset-0 bg-red-500 bg-opacity-30 pointer-events-none z-40 animate-flash"
+			className="fixed inset-0 pointer-events-none z-40 animate-flash"
 			style={{
-				animation: 'flash 0.2s 3',
+				background: 'radial-gradient(circle, rgba(255,0,0,0.8) 0%, rgba(255,0,0,0) 100%)',
+				animationName: 'flash',
+				animationDuration: '0.8s',
+				animationIterationCount: '3',
+				animationFillMode: 'forwards',
 			}}
 		/>
 	);
@@ -50,7 +54,7 @@ export function DamageEffect() {
 const flashAnimation = `
 @keyframes flash {
   0%, 100% { opacity: 0; }
-  50% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 `;
 

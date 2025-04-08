@@ -1,6 +1,7 @@
 export * from './camera-zoom';
 export * from './collider';
 export * from './collision-events';
+export * from './duogringo';
 export * from './health';
 export * from './input';
 export * from './is-camera';

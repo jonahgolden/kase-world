@@ -8,7 +8,7 @@ import {
 	Transform,
 	TransformType,
 } from '../../traits';
-import { PhysicsBody } from '../../traits/physics-body';
+import { PhysicsBody, PhysicsBodyInstanceType } from '../../traits/physics-body';
 import { CollisionPair, SpatialHashGrid } from '../../utils/spatial-hash-grid';
 import { checkCollision } from './checkers/check-collision';
 import { findEntityById } from './helpers';
@@ -42,14 +42,14 @@ interface CollisionResponse {
 		entity: Entity;
 		transform: TransformType;
 		movement?: MovementInstance;
-		isStatic: boolean;
+		physics?: PhysicsBodyInstanceType;
 		collider: ColliderInstanceType; // Add collider to response
 	};
 	entityB: {
 		entity: Entity;
 		transform: TransformType;
 		movement?: MovementInstance;
-		isStatic: boolean;
+		physics?: PhysicsBodyInstanceType;
 		collider: ColliderInstanceType; // Add collider to response
 	};
 	normal: THREE.Vector3;
@@ -136,14 +136,14 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 						entity: entA,
 						transform: transformA,
 						movement: movementA,
-						isStatic: physicsA?.isStatic ?? false,
+						physics: physicsA,
 						collider: colliderA,
 					},
 					entityB: {
 						entity: entB,
 						transform: transformB,
 						movement: movementB,
-						isStatic: physicsB?.isStatic ?? false,
+						physics: physicsB,
 						collider: colliderB,
 					},
 					normal: result.normal,
@@ -199,12 +199,19 @@ function applyCollisionResponse({
 	let ratioB = 0.5;
 
 	// If one object is static, the other takes all the movement
-	if (entityA.isStatic && !entityB.isStatic) {
+	if (entityA.physics?.isStatic && !entityB.physics?.isStatic) {
 		ratioA = 0;
 		ratioB = 1;
-	} else if (!entityA.isStatic && entityB.isStatic) {
+	} else if (!entityA.physics?.isStatic && entityB.physics?.isStatic) {
 		ratioA = 1;
 		ratioB = 0;
+	} else if (entityA.physics && entityB.physics) {
+		// If both objects have physics, we need to distribute the movement based on their masses
+		const massA = entityA.physics.mass;
+		const massB = entityB.physics.mass;
+		const totalMass = massA + massB;
+		ratioA = massB / totalMass;
+		ratioB = massA / totalMass;
 	}
 
 	// Apply immediate position correction
@@ -212,7 +219,7 @@ function applyCollisionResponse({
 	const correctionB = normal.clone().multiplyScalar(totalCorrection * ratioB);
 
 	// Apply corrections to positions
-	if (!entityA.isStatic) {
+	if (!entityA.physics?.isStatic) {
 		const newPositionA = entityA.transform.position.clone().add(correctionA);
 		entityA.entity.set(Transform, {
 			position: newPositionA,
@@ -228,13 +235,14 @@ function applyCollisionResponse({
 				entityA.movement.velocity.sub(normalVelocity);
 
 				// Set isGrounded if vertical collision and low velocity
-				const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
-				if (verticalCollision && Math.abs(entityA.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD) {
-					const physics = entityA.entity.get(PhysicsBody);
-					if (physics) {
-						physics.isGrounded = true;
-						entityA.entity.set(PhysicsBody, physics);
-					}
+				if (entityA.physics) {
+					const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
+					const lowVelocity = Math.abs(entityA.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD;
+
+					const grounded =
+						(entityA.physics.isGrounded && verticalCollision) || (lowVelocity && verticalCollision);
+					entityA.physics.isGrounded = grounded;
+					entityA.entity.set(PhysicsBody, entityA.physics);
 				}
 
 				entityA.entity.set(Movement, entityA.movement);
@@ -247,7 +255,7 @@ function applyCollisionResponse({
 		}
 	}
 
-	if (!entityB.isStatic) {
+	if (!entityB.physics?.isStatic) {
 		const newPositionB = entityB.transform.position.clone().add(correctionB);
 		entityB.entity.set(Transform, {
 			position: newPositionB,
@@ -263,13 +271,13 @@ function applyCollisionResponse({
 				entityB.movement.velocity.sub(normalVelocity);
 
 				// Set isGrounded if vertical collision and low velocity
-				const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
-				if (verticalCollision && Math.abs(entityB.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD) {
-					const physics = entityB.entity.get(PhysicsBody);
-					if (physics) {
-						physics.isGrounded = true;
-						entityB.entity.set(PhysicsBody, physics);
-					}
+				if (entityB.physics) {
+					const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
+					const lowVelocity = Math.abs(entityB.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD;
+					const grounded =
+						(entityB.physics.isGrounded && verticalCollision) || (lowVelocity && verticalCollision);
+					entityB.physics.isGrounded = grounded;
+					entityB.entity.set(PhysicsBody, entityB.physics);
 				}
 
 				entityB.entity.set(Movement, entityB.movement);

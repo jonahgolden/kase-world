@@ -3,6 +3,7 @@ import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
 import { collisionSystem } from './systems/collision/collision-system';
+import { duogringoSystem } from './systems/duogringo-system';
 import { healthSystem } from './systems/health-system';
 import { inputSystem } from './systems/input-system';
 import { physicsSystem } from './systems/physics-system';
@@ -41,6 +42,7 @@ export function GameLoop() {
 			collisionSystem(world);
 			playerThirdPersonCamera(world);
 			cameraZoomSystem(world);
+			duogringoSystem(world);
 
 			// HIGH PRIORITY - Run at ~30fps
 			// These systems affect gameplay but can run at lower frequency
