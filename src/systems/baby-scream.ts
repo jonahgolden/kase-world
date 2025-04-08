@@ -182,7 +182,7 @@ export function babyScreamSystem(world: World, targetFps: number = 60) {
 					const damage = calculateDamage(distance, BASE_DAMAGE, MAX_RANGE, chargeRatio);
 
 					// Apply damage
-					boundActions.applyDamage(targetEntity, damage);
+					boundActions.applyDamage(targetEntity, player, damage);
 					console.log(`Applied ${damage} damage to entity at distance ${distance.toFixed(2)}`);
 				}
 			});
