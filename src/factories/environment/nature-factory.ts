@@ -1,6 +1,13 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
-import { BoxCollider, CollisionLayer, Ref, SphereCollider, Transform } from '../../traits';
+import {
+	BoxCollider,
+	CollisionLayer,
+	DodecahedronCollider,
+	Ref,
+	SphereCollider,
+	Transform,
+} from '../../traits';
 import { getPhysicsBody } from '../../traits/physics-body';
 
 // Tree configuration
@@ -88,11 +95,11 @@ export function createRock(world: World, position: THREE.Vector3, scale: number 
 			rotation: new THREE.Euler(Math.random() * 0.3, Math.random() * Math.PI * 2, Math.random() * 0.3),
 			scale: new THREE.Vector3(scale, scale, scale),
 		}),
-		BoxCollider({
-			size: new THREE.Vector3(1.5, 1, 1.5),
+		DodecahedronCollider({
+			radius: 0.8,
 			layer: CollisionLayer.TERRAIN,
 			mask: CollisionLayer.ALL,
-			offset: new THREE.Vector3(0, 0.5, 0),
+			offset: new THREE.Vector3(0, 0, 0),
 		}),
 		getPhysicsBody({ isStatic: true })
 	);
@@ -108,7 +115,6 @@ export function createRock(world: World, position: THREE.Vector3, scale: number 
 	});
 
 	const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
-	rockMesh.position.y = 0.5; // Half height
 
 	entity.add(Ref(rockMesh));
 	return entity;

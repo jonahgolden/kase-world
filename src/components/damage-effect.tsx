@@ -39,7 +39,7 @@ export function DamageEffect() {
 		<div
 			className="fixed inset-0 pointer-events-none z-40 animate-flash"
 			style={{
-				background: 'radial-gradient(circle, rgba(255,0,0,0.8) 0%, rgba(255,0,0,0) 100%)',
+				background: 'radial-gradient(circle, rgba(255,0,0,1) 30%, rgba(255,0,0,0) 100%)',
 				animationName: 'flash',
 				animationDuration: '0.8s',
 				animationIterationCount: '3',
@@ -54,7 +54,7 @@ export function DamageEffect() {
 const flashAnimation = `
 @keyframes flash {
   0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 `;
 

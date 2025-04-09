@@ -104,6 +104,18 @@ export function CollisionDebugRenderer({ enabled = false }: { enabled?: boolean 
 						opacity: 0.5,
 					})
 				);
+			} else if (collider.type === ColliderType.DODECAHEDRON) {
+				// Use the radius from the collider
+				const geometry = new THREE.DodecahedronGeometry(collider.radius);
+				const wireframeGeometry = new THREE.WireframeGeometry(geometry);
+				wireframe = new THREE.LineSegments(
+					wireframeGeometry,
+					new THREE.LineBasicMaterial({
+						color: collider.isTrigger ? 0x00ffff : 0xff0000,
+						transparent: true,
+						opacity: 0.5,
+					})
+				);
 			}
 
 			if (wireframe) {

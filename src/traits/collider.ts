@@ -9,6 +9,7 @@ export enum ColliderType {
 	CAPSULE,
 	HEIGHTFIELD,
 	SPHERE,
+	DODECAHEDRON,
 }
 
 /**
@@ -42,6 +43,8 @@ export enum CollisionLayer {
  * - resolution: Resolution of the HEIGHTFIELD grid
  * - minHeight: Minimum height for the HEIGHTFIELD collider
  * - maxHeight: Maximum height for the HEIGHTFIELD collider
+ * - vertices: Specific to Dodecahedron colliders
+ * - faceNormals: Specific to Dodecahedron colliders
  */
 export type ColliderInstanceType = {
 	// Common to all colliders
@@ -60,6 +63,9 @@ export type ColliderInstanceType = {
 	resolution: number;
 	minHeight: number;
 	maxHeight: number;
+	// Specific to Dodecahedron colliders
+	vertices?: THREE.Vector3[];
+	faceNormals?: THREE.Vector3[];
 };
 
 export const COLLIDER_DEFAULTS: ColliderInstanceType = {
@@ -103,6 +109,11 @@ type CapsuleColliderOptions = CommonColliderOptions & Pick<ColliderInstanceType,
 
 type HeightfieldColliderOptions = CommonColliderOptions &
 	Pick<ColliderInstanceType, 'size' | 'heightData' | 'resolution' | 'minHeight' | 'maxHeight'>;
+
+type DodecahedronColliderOptions = CommonColliderOptions & {
+	radius: number;
+	size?: THREE.Vector3; // Make size optional for Dodecahedron since we'll use radius
+};
 
 /**
  * Creates a sphere collider with the specified radius
@@ -149,5 +160,22 @@ export function HeightfieldCollider(options: HeightfieldColliderOptions) {
 		...COLLIDER_DEFAULTS,
 		type: ColliderType.HEIGHTFIELD,
 		...options,
+	});
+}
+
+/**
+ * Creates a dodecahedron collider with the specified radius
+ * @param options Dodecahedron collider configuration
+ */
+export function DodecahedronCollider(options: DodecahedronColliderOptions) {
+	// Calculate size based on radius for compatibility with existing code
+	const size = options.size || new THREE.Vector3(options.radius * 2, options.radius * 2, options.radius * 2);
+	const { radius, ...rest } = options;
+	return Collider({
+		...COLLIDER_DEFAULTS,
+		type: ColliderType.DODECAHEDRON,
+		radius,
+		size, // Keep size for compatibility with spatial hash grid
+		...rest,
 	});
 }

@@ -3,6 +3,8 @@ import { checkBoxVsBox } from './box-vs-box-collision';
 import { checkCapsuleVsBox } from './capsule-vs-box-collision';
 import { checkCapsuleVsCapsule } from './capsule-vs-capsule-collision';
 import { checkCapsuleVsSphere } from './capsule-vs-sphere-collision';
+import { checkDodecahedronVsBox } from './dodecahedron-vs-box-collision';
+import { checkDodecahedronVsSphere } from './dodecahedron-vs-sphere-collision';
 import { checkHeightfieldCollision } from './heightfield-collision';
 import { checkSphereVsBox } from './sphere-vs-box-collision';
 import { checkSphereVsSphere } from './sphere-vs-sphere-collision';
@@ -127,6 +129,47 @@ export function checkCollision({ transformA, colliderA, transformB, colliderB }:
 			sphereCollider: colliderA,
 			boxTransform: transformB,
 			boxCollider: colliderB,
+		});
+		if (result) {
+			result.normal.multiplyScalar(-1); // Flip normal since we swapped A/B
+			return result;
+		}
+		return null;
+	}
+
+	// Dodecahedron vs Box
+	if (colliderA.type === ColliderType.DODECAHEDRON && colliderB.type === ColliderType.BOX) {
+		const result = checkDodecahedronVsBox({ transformA, colliderA, transformB, colliderB });
+		if (result) {
+			result.normal.multiplyScalar(-1); // Flip normal since we swapped A/B
+			return result;
+		}
+		return null;
+	}
+
+	// Box vs Dodecahedron
+	if (colliderA.type === ColliderType.BOX && colliderB.type === ColliderType.DODECAHEDRON) {
+		return checkDodecahedronVsBox({
+			transformA: transformB,
+			colliderA: colliderB,
+			transformB: transformA,
+			colliderB: colliderA,
+		});
+	}
+
+	// Dodecahedron vs Sphere
+	if (colliderA.type === ColliderType.DODECAHEDRON && colliderB.type === ColliderType.SPHERE) {
+		// Implement basic collision detection logic here
+		return checkDodecahedronVsSphere({ transformA, colliderA, transformB, colliderB });
+	}
+
+	// Sphere vs Dodecahedron
+	if (colliderA.type === ColliderType.SPHERE && colliderB.type === ColliderType.DODECAHEDRON) {
+		const result = checkDodecahedronVsSphere({
+			transformA: transformB,
+			colliderA: colliderB,
+			transformB: transformA,
+			colliderB: colliderA,
 		});
 		if (result) {
 			result.normal.multiplyScalar(-1); // Flip normal since we swapped A/B

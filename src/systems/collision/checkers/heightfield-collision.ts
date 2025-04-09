@@ -103,6 +103,26 @@ export function checkHeightfieldCollision({
 			}
 			break;
 		}
+
+		case ColliderType.DODECAHEDRON: {
+			// Create a temporary sphere collider with the same radius as our dodecahedron approximation
+			const sphereCollider = {
+				...entityCollider,
+				type: ColliderType.SPHERE,
+				radius: Math.max(entityCollider.size.x, entityCollider.size.y, entityCollider.size.z) * 0.5,
+			};
+			// Reuse the sphere collision logic by recursively calling with the sphere collider
+			return checkHeightfieldCollision({
+				entityTransform,
+				entityCollider: sphereCollider,
+				heightfieldTransform,
+				heightfieldCollider,
+			});
+		}
+
+		default:
+			console.warn('Unsupported collider type for heightfield collision:', entityCollider.type);
+			return null;
 	}
 
 	return null;

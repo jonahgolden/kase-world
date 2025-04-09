@@ -225,8 +225,6 @@ export class SpatialHashGrid {
 				const halfSizeZ = collider.size.z / 2;
 				const verticalPadding = 10; // Add padding below to catch falling objects
 				return {
-					// min: new THREE.Vector3(pos.x - halfSizeX, pos.y, pos.z - halfSizeZ),
-					// max: new THREE.Vector3(pos.x + halfSizeX, pos.y + collider.maxHeight, pos.z + halfSizeZ),
 					min: new THREE.Vector3(
 						pos.x - halfSizeX,
 						pos.y + collider.minHeight - verticalPadding, // Start below minHeight
@@ -237,6 +235,14 @@ export class SpatialHashGrid {
 						pos.y + collider.maxHeight, // Use maxHeight instead of size.y
 						pos.z + halfSizeZ
 					),
+				};
+			}
+			case ColliderType.DODECAHEDRON: {
+				// Use the largest dimension as the radius for the bounding box
+				const radius = Math.max(collider.size.x, collider.size.y, collider.size.z) * 0.5;
+				return {
+					min: new THREE.Vector3(pos.x - radius, pos.y - radius, pos.z - radius),
+					max: new THREE.Vector3(pos.x + radius, pos.y + radius, pos.z + radius),
 				};
 			}
 			default:
