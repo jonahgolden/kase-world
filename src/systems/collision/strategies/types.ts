@@ -22,11 +22,17 @@ export interface CollisionCheckProps {
 
 /**
  * Result of a collision check
+ * Contains all necessary information for physics response and debugging
  */
 export interface CollisionResult {
-	normal: THREE.Vector3;
-	penetration: number;
-	point?: THREE.Vector3; // Optional collision point
+	// Core collision data [P1]
+	normal: THREE.Vector3; // Direction of collision from A to B
+	penetration: number; // Penetration depth
+	point?: THREE.Vector3; // Point of contact
+
+	// Physics integration data [P1]
+	impulse?: THREE.Vector3; // Collision response force
+	frictionImpulse?: THREE.Vector3; // Friction force at collision point
 }
 
 /**

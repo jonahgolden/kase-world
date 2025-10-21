@@ -351,44 +351,6 @@ export function setupEnvironment(world: World) {
 		}
 	}
 
-	// Create massive rock formations in specific locations
-	function createMassiveRocks() {
-		const MASSIVE_ROCK_POSITIONS = [
-			{ pos: new THREE.Vector3(-40, 0, 50), scale: 5.0 + Math.random() * 1.0 },
-			{ pos: new THREE.Vector3(60, 0, 60), scale: 4.5 + Math.random() * 1.0 },
-			{ pos: new THREE.Vector3(30, 0, -50), scale: 4.0 + Math.random() * 1.0 },
-			{ pos: new THREE.Vector3(-20, 0, -40), scale: 4.8 + Math.random() * 1.0 },
-			{ pos: new THREE.Vector3(0, 0, 70), scale: 5.5 + Math.random() * 1.0 },
-		];
-
-		for (const { pos, scale } of MASSIVE_ROCK_POSITIONS) {
-			// Only place if the terrain is suitable for massive rocks and height is in rock zone
-			const y = getTerrainHeightAt(pos.x, pos.z);
-			if (isSuitablePosition(pos.x, pos.z, 1.5) && y >= ROCK_HEIGHT && y < SNOW_HEIGHT) {
-				pos.y = y;
-
-				// Create a cluster of large rocks to form a massive formation
-				createRock(world, pos, scale);
-
-				// Add some smaller rocks around the main one
-				const CLUSTER_COUNT = 4;
-				for (let i = 0; i < CLUSTER_COUNT; i++) {
-					const angle = (i / CLUSTER_COUNT) * Math.PI * 2 + Math.random() * 0.5;
-					const radius = scale * 0.8 + Math.random() * (scale * 0.4);
-					const clusterPos = new THREE.Vector3(
-						pos.x + Math.cos(angle) * radius,
-						y,
-						pos.z + Math.sin(angle) * radius
-					);
-
-					if (isSuitablePosition(clusterPos.x, clusterPos.z, 1.2)) {
-						createRock(world, clusterPos, scale * (0.4 + Math.random() * 0.3));
-					}
-				}
-			}
-		}
-	}
-
 	// Create an old-growth forest with massive trees and dense undergrowth
 	createOldGrowthForest(new THREE.Vector3(20, 0, -80));
 
@@ -480,45 +442,93 @@ export function setupEnvironment(world: World) {
 		}
 	});
 
-	// Create large forest area with varying tree sizes - avoid lake area
-	createForestArea(new THREE.Vector3(-60, 0, -60), 40, 0.3); // 30% large trees
+	// ===== DISTRIBUTE FEATURES ACROSS ENTIRE MAP =====
+	const TERRAIN_SIZE = 500;
+	const HALF_SIZE = TERRAIN_SIZE / 2;
 
-	// Create smaller forest areas - check lake distance
-	const forestPositions = [
-		{ pos: new THREE.Vector3(40, 0, -30), count: 15, largeRatio: 0.2 },
-		{ pos: new THREE.Vector3(0, 0, 0), count: 10, largeRatio: 0.1 },
-	];
+	// Grid-based distribution for consistent coverage
+	const GRID_SIZE = 50; // 50x50 unit cells across the map
+	const CELLS_PER_SIDE = Math.floor(TERRAIN_SIZE / GRID_SIZE); // 10x10 grid
 
-	for (const forest of forestPositions) {
-		createForestArea(forest.pos, forest.count, forest.largeRatio);
+	// Distribute forests across the map
+	for (let gridX = 0; gridX < CELLS_PER_SIDE; gridX++) {
+		for (let gridZ = 0; gridZ < CELLS_PER_SIDE; gridZ++) {
+			// Convert grid position to world position
+			const worldX = -HALF_SIZE + (gridX + 0.5) * GRID_SIZE + (Math.random() - 0.5) * GRID_SIZE * 0.8;
+			const worldZ = -HALF_SIZE + (gridZ + 0.5) * GRID_SIZE + (Math.random() - 0.5) * GRID_SIZE * 0.8;
+
+			// 30% chance for a forest cluster in each cell
+			if (Math.random() < 0.3) {
+				const forestSize = 8 + Math.floor(Math.random() * 12); // 8-20 trees
+				const largeTreeRatio = Math.random() * 0.4; // 0-40% large trees
+				createForestArea(new THREE.Vector3(worldX, 0, worldZ), forestSize, largeTreeRatio);
+			}
+		}
 	}
 
-	// Create large rock formations in mountainous areas - avoid lake
-	const rockFormationPositions = [
-		{ pos: new THREE.Vector3(-30, 0, 30), count: 15, largeRatio: 0.4 },
-		{ pos: new THREE.Vector3(20, 0, 40), count: 12, largeRatio: 0.3 },
-		{ pos: new THREE.Vector3(10, 0, -10), count: 8, largeRatio: 0.2 },
-		{ pos: new THREE.Vector3(-10, 0, 10), count: 8, largeRatio: 0.2 },
-	];
+	// Distribute rock formations across the map
+	for (let gridX = 0; gridX < CELLS_PER_SIDE; gridX++) {
+		for (let gridZ = 0; gridZ < CELLS_PER_SIDE; gridZ++) {
+			const worldX = -HALF_SIZE + (gridX + 0.5) * GRID_SIZE + (Math.random() - 0.5) * GRID_SIZE * 0.8;
+			const worldZ = -HALF_SIZE + (gridZ + 0.5) * GRID_SIZE + (Math.random() - 0.5) * GRID_SIZE * 0.8;
 
-	for (const formation of rockFormationPositions) {
-		createRockFormations(formation.pos, formation.count, formation.largeRatio);
+			// 25% chance for a rock formation in each cell
+			if (Math.random() < 0.25) {
+				const rockCount = 6 + Math.floor(Math.random() * 10); // 6-16 rocks
+				const largeRockRatio = Math.random() * 0.5; // 0-50% large rocks
+				createRockFormations(new THREE.Vector3(worldX, 0, worldZ), rockCount, largeRockRatio);
+			}
+		}
 	}
 
-	// Create massive rock formations
-	createMassiveRocks();
+	// Create massive rock formations at random locations across the map
+	const MASSIVE_ROCK_COUNT = 15;
+	for (let i = 0; i < MASSIVE_ROCK_COUNT; i++) {
+		const x = (Math.random() - 0.5) * TERRAIN_SIZE * 0.9; // Stay within 90% of terrain
+		const z = (Math.random() - 0.5) * TERRAIN_SIZE * 0.9;
+		const y = getTerrainHeightAt(x, z);
 
-	// Add scattered bushes with proper height placement (avoiding snow and lake)
-	for (let i = 0; i < 50; i++) {
-		const x = (Math.random() - 0.5) * 160;
-		const z = (Math.random() - 0.5) * 160;
+		// Only place massive rocks in suitable locations (rock zone, not too steep)
+		if (isSuitablePosition(x, z, 1.5) && y >= ROCK_HEIGHT && y < SNOW_HEIGHT) {
+			const pos = new THREE.Vector3(x, y, z);
+			const scale = 4.0 + Math.random() * 2.0; // 4-6 scale
+
+			createRock(world, pos, scale);
+
+			// Add cluster around the main massive rock
+			const CLUSTER_COUNT = 4;
+			for (let j = 0; j < CLUSTER_COUNT; j++) {
+				const angle = (j / CLUSTER_COUNT) * Math.PI * 2 + Math.random() * 0.5;
+				const radius = scale * 0.8 + Math.random() * (scale * 0.4);
+				const clusterPos = new THREE.Vector3(
+					pos.x + Math.cos(angle) * radius,
+					y,
+					pos.z + Math.sin(angle) * radius
+				);
+
+				if (isSuitablePosition(clusterPos.x, clusterPos.z, 1.2)) {
+					createRock(world, clusterPos, scale * (0.4 + Math.random() * 0.3));
+				}
+			}
+		}
+	}
+
+	// Add scattered bushes across the entire terrain
+	const BUSH_COUNT = 200; // More bushes for larger map coverage
+	for (let i = 0; i < BUSH_COUNT; i++) {
+		const x = (Math.random() - 0.5) * TERRAIN_SIZE * 0.95; // Stay within 95% of terrain
+		const z = (Math.random() - 0.5) * TERRAIN_SIZE * 0.95;
 		const pos = new THREE.Vector3(x, 0, z);
 
 		if (isSuitablePosition(x, z, 0.6, SNOW_HEIGHT) && !pointIsInLake(pos)) {
 			const y = getTerrainHeightAt(x, z);
-			createBush(world, new THREE.Vector3(x, y, z), 0.8 + Math.random() * 0.4);
+			const scale = 0.6 + Math.random() * 0.8;
+			createBush(world, new THREE.Vector3(x, y, z), scale);
 		}
 	}
 
 	environmentCreated = true;
+
+	// Return helpers for use elsewhere (e.g., Startup)
+	return { getTerrainHeightAt };
 }

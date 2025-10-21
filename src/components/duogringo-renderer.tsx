@@ -1,7 +1,7 @@
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Entity } from 'koota';
-import { useQueryFirst } from 'koota/react';
+import { useQuery } from 'koota/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import duogringoModelUrl from '../assets/duogringo.glb?url';
@@ -14,6 +14,7 @@ import {
 	Ref,
 	Transform,
 } from '../traits';
+import { DuogringoHealthBar } from './duogringo-health-bar';
 
 // Preload the model
 useGLTF.preload(duogringoModelUrl);
@@ -101,12 +102,21 @@ export function DuogringoView({ entity }: { entity: Entity }) {
 			>
 				<primitive object={scene} />
 			</group>
+			{/* Health bar above Duogringo head */}
+			<DuogringoHealthBar entity={entity} />
 		</group>
 	);
 }
 
-// Query for Duogringo entity and render it
+// Query for all Duogringo entities and render them
 export function DuogringoRenderer() {
-	const duogringo = useQueryFirst(IsDuogringo, Transform);
-	return duogringo ? <DuogringoView entity={duogringo} /> : null;
+	const duogringos = useQuery(IsDuogringo, Transform);
+
+	return (
+		<>
+			{duogringos.map((entity) => (
+				<DuogringoView key={entity.id()} entity={entity} />
+			))}
+		</>
+	);
 }

@@ -7,6 +7,7 @@ import {
 	DUOGRINGO_BASE_SPEED,
 	DuogringoAnimation,
 	DuogringoPower,
+	Health,
 	IsDuogringo,
 	Movement,
 	SpatialTracking,
@@ -20,7 +21,7 @@ interface Props {
 }
 
 /**
- * Creates the Duogringo entity with all necessary traits
+ * Creates the Duogringo entity with all necessary traits including health
  */
 export function createDuogringoEntity({ world, position = new THREE.Vector3(0, 0, 0) }: Props): Entity {
 	return world.spawn(
@@ -35,6 +36,12 @@ export function createDuogringoEntity({ world, position = new THREE.Vector3(0, 0
 			thrust: DUOGRINGO_BASE_SPEED, // Base movement speed
 			damping: 0.85,
 			force: new THREE.Vector3(),
+		}),
+		Health({
+			current: 150, // Duogringo health as requested
+			max: 150,
+			invulnerabilityTimer: 0,
+			isDamaged: false,
 		}),
 		DuogringoPower(),
 		DuogringoAnimation(),

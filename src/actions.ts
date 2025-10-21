@@ -1,5 +1,6 @@
 import { Entity, createActions } from 'koota';
 import * as THREE from 'three';
+import { createDuogringoSpawnBuilding } from './factories/building-factory';
 import { createDuogringoEntity } from './factories/duogringo-factory';
 import { createPlayerEntity } from './factories/player-factory';
 import { CameraZoom, Health, IsCamera, Movement, Transform } from './traits';
@@ -12,7 +13,7 @@ const DAMAGE_KNOCKBACK_FORCE = -15;
 export const PLAYER_SPAWN_POSITION = new THREE.Vector3(0, 10, 0);
 
 // Player base thrust
-export const PLAYER_BASE_THRUST = 3;
+export const PLAYER_BASE_THRUST = 7;
 
 export const actions = createActions((world) => ({
 	spawnCamera: (position: [number, number, number]) => {
@@ -20,6 +21,7 @@ export const actions = createActions((world) => ({
 	},
 	spawnPlayer: () => createPlayerEntity({ world }),
 	spawnDuogringo: (position?: THREE.Vector3) => createDuogringoEntity({ world, position }),
+	spawnDuogringoBuilding: (position?: THREE.Vector3) => createDuogringoSpawnBuilding({ world, position }),
 
 	// Apply damage to an entity with health
 	applyDamage: (targetEntity: Entity, sourceEntity: Entity, amount: number) => {
