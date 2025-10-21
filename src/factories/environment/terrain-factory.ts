@@ -17,8 +17,8 @@ export const TERRAIN_COLORS = {
 };
 
 // Constants for terrain generation
-const TERRAIN_SEGMENTS = 128;
-const TERRAIN_SIZE = 200;
+const TERRAIN_SEGMENTS = 256;
+const TERRAIN_SIZE = 500;
 export const MAX_TERRAIN_HEIGHT = 14;
 const BASE_NOISE_SCALE = 0.01;
 

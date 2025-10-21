@@ -1,5 +1,6 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
+import { PHYSICS } from '../../constants/physics';
 import {
 	Collider,
 	ColliderInstanceType,
@@ -8,26 +9,29 @@ import {
 	Transform,
 	TransformType,
 } from '../../traits';
+import { CollisionState, CollisionStateUtils } from '../../traits/collision-state';
 import { PhysicsBody, PhysicsBodyInstanceType } from '../../traits/physics-body';
-import { CollisionPair, SpatialHashGrid } from '../../utils/spatial-hash-grid';
+import { SpatialHashGrid } from '../../utils/spatial-hash-grid';
 import { findEntityById } from './helpers';
 import { collisionStrategyManager } from './strategies/strategy-manager';
+import { calculateCollisionResponse } from './utils/collision-response';
 
 // Constants
 const SPATIAL_HASH_CELL_SIZE = 5; // Size of the cells in the spatial hash grid
-const EXTRA_SEPARATION = 0; // Additional Separation for penetration resolution
-const MAX_COLLISION_ITERATIONS = 10; // Maximum number of collision resolution iterations
-const BASE_CORRECTION_SCALE = 1.0; // Reduced from 2.0 to make corrections less aggressive
-const CORRECTION_FALLOFF = 0.5; // How quickly correction reduces per iteration
-const RESTING_VELOCITY_THRESHOLD = 0.1; // Threshold for considering a collision as a resting contact
-const MIN_BOUNCE_VELOCITY = 0.2; // Minimum velocity required for bounce response
-const VERTICAL_COLLISION_THRESHOLD = 0.7; // ~45 degree angle threshold for vertical collisions
-
-// Used to track current collisions for collision events
-const currentCollisions = new Map<number, Set<number>>();
+const EXTRA_SEPARATION = PHYSICS.COLLISION.EXTRA_SEPARATION;
+const MAX_COLLISION_ITERATIONS = PHYSICS.COLLISION.MAX_ITERATIONS;
+const BASE_CORRECTION_SCALE = PHYSICS.COLLISION.CORRECTION_SCALE;
+const CORRECTION_FALLOFF = PHYSICS.COLLISION.CORRECTION_FALLOFF;
+const tempQuaternion = new THREE.Quaternion();
 
 // Reusable spatial hash grid for broadphase collision detection
 const spatialGrid = new SpatialHashGrid(SPATIAL_HASH_CELL_SIZE);
+
+// Add reusable vectors at the top with other constants
+const tempImpulse = new THREE.Vector3();
+const tempFrictionImpulse = new THREE.Vector3();
+const tempRelativeVelocity = new THREE.Vector3();
+const tempTangent = new THREE.Vector3();
 
 // Type for Movement instance data
 type MovementInstance = {
@@ -43,51 +47,56 @@ interface CollisionResponse {
 		transform: TransformType;
 		movement?: MovementInstance;
 		physics?: PhysicsBodyInstanceType;
-		collider: ColliderInstanceType; // Add collider to response
+		collider: ColliderInstanceType;
 	};
 	entityB: {
 		entity: Entity;
 		transform: TransformType;
 		movement?: MovementInstance;
 		physics?: PhysicsBodyInstanceType;
-		collider: ColliderInstanceType; // Add collider to response
+		collider: ColliderInstanceType;
 	};
 	normal: THREE.Vector3;
 	penetrationDepth: number;
 	iterationScale: number;
-}
-
-export function collisionSystem(world: World) {
-	// Clear the spatial hash grid for this frame
-	spatialGrid.clear();
-
-	// Get all entities with Transform and Collider for collision detection
-	const colliderQuery = world.query(Transform, Collider);
-
-	// Step 1: Prepare for collision detection
-	// Update the spatial hash grid with all entities that have colliders
-	colliderQuery.forEach((entity) => {
-		const transform = entity.get(Transform);
-		const collider = entity.get(Collider);
-
-		if (!transform || !collider) return;
-
-		// Insert entity into the spatial grid
-		spatialGrid.insertEntity(entity, transform.position, collider);
-	});
-
-	// Step 2: Get potential collision pairs and process them
-	const potentialCollisions = spatialGrid.getPotentialCollisions();
-	processCollisions(potentialCollisions, world);
-
-	// Step 3: Update collision events (enter/stay/exit)
-	updateCollisionEvents(world);
+	impulse?: THREE.Vector3;
+	frictionImpulse?: THREE.Vector3;
 }
 
 /**
- * Process all potential collisions and apply responses
+ * Main collision detection and response system
+ * Handles:
+ * - Broad phase collision detection using spatial hash
+ * - Narrow phase collision detection using shape-specific checks
+ * - Collision response (position correction and impulse)
+ * - Collision event dispatch
  */
-function processCollisions(potentialCollisions: CollisionPair[], world: World) {
+export function collisionSystem(world: World) {
+	// Get or create collision state
+	let collisionState = world.get(CollisionState);
+	if (!collisionState) {
+		world.add(CollisionState());
+		collisionState = world.get(CollisionState);
+	}
+	if (!collisionState) return; // Safety check
+
+	// Clear previous frame's collisions
+	CollisionStateUtils.clearCollisions(collisionState);
+
+	// Prepare spatial hash grid for broad phase
+	spatialGrid.clear();
+	world.query(Transform, Collider).forEach((entity) => {
+		const transform = entity.get(Transform);
+		const collider = entity.get(Collider);
+		if (transform && collider) {
+			spatialGrid.insertEntity(entity, transform.position, collider);
+		}
+	});
+
+	// Get potential collisions from spatial hash
+	const potentialCollisions = spatialGrid.getPotentialCollisions();
+
+	// Process collisions
 	for (let iteration = 0; iteration < MAX_COLLISION_ITERATIONS; iteration++) {
 		let hasCollision = false;
 
@@ -96,8 +105,6 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 			const transformB = entB.get(Transform);
 			const colliderA = entA.get(Collider);
 			const colliderB = entB.get(Collider);
-			const movementA = entA.get(Movement);
-			const movementB = entB.get(Movement);
 
 			if (!transformA || !transformB || !colliderA || !colliderB) {
 				continue;
@@ -121,11 +128,8 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 			if (colliding && result && result.normal && result.penetration) {
 				hasCollision = true;
 
-				// Record the collision for handling enter/stay/exit events
-				// Only record on first iteration to avoid duplicate events
-				if (iteration === 0) {
-					recordCollision(entA.id(), entB.id());
-				}
+				// Record the collision in our CollisionState
+				CollisionStateUtils.recordCollision(collisionState, entA.id(), entB.id());
 
 				// Skip physical response if either is a trigger
 				if (colliderA.isTrigger || colliderB.isTrigger) {
@@ -136,8 +140,30 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 				const physicsA = entA.get(PhysicsBody);
 				const physicsB = entB.get(PhysicsBody);
 
+				// Get movement components if available
+				const movementA = entA.get(Movement);
+				const movementB = entB.get(Movement);
+
 				const iterationScale = BASE_CORRECTION_SCALE * Math.pow(iteration + 1, -CORRECTION_FALLOFF);
 
+				// Calculate collision response with impulse and friction
+				const updatedResult = calculateCollisionResponse(
+					result,
+					{
+						movement: movementA,
+						physics: physicsA,
+						restitution: colliderA.restitution,
+						friction: colliderA.friction,
+					},
+					{
+						movement: movementB,
+						physics: physicsB,
+						restitution: colliderB.restitution,
+						friction: colliderB.friction,
+					}
+				);
+
+				// Apply the collision response
 				applyCollisionResponse({
 					entityA: {
 						entity: entA,
@@ -153,9 +179,11 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 						physics: physicsB,
 						collider: colliderB,
 					},
-					normal: result.normal,
-					penetrationDepth: result.penetration,
+					normal: updatedResult.normal,
+					penetrationDepth: updatedResult.penetration,
 					iterationScale,
+					impulse: updatedResult.impulse,
+					frictionImpulse: updatedResult.frictionImpulse,
 				});
 			}
 		}
@@ -163,20 +191,47 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 		// If no collisions were detected in this iteration, we can stop
 		if (!hasCollision) break;
 	}
-}
 
-/**
- * Record a collision between two entities
- */
-function recordCollision(entityIdA: number, entityIdB: number) {
-	if (!currentCollisions.has(entityIdA)) {
-		currentCollisions.set(entityIdA, new Set<number>());
-	}
-	if (!currentCollisions.has(entityIdB)) {
-		currentCollisions.set(entityIdB, new Set<number>());
-	}
-	currentCollisions.get(entityIdA)!.add(entityIdB);
-	currentCollisions.get(entityIdB)!.add(entityIdA);
+	// Handle collision events
+	world.query(CollisionEvents).forEach((entity) => {
+		const events = entity.get(CollisionEvents);
+		if (!events) return;
+
+		const entityId = entity.id();
+		const currentlyColliding = new Set(collisionState.currentCollisions.get(entityId) || []);
+
+		// Handle collision enter/stay/exit events
+		for (const otherId of currentlyColliding) {
+			const otherEntity = findEntityById(world, otherId);
+			if (!otherEntity) continue;
+
+			if (!events.contacts.has(otherId)) {
+				// Collision Enter
+				events.onCollisionEnter.forEach((callback) => callback(otherEntity));
+				events.contacts.add(otherId);
+			} else {
+				// Collision Stay
+				events.onCollisionStay.forEach((callback) => callback(otherEntity));
+			}
+		}
+
+		// Handle collision exit
+		const endedCollisions: number[] = [];
+		events.contacts.forEach((otherId) => {
+			if (!currentlyColliding.has(otherId)) {
+				const otherEntity = findEntityById(world, otherId);
+				if (otherEntity) {
+					events.onCollisionExit.forEach((callback) => callback(otherEntity));
+				}
+				endedCollisions.push(otherId);
+			}
+		});
+
+		// Remove ended collisions
+		endedCollisions.forEach((otherId) => {
+			events.contacts.delete(otherId);
+		});
+	});
 }
 
 /**
@@ -188,34 +243,45 @@ function applyCollisionResponse({
 	normal,
 	penetrationDepth,
 	iterationScale,
+	impulse,
+	frictionImpulse,
 }: CollisionResponse) {
-	// Regular collision response
-	const totalCorrection = (penetrationDepth + EXTRA_SEPARATION) * iterationScale;
+	// Regular collision response using physics constants
+	const totalCorrection =
+		(penetrationDepth + PHYSICS.COLLISION.EXTRA_SEPARATION) *
+		PHYSICS.COLLISION.CORRECTION_SCALE *
+		Math.pow(PHYSICS.COLLISION.CORRECTION_FALLOFF, iterationScale);
 
 	// Calculate relative velocity for resting contact detection
-	const relativeVelocity = new THREE.Vector3();
-	if (entityA.movement) relativeVelocity.sub(entityA.movement.velocity);
-	if (entityB.movement) relativeVelocity.add(entityB.movement.velocity);
-	const normalVelocity = relativeVelocity.dot(normal);
+	tempRelativeVelocity.set(0, 0, 0);
+	if (entityA.movement) tempRelativeVelocity.sub(entityA.movement.velocity);
+	if (entityB.movement) tempRelativeVelocity.add(entityB.movement.velocity);
+	const normalVelocity = tempRelativeVelocity.dot(normal);
 
-	// Detect if this is a resting contact
-	const isRestingContact = Math.abs(normalVelocity) < RESTING_VELOCITY_THRESHOLD;
+	// Detect if this is a resting contact using physics constant
+	const isRestingContact = Math.abs(normalVelocity) < PHYSICS.RESTING.VELOCITY_THRESHOLD;
 
-	// Calculate how to distribute the penetration correction
+	// Calculate mass ratios for impulse distribution
 	let ratioA = 0.5;
 	let ratioB = 0.5;
+	let massA = 1;
+	let massB = 1;
 
 	// If one object is static, the other takes all the movement
 	if (entityA.physics?.isStatic && !entityB.physics?.isStatic) {
 		ratioA = 0;
 		ratioB = 1;
+		massA = Infinity;
+		massB = entityB.physics?.mass || 1;
 	} else if (!entityA.physics?.isStatic && entityB.physics?.isStatic) {
 		ratioA = 1;
 		ratioB = 0;
+		massA = entityA.physics?.mass || 1;
+		massB = Infinity;
 	} else if (entityA.physics && entityB.physics) {
-		// If both objects have physics, we need to distribute the movement based on their masses
-		const massA = entityA.physics.mass;
-		const massB = entityB.physics.mass;
+		// If both objects have physics, distribute based on mass
+		massA = entityA.physics.mass;
+		massB = entityB.physics.mass;
 		const totalMass = massA + massB;
 		ratioA = massB / totalMass;
 		ratioB = massA / totalMass;
@@ -225,8 +291,9 @@ function applyCollisionResponse({
 	const correctionA = normal.clone().multiplyScalar(-totalCorrection * ratioA);
 	const correctionB = normal.clone().multiplyScalar(totalCorrection * ratioB);
 
-	// Apply corrections to positions
+	// Apply corrections and impulses to entityA
 	if (!entityA.physics?.isStatic) {
+		// Position correction
 		const newPositionA = entityA.transform.position.clone().add(correctionA);
 		entityA.entity.set(Transform, {
 			position: newPositionA,
@@ -234,35 +301,27 @@ function applyCollisionResponse({
 			scale: entityA.transform.scale,
 		});
 
+		// Velocity update with impulse
 		if (entityA.movement) {
-			const dot = entityA.movement.velocity.dot(normal);
-			if (dot < 0 && Math.abs(dot) > MIN_BOUNCE_VELOCITY) {
-				// Only bounce if velocity is above threshold
-				const normalVelocity = normal.clone().multiplyScalar(dot);
-				entityA.movement.velocity.sub(normalVelocity);
-
-				// Set isGrounded if vertical collision and low velocity
-				if (entityA.physics) {
-					const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
-					const lowVelocity = Math.abs(entityA.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD;
-
-					const grounded =
-						(entityA.physics.isGrounded && verticalCollision) || (lowVelocity && verticalCollision);
-					entityA.physics.isGrounded = grounded;
-					entityA.entity.set(PhysicsBody, entityA.physics);
+			if (!isRestingContact && impulse) {
+				entityA.movement.velocity.addScaledVector(impulse, -1 / massA);
+				if (frictionImpulse) {
+					entityA.movement.velocity.addScaledVector(frictionImpulse, -1 / massA);
 				}
-
-				entityA.entity.set(Movement, entityA.movement);
 			} else if (isRestingContact) {
 				// For resting contacts, zero out the velocity in the normal direction
+				const dot = entityA.movement.velocity.dot(normal);
 				const normalVel = normal.clone().multiplyScalar(dot);
 				entityA.movement.velocity.sub(normalVel);
-				entityA.entity.set(Movement, entityA.movement);
 			}
+
+			entityA.entity.set(Movement, entityA.movement);
 		}
 	}
 
+	// Apply corrections and impulses to entityB
 	if (!entityB.physics?.isStatic) {
+		// Position correction
 		const newPositionB = entityB.transform.position.clone().add(correctionB);
 		entityB.entity.set(Transform, {
 			position: newPositionB,
@@ -270,95 +329,21 @@ function applyCollisionResponse({
 			scale: entityB.transform.scale,
 		});
 
+		// Velocity update with impulse
 		if (entityB.movement) {
-			const dot = entityB.movement.velocity.dot(normal);
-			if (dot < 0 && Math.abs(dot) > MIN_BOUNCE_VELOCITY) {
-				// Only bounce if velocity is above threshold
-				const normalVelocity = normal.clone().multiplyScalar(dot);
-				entityB.movement.velocity.sub(normalVelocity);
-
-				// Set isGrounded if vertical collision and low velocity
-				if (entityB.physics) {
-					const verticalCollision = Math.abs(normal.y) > VERTICAL_COLLISION_THRESHOLD;
-					const lowVelocity = Math.abs(entityB.movement.velocity.y) < RESTING_VELOCITY_THRESHOLD;
-					const grounded =
-						(entityB.physics.isGrounded && verticalCollision) || (lowVelocity && verticalCollision);
-					entityB.physics.isGrounded = grounded;
-					entityB.entity.set(PhysicsBody, entityB.physics);
+			if (!isRestingContact && impulse) {
+				entityB.movement.velocity.addScaledVector(impulse, 1 / massB);
+				if (frictionImpulse) {
+					entityB.movement.velocity.addScaledVector(frictionImpulse, 1 / massB);
 				}
-
-				entityB.entity.set(Movement, entityB.movement);
 			} else if (isRestingContact) {
 				// For resting contacts, zero out the velocity in the normal direction
+				const dot = entityB.movement.velocity.dot(normal);
 				const normalVel = normal.clone().multiplyScalar(dot);
 				entityB.movement.velocity.sub(normalVel);
-				entityB.entity.set(Movement, entityB.movement);
 			}
+
+			entityB.entity.set(Movement, entityB.movement);
 		}
 	}
-}
-
-/**
- * Update collision events (enter/stay/exit) based on current and previous collision state
- */
-function updateCollisionEvents(world: World) {
-	const eventsQuery = world.query(CollisionEvents);
-
-	eventsQuery.forEach((entity) => {
-		const collisionEvents = entity.get(CollisionEvents);
-		if (!collisionEvents) return;
-
-		const collider = entity.get(Collider);
-		const isTrigger = collider?.isTrigger || false;
-
-		// Get current collisions for this entity
-		const entityCollisions = currentCollisions.get(entity.id()) || new Set<number>();
-
-		// Check for new collisions (collision enter)
-		entityCollisions.forEach((otherId) => {
-			const otherEntity = findEntityById(world, otherId);
-			if (!otherEntity) return;
-
-			if (collisionEvents.contacts.has(otherId)) {
-				// This is a 'stay' event
-				if (isTrigger) {
-					collisionEvents.onTriggerStay.forEach((callback) => callback(otherEntity));
-				} else {
-					collisionEvents.onCollisionStay.forEach((callback) => callback(otherEntity));
-				}
-			} else {
-				// This is an 'enter' event
-				collisionEvents.contacts.add(otherId);
-				if (isTrigger) {
-					collisionEvents.onTriggerEnter.forEach((callback) => callback(otherEntity));
-				} else {
-					collisionEvents.onCollisionEnter.forEach((callback) => callback(otherEntity));
-				}
-			}
-		});
-
-		// Check for ended collisions (collision exit)
-		const endedCollisions: number[] = [];
-		collisionEvents.contacts.forEach((otherId) => {
-			if (!entityCollisions.has(otherId)) {
-				endedCollisions.push(otherId);
-				const otherEntity = findEntityById(world, otherId);
-				if (!otherEntity) return;
-
-				if (isTrigger) {
-					collisionEvents.onTriggerExit.forEach((callback) => callback(otherEntity));
-				} else {
-					collisionEvents.onCollisionExit.forEach((callback) => callback(otherEntity));
-				}
-			}
-		});
-
-		// Remove ended collisions from contacts
-		endedCollisions.forEach((otherId) => {
-			collisionEvents.contacts.delete(otherId);
-		});
-	});
-
-	// Clear current collisions for the next frame
-	currentCollisions.clear();
 }

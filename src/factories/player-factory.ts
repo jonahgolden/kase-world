@@ -9,6 +9,7 @@ import {
 	Health,
 	Input,
 	IsPlayer,
+	JumpState,
 	Movement,
 	MovementMode,
 	Scream,
@@ -39,6 +40,7 @@ export function createPlayerEntity({ world }: Props): Entity {
 			force: new THREE.Vector3(),
 		}),
 		MovementMode(), // Add movement mode trait with default values
+		JumpState(), // Add jump state trait for tracking jumps
 		Input(),
 		Health({
 			current: 100,

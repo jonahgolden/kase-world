@@ -1,5 +1,5 @@
 import { World } from 'koota';
-import { Health, Time } from '../traits';
+import { Health, IsPlayer, Time } from '../traits';
 
 // Configure game over callback
 let gameOverCallback: (() => void) | null = null;
@@ -32,14 +32,22 @@ export function healthSystem(world: World) {
 			}
 		}
 
-		// Check for game over condition
+		// Check for death condition
 		if (health.current <= 0) {
 			healthUpdates.current = 0; // Ensure health doesn't go below zero
 			hasUpdates = true;
 
-			// Call game over callback if defined
-			if (gameOverCallback) {
-				gameOverCallback();
+			// Check if this is the player or another entity
+			if (entity.has(IsPlayer)) {
+				// Player death - trigger game over
+				if (gameOverCallback) {
+					gameOverCallback();
+				}
+			} else {
+				// Non-player entity death - destroy the entity
+				console.log('Entity destroyed due to zero health:', entity.id());
+				entity.destroy();
+				return; // Skip further processing since entity is destroyed
 			}
 		}
 

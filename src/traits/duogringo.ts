@@ -4,9 +4,9 @@ import { trait } from 'koota';
 export const IsDuogringo = trait();
 
 // Duogringo constants
-export const DUOGRINGO_BASE_SCALE = 0.05;
-export const DUOGRINGO_BASE_SPEED = 2.0;
-export const DUOGRINGO_BASE_DAMAGE = 1;
+export const DUOGRINGO_BASE_SCALE = 0.15;
+export const DUOGRINGO_BASE_SPEED = 5;
+export const DUOGRINGO_BASE_DAMAGE = 10;
 
 type PowerInstanceType = {
 	power: number;

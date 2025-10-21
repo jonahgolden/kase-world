@@ -18,7 +18,8 @@ import {
 } from '../traits';
 import { findEntityById } from './collision/helpers';
 
-const ATTACK_RANGE = 0.5; // Distance at which Duogringo can attack
+const DETECTION_RANGE = 15; // Distance at which Duogringo starts pursuing the player
+const ATTACK_RANGE = 0.5; // Distance at which Duogringo can attack (restored to original value)
 const ATTACK_DURATION_BEFORE_DAMAGE = 0.5 * 1000; // Time before damage is applied in milliseconds
 const ATTACK_COOLDOWN = 2.0 * 1000; // Time between attacks in milliseconds
 const JUMP_FORCE = 1.5; // Force applied when jumping away from terrain
@@ -27,9 +28,11 @@ const MOVEMENT_FORCE_MULTIPLIER = 10; // Force multiplier for movement, similar 
 
 /**
  * System to handle Duogringo's behavior:
- * - Follows the player
- * - Attacks when in range
+ * - Detects player within detection range (15 units)
+ * - Follows the player when detected
+ * - Attacks when within attack range (0.5 units - close combat)
  * - Jumps away from terrain with cooldown
+ * - Remains idle when player is too far away
  */
 export function duogringoSystem(world: World) {
 	const time = world.get(Time);
@@ -56,10 +59,18 @@ export function duogringoSystem(world: World) {
 			// Set up variables
 			const currentTime = time.current;
 			const currentPos = transform.position;
+			const distToPlayer = currentPos.distanceTo(playerPos);
 
-			// Face towards player
+			// Check if player is within detection range
+			if (distToPlayer > DETECTION_RANGE) {
+				// Player is too far away, Duogringo remains idle
+				animation.state = 'Idle';
+				power.enteredAttackRangeTime = undefined;
+				return;
+			}
+
+			// Face towards player (only when player is detected)
 			const dirToPlayer = new THREE.Vector3().subVectors(playerPos, currentPos).normalize();
-
 			transform.rotation.y = Math.atan2(dirToPlayer.x, dirToPlayer.z);
 
 			// Handle attack cooldown
@@ -81,7 +92,6 @@ export function duogringoSystem(world: World) {
 			}
 
 			// Update attack range timer
-			const distToPlayer = currentPos.distanceTo(playerPos);
 			const attackRange = ATTACK_RANGE * (1 + power.power * 0.5);
 
 			if (distToPlayer > attackRange) {

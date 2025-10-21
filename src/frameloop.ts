@@ -6,6 +6,7 @@ import { collisionSystem } from './systems/collision/collision-system';
 import { duogringoSystem } from './systems/duogringo-system';
 import { healthSystem } from './systems/health-system';
 import { inputSystem } from './systems/input-system';
+import { jumpSystem } from './systems/jump-system';
 import { physicsSystem } from './systems/physics-system';
 import { cameraZoomSystem, playerThirdPersonCamera } from './systems/player-camera';
 import { playerMovementMode } from './systems/player-movement-mode';
@@ -38,6 +39,7 @@ export function GameLoop() {
 			inputSystem(world);
 			pollInput(world);
 			convertInputToMovement(world);
+			jumpSystem(world);
 			physicsSystem(world);
 			collisionSystem(world);
 			playerThirdPersonCamera(world);

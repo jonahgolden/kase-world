@@ -1,6 +1,6 @@
 import { World } from 'koota';
 import * as THREE from 'three';
-import { Input, Movement, MovementMode, PhysicsBody, Time, Transform } from '../traits';
+import { Input, JumpState, Movement, MovementMode, PhysicsBody, Time, Transform } from '../traits';
 
 const MOUSE_SENSITIVITY = 0.002; // Reduced sensitivity for baby movement
 
@@ -19,20 +19,21 @@ let wasJumpPressed = false;
 /**
  * convertInputToMovement:
  * Applies mouse input for camera control and keyboard input for baby movement
- * Now uses the PhysicsBody system for force-based movement
+ * Now uses the PhysicsBody system for force-based movement and JumpState for jump cooldown
  */
 export function convertInputToMovement(world: World) {
 	const time = world.get(Time);
 	if (!time) return;
 
-	world.query(Input, Transform, Movement, PhysicsBody).forEach((entity) => {
+	world.query(Input, Transform, Movement, PhysicsBody, JumpState).forEach((entity) => {
 		const input = entity.get(Input);
 		const transform = entity.get(Transform);
 		const movement = entity.get(Movement);
 		const physics = entity.get(PhysicsBody);
+		const jumpState = entity.get(JumpState);
 		const movementMode = entity.get(MovementMode);
 
-		if (!input || !transform || !movement || !physics) return;
+		if (!input || !transform || !movement || !physics || !jumpState) return;
 
 		// Get the current movement mode
 		const mode = movementMode?.mode || 'crawl';
@@ -46,8 +47,7 @@ export function convertInputToMovement(world: World) {
 		const rightDir = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, transform.rotation.y, 0));
 
 		// Calculate the force to apply based on input
-		// Only apply horizontal movement forces if on the ground
-		const forceMultiplier = movement.thrust * MOVEMENT_FORCE_MULTIPLIER; // Higher value for force-based movement
+		const forceMultiplier = movement.thrust * MOVEMENT_FORCE_MULTIPLIER;
 		const moveForce = new THREE.Vector3();
 
 		// Forward movement (W key)
@@ -60,16 +60,19 @@ export function convertInputToMovement(world: World) {
 			moveForce.addScaledVector(rightDir, input.strafe * forceMultiplier);
 		}
 
-		// Handle jumping - apply immediate velocity change on jump press
+		// Handle jumping with cooldown
 		const jumpPressed = input.jump && !wasJumpPressed;
 
-		// if (jumpPressed && physics.isGrounded) {
-		if (jumpPressed) {
-			// TODO: prevent multiple jumps in quick succession
+		if (jumpPressed && jumpState.jumpCooldown <= 0) {
 			// Apply upward force based on movement mode
 			const jumpForce = mode === 'walk' ? JUMP_FORCE.walk : JUMP_FORCE.crawl;
 			movement.velocity.y = jumpForce; // Direct velocity change for consistent jumping
+
+			// Start cooldown timer
+			jumpState.jumpCooldown = jumpState.cooldownDuration;
+
 			entity.set(Movement, movement);
+			entity.set(JumpState, jumpState);
 		}
 
 		// Only apply movement forces if we have any input

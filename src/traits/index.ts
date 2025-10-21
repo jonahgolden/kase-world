@@ -6,6 +6,7 @@ export * from './health';
 export * from './input';
 export * from './is-camera';
 export * from './is-player';
+export * from './jump-state';
 export * from './maxSpeed';
 export * from './movement';
 export * from './movement-mode';
