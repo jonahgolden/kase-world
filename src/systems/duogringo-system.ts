@@ -2,10 +2,6 @@ import { World } from 'koota';
 import * as THREE from 'three';
 import { actions } from '../actions';
 import {
-	Collider,
-	ColliderType,
-	CollisionEvents,
-	CollisionLayer,
 	DuogringoAnimation,
 	DuogringoPower,
 	Health,
@@ -16,7 +12,6 @@ import {
 	Time,
 	Transform,
 } from '../traits';
-import { findEntityById } from './collision/helpers';
 
 const ATTACK_RANGE = 0.5; // Distance at which Duogringo can attack
 const ATTACK_DURATION_BEFORE_DAMAGE = 0.5 * 1000; // Time before damage is applied in milliseconds
@@ -46,8 +41,8 @@ export function duogringoSystem(world: World) {
 
 	// Update each Duogringo entity
 	world
-		.query(IsDuogringo, Transform, Movement, DuogringoPower, DuogringoAnimation, CollisionEvents, PhysicsBody)
-		.updateEach(([transform, movement, power, animation, collisions, physics], gringo) => {
+		.query(IsDuogringo, Transform, Movement, DuogringoPower, DuogringoAnimation, PhysicsBody)
+		.updateEach(([transform, movement, power, animation, physics], gringo) => {
 			if (!(player && playerPos)) {
 				animation.state = 'Idle';
 				return;
@@ -116,34 +111,6 @@ export function duogringoSystem(world: World) {
 				physics.forces.add(moveForce);
 			}
 
-			// Maybe jump if it's been long enough
-			const timeSinceLastJump = currentTime - power.lastJumpTime;
-
-			if (timeSinceLastJump >= JUMP_COOLDOWN && collisions.contacts.size > 0) {
-				let jumpForce: number | undefined;
-
-				// Check each contact until we find one we can try to jump over
-				collisions.contacts.forEach((entityId) => {
-					const otherEntity = findEntityById(world, entityId);
-					const otherCollider = otherEntity?.get(Collider);
-					if (!otherEntity || !otherCollider) return;
-
-					if (
-						otherCollider.layer === CollisionLayer.TERRAIN &&
-						otherCollider.type !== ColliderType.HEIGHTFIELD
-					) {
-						jumpForce = JUMP_FORCE * (power.power * Math.random() * 10);
-						return;
-					}
-				});
-
-				// If we found a contact, jump
-				if (jumpForce) {
-					const jumpDir = new THREE.Vector3(Math.random() - 0.5, 1, Math.random() - 0.5).normalize();
-					movement.velocity.add(jumpDir.multiplyScalar(jumpForce));
-
-					power.lastJumpTime = currentTime;
-				}
-			}
+			// Jump logic removed - will be re-implemented with Rapier collision detection in Phase 4
 		});
 }

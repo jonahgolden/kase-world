@@ -6,7 +6,6 @@ import {
 	CollisionLayer,
 	Movement,
 	Ref,
-	SpatialTracking,
 	Transform,
 } from '../traits';
 import { PhysicsBody } from '../traits/physics-body';

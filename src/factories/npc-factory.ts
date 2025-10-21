@@ -7,7 +7,6 @@ import {
 	Health,
 	Movement,
 	Ref,
-	SpatialTracking,
 	Transform,
 } from '../traits';
 import { PhysicsBody } from '../traits/physics-body';
@@ -83,8 +82,7 @@ export function createBaseNPC({
 			damping: 0.1,
 			force: new THREE.Vector3(),
 		}),
-		CollisionEvents(),
-		SpatialTracking()
+		CollisionEvents()
 	);
 
 	// Add mesh

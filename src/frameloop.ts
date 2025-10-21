@@ -2,17 +2,14 @@ import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
 import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
-import { collisionSystem } from './systems/collision/collision-system';
 import { duogringoSystem } from './systems/duogringo-system';
 import { healthSystem } from './systems/health-system';
 import { inputSystem } from './systems/input-system';
-import { physicsSystem } from './systems/physics-system';
 import { cameraZoomSystem, playerThirdPersonCamera } from './systems/player-camera';
 import { playerMovementMode } from './systems/player-movement-mode';
 import { pollInput } from './systems/poll-input';
 import { syncView } from './systems/sync-view';
 import { testDamageSystem } from './systems/test-damage-system';
-import { updateSpatialHashing } from './systems/update-spatial-hashing';
 import { updateTime } from './systems/update-time';
 import { SystemPriority } from './traits';
 import { shouldRunSystem } from './utils/system-scheduler';
@@ -38,8 +35,7 @@ export function GameLoop() {
 			inputSystem(world);
 			pollInput(world);
 			convertInputToMovement(world);
-			physicsSystem(world);
-			collisionSystem(world);
+			// Physics and collision removed - will be replaced by Rapier in Phase 4
 			playerThirdPersonCamera(world);
 			cameraZoomSystem(world);
 			duogringoSystem(world);
@@ -48,9 +44,6 @@ export function GameLoop() {
 			// These systems affect gameplay but can run at lower frequency
 			if (shouldRunSystem(world, 'playerMovementMode', SystemPriority.HIGH)) {
 				playerMovementMode(world);
-			}
-			if (shouldRunSystem(world, 'spatialHashing', SystemPriority.HIGH)) {
-				updateSpatialHashing(world);
 			}
 
 			// MEDIUM PRIORITY - Run at ~15fps

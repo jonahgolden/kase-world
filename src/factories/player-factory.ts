@@ -12,7 +12,6 @@ import {
 	Movement,
 	MovementMode,
 	Scream,
-	SpatialTracking,
 	Transform,
 } from '../traits';
 import { getPhysicsBody } from '../traits/physics-body';
@@ -61,7 +60,6 @@ export function createPlayerEntity({ world }: Props): Entity {
 			mask: CollisionLayer.ALL,
 		}),
 		CollisionEvents(), // Add collision events for the player
-		getPhysicsBody({}),
-		SpatialTracking()
+		getPhysicsBody({})
 	);
 }

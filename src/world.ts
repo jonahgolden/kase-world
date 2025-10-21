@@ -1,4 +1,4 @@
 import { createWorld } from 'koota';
-import { SpatialHashMap, SpatialTracking, SystemTiming, Time } from './traits';
+import { SystemTiming, Time } from './traits';
 
-export const world = createWorld(Time, SpatialHashMap, SpatialTracking, SystemTiming);
+export const world = createWorld(Time, SystemTiming);

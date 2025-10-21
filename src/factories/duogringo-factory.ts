@@ -9,7 +9,6 @@ import {
 	DuogringoPower,
 	IsDuogringo,
 	Movement,
-	SpatialTracking,
 	Transform,
 } from '../traits';
 import { getPhysicsBody } from '../traits/physics-body';
@@ -56,7 +55,6 @@ export function createDuogringoEntity({ world, position = new THREE.Vector3(0, 0
 			mask: CollisionLayer.ALL,
 		}),
 		CollisionEvents(),
-		getPhysicsBody({ mass: 2 }),
-		SpatialTracking()
+		getPhysicsBody({ mass: 2 })
 	);
 }

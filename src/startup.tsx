@@ -1,10 +1,8 @@
-import { useFrame } from '@react-three/fiber';
 import { useActions, useWorld } from 'koota/react';
 import { useEffect } from 'react';
 import { Vector3 } from 'three';
 import { actions } from './actions';
 import { setupEnvironment } from './systems/environment-system';
-import { updateSpatialHashing } from './systems/update-spatial-hashing';
 import { setupTestScene } from './test-scene';
 
 export function Startup({
@@ -35,10 +33,6 @@ export function Startup({
 			duogringo.destroy();
 		};
 	}, [spawnCamera, spawnPlayer, spawnDuogringo, initialCameraPosition, world]);
-
-	useFrame(() => {
-		updateSpatialHashing(world);
-	});
 
 	return null;
 }
