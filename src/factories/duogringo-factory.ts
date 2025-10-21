@@ -1,10 +1,9 @@
 import { Entity, World } from 'koota';
 import * as THREE from 'three';
 import {
-	BoxCollider,
+	CapsuleCollider,
 	CollisionEvents,
 	CollisionLayer,
-	DUOGRINGO_BASE_SCALE,
 	DUOGRINGO_BASE_SPEED,
 	DuogringoAnimation,
 	DuogringoPower,
@@ -39,23 +38,23 @@ export function createDuogringoEntity({ world, position = new THREE.Vector3(0, 0
 		}),
 		DuogringoPower(),
 		DuogringoAnimation(),
-		BoxCollider({
-			size: new THREE.Vector3(
-				DUOGRINGO_BASE_SCALE * 12,
-				DUOGRINGO_BASE_SCALE * 20,
-				DUOGRINGO_BASE_SCALE * 12
-			), // Adjust based on model size
-			offset: new THREE.Vector3(0, DUOGRINGO_BASE_SCALE * 10, 0), // Center vertically
-			layer: CollisionLayer.CHARACTER,
-			mask: CollisionLayer.ALL,
-		}),
-		// CapsuleCollider({
-		// 	radius: 0.4,
-		// 	height: 0.8,
-		// 	offset: new THREE.Vector3(0, 0.8, 0),
+		// BoxCollider({
+		// 	size: new THREE.Vector3(
+		// 		DUOGRINGO_BASE_SCALE * 12,
+		// 		DUOGRINGO_BASE_SCALE * 20,
+		// 		DUOGRINGO_BASE_SCALE * 12
+		// 	), // Adjust based on model size
+		// 	offset: new THREE.Vector3(0, DUOGRINGO_BASE_SCALE * 10, 0), // Center vertically
 		// 	layer: CollisionLayer.CHARACTER,
 		// 	mask: CollisionLayer.ALL,
 		// }),
+		CapsuleCollider({
+			radius: 0.3,
+			height: 0.7,
+			offset: new THREE.Vector3(0, 0.6, 0),
+			layer: CollisionLayer.CHARACTER,
+			mask: CollisionLayer.ALL,
+		}),
 		CollisionEvents(),
 		getPhysicsBody({ mass: 2 }),
 		SpatialTracking()

@@ -10,8 +10,8 @@ import {
 } from '../../traits';
 import { PhysicsBody, PhysicsBodyInstanceType } from '../../traits/physics-body';
 import { CollisionPair, SpatialHashGrid } from '../../utils/spatial-hash-grid';
-import { checkCollision } from './checkers/check-collision';
 import { findEntityById } from './helpers';
+import { collisionStrategyManager } from './strategies/strategy-manager';
 
 // Constants
 const SPATIAL_HASH_CELL_SIZE = 5; // Size of the cells in the spatial hash grid
@@ -108,7 +108,14 @@ function processCollisions(potentialCollisions: CollisionPair[], world: World) {
 				continue;
 			}
 
-			const result = checkCollision({ transformA, colliderA, transformB, colliderB });
+			// Use the current collision strategy to check for collision
+			const result = collisionStrategyManager.getCurrentHandler().checkCollision({
+				transformA,
+				colliderA,
+				transformB,
+				colliderB,
+			});
+
 			const colliding = result !== null;
 
 			if (colliding && result && result.normal && result.penetration) {
