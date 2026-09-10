@@ -75,12 +75,19 @@ export class Ui {
         </div>
         <div id="toast"></div>
         <div id="hint"></div>
+        <canvas id="minimap" width="140" height="140"></canvas>
         <div id="popups"></div>
         <div id="joy-zone"><div id="joy"><div id="joy-knob"></div></div></div>
         <div class="buttons">
           <button id="btn-jump" class="btn">JUMP</button>
           <button id="btn-poop" class="btn">💩</button>
           <button id="btn-scream" class="btn big"><i id="scream-ring"></i><span>SCREAM</span></button>
+        </div>
+      </div>
+      <div id="bosscard" class="screen card" hidden>
+        <div class="card-box boss-box">
+          <img id="bosscard-img" alt="">
+          <div><div id="bosscard-name">BOSS</div><div id="bosscard-by">drawn by</div><div id="bosscard-taunt"></div></div>
         </div>
       </div>
       <div id="card" class="screen card" hidden>
@@ -93,7 +100,7 @@ export class Ui {
         <h2>HOW TO PLAY</h2>
         <p class="goal-line">Fill the <b>WRECK</b> meter by smashing stuff and scaring grown-ups. The boss shows up at 100%. Dodge its attacks, then hit it while the <b class="green">green ring</b> is on.</p>
         <div class="ctls">${controls}</div>
-        <p class="goal-line small">🍼 milk = a heart · 👶 pacifier = mega scream · 🪇 rattle = poop storm · ⏱ clock = 5 s off your time · 🛹 skateboard = fast, lost when you get hit · 📣 megaphone = bigger scream · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him.</p>
+        <p class="goal-line small">Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
         <div class="row-btns">
           <button id="help-resume" class="cta">RESUME</button>
           <button id="help-restart" class="ghost">RESTART LEVEL</button>
@@ -135,7 +142,7 @@ export class Ui {
       </div>
       <div id="fade"></div>
     `
-    for (const id of ['hud', 'card', 'help', 'title', 'won', 'over', 'board', 'choose']) this.screens[id] = root.querySelector(`#${id}`)!
+    for (const id of ['hud', 'card', 'bosscard', 'help', 'title', 'won', 'over', 'board', 'choose']) this.screens[id] = root.querySelector(`#${id}`)!
     this.popups = root.querySelector('#popups')!
     for (const el of root.querySelectorAll<HTMLElement>('[id]')) this.el.set(el.id, el)
     const nameEl = this.get('name') as HTMLInputElement
@@ -198,7 +205,7 @@ export class Ui {
   show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help' | 'choose') {
     const hudVisible = id === 'hud' || id === 'won' || id === 'over' || id === 'help'
     for (const [k, el] of Object.entries(this.screens)) {
-      if (k === 'card') continue
+      if (k === 'card' || k === 'bosscard') continue
       el.hidden = k === 'hud' ? !hudVisible : k !== id
     }
     this.root.classList.toggle('playing', id === 'hud')
@@ -249,6 +256,105 @@ export class Ui {
 
   hideCard() {
     this.screens.card.hidden = true
+    this.screens.bosscard.hidden = true
+  }
+
+  showBossCard(s: State) {
+    const b = s.boss
+    if (!b) return
+    ;(this.get('bosscard-img') as HTMLImageElement).src = `/assets/drawings/${b.def.drawing}`
+    this.get('bosscard-name').textContent = b.def.name.toUpperCase()
+    this.get('bosscard-by').textContent = `drawn by ${b.def.drawnBy}`
+    this.get('bosscard-taunt').textContent = `"${b.def.taunt}"`
+    const card = this.screens.bosscard
+    card.hidden = false
+    card.classList.remove('out')
+    window.setTimeout(() => card.classList.add('out'), 2600)
+    window.setTimeout(() => (card.hidden = true), 3100)
+  }
+
+  // Continent outline, the player, remembered finds, features and the boss ring.
+  drawMinimap(s: State) {
+    const cv = this.get('minimap') as HTMLCanvasElement
+    const ctx = cv.getContext('2d')
+    if (!ctx) return
+    const W = cv.width
+    const H = cv.height
+    const A = s.arena
+    const pad = 8
+    const sc = Math.min((W - pad * 2) / A.w, (H - pad * 2) / A.d)
+    const ox = W / 2 - ((A.minX + A.maxX) / 2) * sc
+    const oz = H / 2 - ((A.minZ + A.maxZ) / 2) * sc
+    const X = (x: number) => ox + x * sc
+    const Z = (z: number) => oz + z * sc
+    ctx.clearRect(0, 0, W, H)
+    ctx.fillStyle = 'rgba(58,160,232,0.55)'
+    ctx.beginPath()
+    ctx.arc(W / 2, H / 2, W / 2 - 1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(W / 2, H / 2, W / 2 - 1, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.fillStyle = s.phase === 'boss' ? '#3d5a2a' : '#7ec850'
+    ctx.strokeStyle = '#1b1b2f'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    A.ring.forEach(([x, z], i) => (i ? ctx.lineTo(X(x), Z(z)) : ctx.moveTo(X(x), Z(z))))
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    for (const f of s.features) {
+      ctx.beginPath()
+      ctx.arc(X(f.x), Z(f.z), Math.max(2, f.r * sc), 0, Math.PI * 2)
+      ctx.fillStyle = f.kind === 'lake' ? '#3aa0e8' : f.kind === 'platform' ? (f.island ? '#e8d59a' : '#5a8a3a') : f.kind === 'portal' ? '#9b6bff' : '#bfe6ff'
+      ctx.fill()
+    }
+    for (const pr of s.props) {
+      if (pr.broken) continue
+      ctx.fillStyle = 'rgba(27,27,47,0.45)'
+      ctx.fillRect(X(pr.x) - 1, Z(pr.z) - 1, 2, 2)
+    }
+    for (const k of s.pickups) {
+      if (!s.player.goggles && !s.seen.includes(k.id)) continue
+      ctx.fillStyle = '#ffd23f'
+      ctx.strokeStyle = '#1b1b2f'
+      ctx.lineWidth = 1
+      ctx.font = 'bold 11px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.strokeText('★', X(k.x), Z(k.z) + 4)
+      ctx.fillText('★', X(k.x), Z(k.z) + 4)
+    }
+    if (s.bossRing) {
+      ctx.strokeStyle = '#ff5c5c'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(X(s.bossRing.x), Z(s.bossRing.z), s.bossRing.r * sc, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    if (s.boss) {
+      ctx.fillStyle = '#ff5c5c'
+      ctx.beginPath()
+      ctx.arc(X(s.boss.x), Z(s.boss.z), 4, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.fillStyle = '#4cd137'
+    ctx.beginPath()
+    ctx.arc(X(s.duo.x), Z(s.duo.z), 2.5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.strokeStyle = '#1b1b2f'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(X(s.player.x), Z(s.player.z), 4, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
+    ctx.strokeStyle = '#1b1b2f'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(W / 2, H / 2, W / 2 - 1.5, 0, Math.PI * 2)
+    ctx.stroke()
   }
 
   updateHud(s: State, dt: number) {
@@ -269,7 +375,12 @@ export class Ui {
     if (p.pacifierT > 0) powers.push(`<span class="chip gold">MEGA SCREAM ${Math.ceil(p.pacifierT)}</span>`)
     if (p.rattleT > 0) powers.push(`<span class="chip brown">POOP STORM ${Math.ceil(p.rattleT)}</span>`)
     if (p.ride === 'skateboard') powers.push('<span class="chip pink">🛹</span>')
+    if (p.ride === 'quad') powers.push(`<span class="chip red">🏍${'♥'.repeat(p.rideHp)}</span>`)
     if (p.megaphone) powers.push('<span class="chip red">📣</span>')
+    if (p.fedora) powers.push('<span class="chip purple">🎩 EPIC</span>')
+    if (p.wings) powers.push('<span class="chip blue">🪽</span>')
+    if (p.goggles) powers.push('<span class="chip green">🥽</span>')
+    if (p.potatoes > 0) powers.push(`<span class="chip brown">🥔×${p.potatoes}</span>`)
     const ph = powers.join('')
     if (this.get('powers').innerHTML !== ph) this.get('powers').innerHTML = ph
 

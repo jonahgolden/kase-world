@@ -57,4 +57,12 @@ v0.3 (deployed): arenas are continent-shaped cutouts with coast + water; globe h
 boss cards + locks, fly-in transition into each level, continent chooser with saved progress
 (`kw.progress`); finds with detour trade-offs (⏱ clock -5 s, 🛹 skateboard fast until hit, 📣 megaphone,
 🎁 gifts); perfect boss = -10 s. Time boards are global, per continent + world.
-Next: family playtest of v0.3; then goal shapes (find N, chase) and per-continent boss attacks.
+v0.4 (deployed): parent feedback round 2 → boss fight mode (boss lands, clears a torch-lit ring,
+night lighting + spotlight, title card, player kept in the ring); sparser wrecking in 4-7 clustered
+spots per continent with open space between; traversal features (jumpable platforms, tall ones with
+launch fans, portal pairs, lakes with an island, safe from grown-ups); finds glow with light pillars
+and sit on platforms/islands/far coasts; minimap (continent outline, remembered finds, boss ring);
+chickens; NPC scares worth more; new finds: fedora (EPIC), quad (2 hits), wings (glide), goggles
+(map reveal), hot potatoes (contact bombs). Credits read "the Erbalaban Bros" except Louie's water
+monsters. Bot soak + 21 sim tests cover platforms, fans, portals, lakes, ring, bombs.
+Next: family playtest of v0.4 → tune; then goal shapes (find N, chase) and per-continent boss attacks.

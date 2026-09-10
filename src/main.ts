@@ -321,7 +321,12 @@ function handleEvents(s: State) {
           rattle: ['POOP STORM!', '#d9a066'],
           clock: ['', '#4cd137'],
           skateboard: ['SKATEBOARD!', '#ff8fab'],
+          quad: ['', '#ff5c5c'],
           megaphone: ['MEGAPHONE!', '#ff5c5c'],
+          fedora: ['FEDORA! EPIC MODE!', '#9b6bff'],
+          wings: ['WINGS! Hold JUMP to glide', '#bfe6ff'],
+          goggles: ['SPY GOGGLES! Map shows every find', '#4cd137'],
+          potato: ['HOT POTATOES ×3', '#d9a066'],
         }
         const [label, color] = labels[e.kind ?? ''] ?? ['', '#fff']
         if (label) ui.popup(label, pt.x, pt.y, color, 0.8)
@@ -334,14 +339,23 @@ function handleEvents(s: State) {
         break
       }
       case 'rideOff':
-        ui.toast('Lost the skateboard! Grab it back!', 1400)
+        ui.toast(e.kind === 'quad' ? 'Quad wrecked! Grab it back!' : 'Lost the skateboard! Grab it back!', 1400)
+        break
+      case 'rideOn':
+        if (e.kind === 'quad') ui.toast('QUAD! Smash everything!', 1400, 'good')
+        break
+      case 'bossLand':
+        hitstop = Math.max(hitstop, 0.25)
+        ui.showBossCard(s)
+        break
+      case 'explode':
+        hitstop = Math.max(hitstop, 0.1)
         break
       case 'goalReached':
         hitstop = Math.max(hitstop, 0.15)
         ui.toast('100% WRECKED. BOSS TIME!', 2200, 'boss')
         break
       case 'levelPhase':
-        if (s.boss) ui.toast(s.boss.def.taunt, 2600, 'boss')
         break
       case 'bossExposed':
         if ((e.big ?? 0) > 0) ui.toast('NOW! SCREAM OR POOP AT HIM!', 1800, 'go')
@@ -405,6 +419,13 @@ function playSound(e: GameEvent) {
     case 'goalReached':
       audio.play('levelPhase')
       return
+    case 'bossLand':
+      audio.play('bossStomp', { big: 1 })
+      audio.play('bossPhase', { vol: 0.6 })
+      return
+    case 'npcScared':
+      audio.play(e.kind === 'chicken' ? 'chicken' : 'npcScared')
+      return
     default:
       audio.play(e.t, { big: e.big })
   }
@@ -438,6 +459,7 @@ function loop(now: number) {
         if (n === 4) acc = 0
       }
       ui.updateHud(state, dt)
+      if (state.tick % 4 === 0) ui.drawMinimap(state)
       if (endTimer > 0) {
         endTimer -= dt
         if (endTimer <= 0) {

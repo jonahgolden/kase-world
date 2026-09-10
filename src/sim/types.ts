@@ -47,7 +47,7 @@ export interface Prop {
   drop: PickupKind | null
 }
 
-export type NpcKind = 'adult' | 'dog'
+export type NpcKind = 'adult' | 'dog' | 'chicken'
 export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower'
 
 export interface Npc {
@@ -102,7 +102,34 @@ export interface Debris {
   settled: boolean
 }
 
-export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone'
+export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato'
+
+export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake'
+
+export interface Feature {
+  id: number
+  kind: FeatureKind
+  x: number
+  z: number
+  r: number
+  h: number // platform top height
+  pair: number // portal partner id
+  dirX: number // fan push direction
+  dirZ: number
+  cd: number
+  island: boolean // platform inside a lake
+}
+
+export interface Bomb {
+  id: number
+  x: number
+  y: number
+  z: number
+  vx: number
+  vy: number
+  vz: number
+  fuse: number
+}
 
 export interface Pickup {
   id: number
@@ -140,8 +167,16 @@ export interface Player {
   jumpHeld: boolean
   pacifierT: number // seconds of mega scream left
   rattleT: number // seconds of poop storm left
-  ride: 'skateboard' | null // lost when hurt, can be picked back up
+  ride: 'skateboard' | 'quad' | null // lost when hurt (quad takes two hits), can be picked back up
+  rideHp: number
   megaphone: boolean // level-long scream upgrade
+  fedora: boolean // epic mode for the level
+  wings: boolean // hold jump to glide
+  goggles: boolean // minimap shows every find
+  potatoes: number // hot potatoes left to throw
+  portalCd: number
+  inLake: boolean
+  gy: number // ground height under the player
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt'
@@ -224,6 +259,11 @@ export type EventType =
   | 'timeBonus'
   | 'rideOn'
   | 'rideOff'
+  | 'bossLand'
+  | 'portal'
+  | 'fan'
+  | 'explode'
+  | 'splash'
   | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'
@@ -309,8 +349,12 @@ export interface State {
   splats: Splat[]
   debris: Debris[]
   pickups: Pickup[]
+  features: Feature[]
+  bombs: Bomb[]
+  seen: number[] // pickup ids the player has been near (minimap memory)
   duo: Duogringo
   boss: Boss | null
+  bossRing: { x: number; z: number; r: number } | null
   wreck: number // 0..1 progress toward the boss
   wreckPoints: number
   wreckGoalPoints: number

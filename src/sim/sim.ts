@@ -7,10 +7,12 @@ import { CONTINENTS } from './continents.ts'
 import { closestOnRing, pointInRing } from './geom.ts'
 import type {
   Arena,
+  Bomb,
   Boss,
   BossAttack,
   Debris,
   Duogringo,
+  Feature,
   GameEvent,
   Input,
   Npc,
@@ -24,7 +26,7 @@ import type {
   State,
 } from './types.ts'
 
-export const VERSION = '0.3.0'
+export const VERSION = '0.4.0'
 export const DT = 1 / 60
 export const HEART = 20
 
@@ -48,13 +50,15 @@ export const CFG = {
     hurtInvuln: 1.0,
     hurtStun: 0.3,
     powerTime: 12,
+    glideFall: -1.6,
+    lakeSpeed: 0.45,
+    stepUp: 0.35,
   },
   ride: {
-    speed: 1.7,
-    accel: 0.55,
-    smash: 1.8,
-    push: 1.5,
+    skateboard: { speed: 1.7, accel: 0.55, smash: 1.8, push: 1.5, hp: 1 },
+    quad: { speed: 2.2, accel: 0.5, smash: 2.6, push: 2.2, hp: 2 },
   },
+  fedora: { speed: 1.25, range: 1.3 },
   megaphone: { range: 1.4, charge: 0.7 },
   scream: {
     baseRange: 3.2,
@@ -78,6 +82,9 @@ export const CFG = {
     propDamage: 25,
     rattleSpread: 0.35,
   },
+  potato: { fuse: 1.2, radius: 3.6, damage: 150, count: 3 },
+  fan: { up: 13, push: 7, cd: 0.8 },
+  portal: { cd: 1.5 },
   duo: {
     baseR: 0.45,
     rPerPower: 0.9,
@@ -92,12 +99,10 @@ export const CFG = {
   },
   combo: { window: 2.0, max: 10, gainPerStep: 0.1 },
   wreck: {
-    scare: 60,
-    directHit: 80,
-    bonk: 80,
     duoShrink: 100,
+    boom: 80,
     dropChance: 0.1,
-    maxDrops: 4,
+    maxDrops: 3,
   },
   time: { clock: 5, perfectBoss: 10 },
   boss: {
@@ -109,13 +114,14 @@ export const CFG = {
     stompRadius: 3.4,
     hurtTime: 0.45,
     phaseChangeTime: 1.3,
-    enterTime: 1.6,
+    enterTime: 1.9,
+    ringR: 8.5,
   },
+  seenRadius: 9,
   caps: { splats: 220, debris: 700 },
 }
 
-const GIFT_DROPS: PickupKind[] = ['clock', 'clock', 'skateboard', 'megaphone', 'pacifier', 'rattle', 'milk', 'milk']
-const FAR_FINDS: PickupKind[] = ['clock', 'skateboard', 'megaphone']
+const GIFT_DROPS: PickupKind[] = ['clock', 'clock', 'skateboard', 'megaphone', 'pacifier', 'rattle', 'milk', 'milk', 'potato', 'wings']
 
 export interface CreateOpts {
   seed?: number
@@ -174,7 +180,15 @@ export function createState(opts: CreateOpts = {}): State {
     pacifierT: 0,
     rattleT: 0,
     ride: null,
+    rideHp: 0,
     megaphone: false,
+    fedora: false,
+    wings: false,
+    goggles: false,
+    potatoes: 0,
+    portalCd: 0,
+    inLake: false,
+    gy: 0,
   }
   const s: State = {
     version: VERSION,
@@ -199,20 +213,12 @@ export function createState(opts: CreateOpts = {}): State {
     splats: [],
     debris: [],
     pickups: [],
-    duo: {
-      x: 0,
-      y: 0,
-      z: 0,
-      vx: 0,
-      vz: 0,
-      facing: 0,
-      power: 0,
-      state: 'chase',
-      stateT: 0,
-      peckCd: 2,
-      hitFlash: 0,
-    },
+    features: [],
+    bombs: [],
+    seen: [],
+    duo: { x: 0, y: 0, z: 0, vx: 0, vz: 0, facing: 0, power: 0, state: 'chase', stateT: 0, peckCd: 2, hitFlash: 0 },
     boss: null,
+    bossRing: null,
     wreck: 0,
     wreckPoints: 0,
     wreckGoalPoints: 1,
@@ -238,25 +244,95 @@ export function createState(opts: CreateOpts = {}): State {
   return s
 }
 
-// Random point inside the arena at least `margin` from the coast; null if unlucky.
+// ---------------------------------------------------------------- world queries
+
+function coastClear(s: State, x: number, z: number): number {
+  if (!pointInRing(x, z, s.arena.ring)) return -1
+  return closestOnRing(x, z, s.arena.ring).d
+}
+
+function featureAt(s: State, x: number, z: number, kinds: Feature['kind'][], pad = 0): Feature | null {
+  for (const f of s.features) {
+    if (!kinds.includes(f.kind)) continue
+    if (dist(x, z, f.x, f.z) < f.r + pad) return f
+  }
+  return null
+}
+
+export function lakeAt(s: State, x: number, z: number): Feature | null {
+  const lake = featureAt(s, x, z, ['lake'])
+  if (!lake) return null
+  const island = featureAt(s, x, z, ['platform'])
+  return island && island.island ? null : lake
+}
+
+// Highest platform top under (x, z) reachable from height y. Platforms far above y are walls, not floors.
+export function groundY(s: State, x: number, z: number, y: number): number {
+  let g = 0
+  for (const f of s.features) {
+    if (f.kind !== 'platform') continue
+    if (f.h > y + CFG.player.stepUp) continue
+    if (dist(x, z, f.x, f.z) < f.r - 0.05 && f.h > g) g = f.h
+  }
+  return g
+}
+
+// Push a ground-level body out of platforms it cannot climb.
+function pushOutOfPlatforms(s: State, o: { x: number; z: number; vx: number; vz: number }, r: number, y = 0) {
+  for (const f of s.features) {
+    if (f.kind !== 'platform' || f.h <= y + CFG.player.stepUp) continue
+    const dx = o.x - f.x
+    const dz = o.z - f.z
+    const minD = f.r + r
+    if (Math.abs(dx) > minD || Math.abs(dz) > minD) continue
+    const d = Math.hypot(dx, dz)
+    if (d < minD) {
+      const nx = d > 0.001 ? dx / d : 1
+      const nz = d > 0.001 ? dz / d : 0
+      o.x = f.x + nx * minD
+      o.z = f.z + nz * minD
+      const vn = o.vx * nx + o.vz * nz
+      if (vn < 0) {
+        o.vx -= vn * nx
+        o.vz -= vn * nz
+      }
+    }
+  }
+}
+
+function pushOutOfLakes(s: State, o: { x: number; z: number; vx: number; vz: number }, r: number) {
+  for (const f of s.features) {
+    if (f.kind !== 'lake') continue
+    const dx = o.x - f.x
+    const dz = o.z - f.z
+    const d = Math.hypot(dx, dz)
+    if (d < f.r + r) {
+      const nx = d > 0.001 ? dx / d : 1
+      const nz = d > 0.001 ? dz / d : 0
+      o.x = f.x + nx * (f.r + r)
+      o.z = f.z + nz * (f.r + r)
+    }
+  }
+}
+
 function randomInside(s: State, margin: number, tries = 40): { x: number; z: number } | null {
   const A = s.arena
   for (let i = 0; i < tries; i++) {
     const x = range(s.rng, A.minX + margin, A.maxX - margin)
     const z = range(s.rng, A.minZ + margin, A.maxZ - margin)
-    if (!pointInRing(x, z, A.ring)) continue
-    if (closestOnRing(x, z, A.ring).d < margin) continue
+    if (coastClear(s, x, z) < margin) continue
     return { x, z }
   }
   return null
 }
 
-function farPoint(s: State, fromX: number, fromZ: number, margin: number, samples = 16): { x: number; z: number } {
+function farPoint(s: State, fromX: number, fromZ: number, margin: number, samples = 16, ok?: (x: number, z: number) => boolean): { x: number; z: number } {
   let best = { x: 0, z: 0 }
   let bestD = -1
   for (let i = 0; i < samples; i++) {
     const p = randomInside(s, margin, 10)
     if (!p) continue
+    if (ok && !ok(p.x, p.z)) continue
     const d = dist(p.x, p.z, fromX, fromZ)
     if (d > bestD) {
       bestD = d
@@ -266,57 +342,107 @@ function farPoint(s: State, fromX: number, fromZ: number, margin: number, sample
   return best
 }
 
+// ---------------------------------------------------------------- populate
+
 function populate(s: State, level: LevelDef) {
   const placed: { x: number; z: number; r: number }[] = []
   const free = (x: number, z: number, r: number) => {
     for (const p of placed) if (dist(x, z, p.x, p.z) < r + p.r + 0.7) return false
     return true
   }
-  const place = (r: number, minFromSpawn: number): { x: number; z: number } | null => {
-    for (let tries = 0; tries < 50; tries++) {
-      const p = randomInside(s, r + 0.6, 12)
-      if (!p) continue
-      if (Math.hypot(p.x, p.z) < minFromSpawn + r) continue
-      if (!free(p.x, p.z, r)) continue
-      placed.push({ x: p.x, z: p.z, r })
-      return p
-    }
-    return null
-  }
-  const placeFar = (r: number): { x: number; z: number } | null => {
+  const onFeature = (x: number, z: number, r: number) => featureAt(s, x, z, ['platform', 'lake', 'fan', 'portal'], r + 0.5)
+
+  // 1. features first: they shape everything else
+  const F = level.features
+  const spots: { x: number; z: number }[] = []
+  const farFromAll = (margin: number, minGap: number, tries = 30): { x: number; z: number } | null => {
     let best: { x: number; z: number } | null = null
     let bestD = -1
-    for (let i = 0; i < 24; i++) {
-      const p = randomInside(s, r + 1.0, 12)
-      if (!p || !free(p.x, p.z, r)) continue
-      const d = Math.hypot(p.x, p.z)
+    for (let i = 0; i < tries; i++) {
+      const p = randomInside(s, margin, 10)
+      if (!p) continue
+      let d = Math.hypot(p.x, p.z)
+      for (const q of spots) d = Math.min(d, dist(p.x, p.z, q.x, q.z))
+      for (const f of s.features) d = Math.min(d, dist(p.x, p.z, f.x, f.z) - f.r)
       if (d > bestD) {
         bestD = d
         best = p
       }
     }
-    if (best) placed.push({ x: best.x, z: best.z, r })
-    return best
+    return best && bestD >= Math.min(minGap, 3) ? best : null
   }
-  let total = 0
-  let drops = 0
-  for (const [kind, count] of Object.entries(level.props) as [PropKind, number][]) {
-    const st = PROP_STATS[kind]
-    for (let i = 0; i < count; i++) {
-      const pos = place(st.r, 3.5)
-      if (!pos) continue
-      let drop: PickupKind | null = null
-      if (kind === 'gift') drop = pick(s.rng, GIFT_DROPS)
-      else if (drops < CFG.wreck.maxDrops && rand(s.rng) < CFG.wreck.dropChance) {
-        const roll = rand(s.rng)
-        drop = roll < 0.5 ? 'milk' : roll < 0.75 ? 'pacifier' : 'rattle'
-        drops++
+  const addFeature = (kind: Feature['kind'], x: number, z: number, r: number, h = 0, island = false): Feature => {
+    const f: Feature = { id: newId(s), kind, x, z, r, h, pair: -1, dirX: 0, dirZ: 1, cd: 0, island }
+    s.features.push(f)
+    return f
+  }
+  for (let i = 0; i < (F.lake ?? 0); i++) {
+    const p = farFromAll(7, 8)
+    if (!p) continue
+    const lake = addFeature('lake', p.x, p.z, range(s.rng, 4.2, 5.4))
+    addFeature('platform', lake.x + range(s.rng, -0.8, 0.8), lake.z + range(s.rng, -0.8, 0.8), 1.5, 0.5, true)
+  }
+  for (let i = 0; i < (F.platform ?? 0); i++) {
+    const p = farFromAll(5, 6)
+    if (p) addFeature('platform', p.x, p.z, range(s.rng, 3, 4), 1.0)
+  }
+  for (let i = 0; i < (F.tall ?? 0); i++) {
+    const p = farFromAll(5, 6)
+    if (!p) continue
+    const t = addFeature('platform', p.x, p.z, range(s.rng, 2.6, 3.4), 2.2)
+    // a fan a few units away, blowing toward the platform
+    const a = rand(s.rng) * Math.PI * 2
+    for (let k = 0; k < 8; k++) {
+      const ang = a + (k * Math.PI) / 4
+      const fx = t.x + Math.cos(ang) * (t.r + 3.2)
+      const fz = t.z + Math.sin(ang) * (t.r + 3.2)
+      if (coastClear(s, fx, fz) > 1.5 && !featureAt(s, fx, fz, ['platform', 'lake'], 1.2)) {
+        const f = addFeature('fan', fx, fz, 1.2)
+        const d = Math.hypot(t.x - fx, t.z - fz) || 1
+        f.dirX = (t.x - fx) / d
+        f.dirZ = (t.z - fz) / d
+        break
       }
+    }
+  }
+  for (let i = 0; i < (F.fan ?? 0); i++) {
+    const p = farFromAll(3, 4)
+    if (!p) continue
+    const f = addFeature('fan', p.x, p.z, 1.2)
+    const a = rand(s.rng) * Math.PI * 2
+    f.dirX = Math.cos(a)
+    f.dirZ = Math.sin(a)
+  }
+  for (let i = 0; i < (F.portal ?? 0); i++) {
+    const a = farFromAll(3, 6)
+    if (!a) continue
+    const pa = addFeature('portal', a.x, a.z, 1.0)
+    const b = farPoint(s, a.x, a.z, 3, 20, (x, z) => !featureAt(s, x, z, ['platform', 'lake', 'fan', 'portal'], 2))
+    const pb = addFeature('portal', b.x, b.z, 1.0)
+    pa.pair = pb.id
+    pb.pair = pa.id
+  }
+
+  // 2. spots: clusters of props far from each other and from the spawn
+  const palette: PropKind[] = []
+  for (const [kind, w] of Object.entries(level.props) as [PropKind, number][]) for (let i = 0; i < w; i++) palette.push(kind)
+  const placeProp = (kind: PropKind, cx: number, cz: number, radius: number, minFromSpawn: number): boolean => {
+    const st = PROP_STATS[kind]
+    for (let tries = 0; tries < 30; tries++) {
+      const a = rand(s.rng) * Math.PI * 2
+      const d = radius * Math.sqrt(rand(s.rng))
+      const x = cx + Math.cos(a) * d
+      const z = cz + Math.sin(a) * d
+      if (coastClear(s, x, z) < st.r + 0.4) continue
+      if (Math.hypot(x, z) < minFromSpawn + st.r) continue
+      if (onFeature(x, z, st.r)) continue
+      if (!free(x, z, st.r)) continue
+      placed.push({ x, z, r: st.r })
       s.props.push({
         id: newId(s),
         kind,
-        x: pos.x,
-        z: pos.z,
+        x,
+        z,
         y: 0,
         vx: 0,
         vz: 0,
@@ -332,17 +458,51 @@ function populate(s: State, level: LevelDef) {
         color: st.color,
         broken: false,
         hitFlash: 0,
-        drop,
+        drop: null,
       })
-      total += st.points
+      return true
+    }
+    return false
+  }
+  for (let i = 0; i < level.spots; i++) {
+    const c = farFromAll(4, 7) ?? farFromAll(2.5, 3) ?? randomInside(s, 2.5, 20)
+    if (!c) continue
+    spots.push(c)
+    const n = level.propsPerSpot + Math.floor(rand(s.rng) * 3) - 1
+    for (let k = 0; k < n; k++) placeProp(pick(s.rng, palette), c.x, c.z, 5, 3.5)
+  }
+  for (let i = 0; i < level.singles; i++) {
+    const p = randomInside(s, 2, 12)
+    if (p) placeProp(pick(s.rng, palette), p.x, p.z, 2.5, 4)
+  }
+  for (let i = 0; i < 2 && spots.length; i++) {
+    const c = spots[i % spots.length]
+    placeProp('gift', c.x, c.z, 6, 3.5)
+  }
+  let drops = 0
+  let total = 0
+  for (const pr of s.props) {
+    total += pr.points
+    if (pr.kind === 'gift') pr.drop = pick(s.rng, GIFT_DROPS)
+    else if (drops < CFG.wreck.maxDrops && rand(s.rng) < CFG.wreck.dropChance) {
+      const roll = rand(s.rng)
+      pr.drop = roll < 0.5 ? 'milk' : roll < 0.75 ? 'pacifier' : 'rattle'
+      drops++
     }
   }
   s.wreckGoalPoints = Math.max(1, Math.round(total * level.goalPct))
+
+  // 3. creatures
   for (const [kind, count] of Object.entries(level.npcs) as [NpcKind, number][]) {
     const st = NPC_STATS[kind]
     for (let i = 0; i < count; i++) {
-      const pos = place(st.r, 7)
+      let pos: { x: number; z: number } | null = null
+      for (let t = 0; t < 30 && !pos; t++) {
+        const p = randomInside(s, st.r + 1, 10)
+        if (p && Math.hypot(p.x, p.z) > 7 && !onFeature(p.x, p.z, st.r) && free(p.x, p.z, st.r)) pos = p
+      }
       if (!pos) continue
+      placed.push({ x: pos.x, z: pos.z, r: st.r })
       s.npcs.push({
         id: newId(s),
         kind,
@@ -363,11 +523,56 @@ function populate(s: State, level: LevelDef) {
       })
     }
   }
+
+  // 4. finds: on top of platforms, on islands, or far along the coast
+  const tallTops = s.features.filter((f) => f.kind === 'platform' && f.h > 1.5 && !f.island)
+  const lowTops = s.features.filter((f) => f.kind === 'platform' && f.h <= 1.5 && !f.island)
+  const islands = s.features.filter((f) => f.kind === 'platform' && f.island)
+  const usedTops = new Set<number>()
+  const onTop = (list: Feature[], kind: PickupKind): boolean => {
+    for (const f of list) {
+      if (usedTops.has(f.id)) continue
+      usedTops.add(f.id)
+      s.pickups.push({ id: newId(s), kind, x: f.x, y: f.h, z: f.z, vy: 0, age: 0 })
+      return true
+    }
+    return false
+  }
+  const farFind = (kind: PickupKind, margin: number) => {
+    const p = farPoint(s, 0, 0, margin, 24, (x, z) => !onFeature(x, z, 0.4) && free(x, z, 0.4))
+    placed.push({ x: p.x, z: p.z, r: 0.4 })
+    s.pickups.push({ id: newId(s), kind, x: p.x, y: 0, z: p.z, vy: 0, age: 0 })
+  }
+  const nearFind = (kind: PickupKind) => {
+    for (let t = 0; t < 30; t++) {
+      const p = randomInside(s, 1.2, 10)
+      if (!p || Math.hypot(p.x, p.z) < 6 || onFeature(p.x, p.z, 0.4) || !free(p.x, p.z, 0.4)) continue
+      placed.push({ x: p.x, z: p.z, r: 0.4 })
+      s.pickups.push({ id: newId(s), kind, x: p.x, y: 0, z: p.z, vy: 0, age: 0 })
+      return
+    }
+  }
   for (const [kind, count] of Object.entries(level.finds) as [PickupKind, number][]) {
     for (let i = 0; i < count; i++) {
-      const pos = FAR_FINDS.includes(kind) ? placeFar(0.4) : place(0.4, 6)
-      if (!pos) continue
-      s.pickups.push({ id: newId(s), kind, x: pos.x, y: 0, z: pos.z, vy: 0, age: 0 })
+      switch (kind) {
+        case 'clock':
+        case 'megaphone':
+          if (!onTop(tallTops, kind)) farFind(kind, 1.5)
+          break
+        case 'goggles':
+        case 'wings':
+          if (!onTop(lowTops, kind)) farFind(kind, 1.5)
+          break
+        case 'fedora':
+          if (!onTop(islands, kind)) farFind(kind, 1.5)
+          break
+        case 'quad':
+        case 'skateboard':
+          farFind(kind, 1.2)
+          break
+        default:
+          nearFind(kind)
+      }
     }
   }
   const duoStart = farPoint(s, 0, 0, 2)
@@ -405,6 +610,7 @@ export function step(s: State, input: Input) {
   if (s.phase === 'over' || s.phase === 'won') {
     updateDebris(s)
     updatePoops(s, { ...input, poop: false })
+    updateBombs(s)
     updatePickups(s)
     return
   }
@@ -412,6 +618,7 @@ export function step(s: State, input: Input) {
   updatePlayer(s, input)
   updateScream(s, input)
   updatePoops(s, input)
+  updateBombs(s)
   updateProps(s)
   updateNpcs(s)
   updateDuogringo(s)
@@ -429,21 +636,22 @@ function decayFlashes(s: State) {
   if (s.boss) s.boss.hitFlash = Math.max(0, s.boss.hitFlash - DT)
   for (const pr of s.props) if (pr.hitFlash > 0) pr.hitFlash = Math.max(0, pr.hitFlash - DT)
   for (const n of s.npcs) if (n.hitFlash > 0) n.hitFlash = Math.max(0, n.hitFlash - DT)
+  for (const f of s.features) if (f.cd > 0) f.cd = Math.max(0, f.cd - DT)
 }
 
-// Keeps o at least r inside the coast. Returns true when it touched the coast this tick.
-export function clampArena(s: State, o: { x: number; z: number; vx: number; vz: number }, r: number): boolean {
-  const ring = s.arena.ring
-  const inside = pointInRing(o.x, o.z, ring)
-  const h = closestOnRing(o.x, o.z, ring)
+// Keeps o at least r inside the coast (and inside the boss ring when there is one). Returns true when it touched a wall.
+export function clampArena(s: State, o: { x: number; z: number; vx: number; vz: number }, r: number, ring = true): boolean {
+  let touched = false
+  const R = s.arena.ring
+  const inside = pointInRing(o.x, o.z, R)
+  const h = closestOnRing(o.x, o.z, R)
   if (!inside) {
     o.x = h.x + h.nx * r
     o.z = h.z + h.nz * r
     o.vx *= 0.3
     o.vz *= 0.3
-    return true
-  }
-  if (h.d < r) {
+    touched = true
+  } else if (h.d < r) {
     const push = r - h.d
     o.x += h.nx * push
     o.z += h.nz * push
@@ -452,9 +660,26 @@ export function clampArena(s: State, o: { x: number; z: number; vx: number; vz: 
       o.vx -= vn * h.nx * 1.3
       o.vz -= vn * h.nz * 1.3
     }
-    return true
+    touched = true
   }
-  return false
+  if (ring && s.bossRing) {
+    const br = s.bossRing
+    const dx = o.x - br.x
+    const dz = o.z - br.z
+    const d = Math.hypot(dx, dz)
+    const maxD = br.r - r
+    if (d > maxD && d > 0.001) {
+      o.x = br.x + (dx / d) * maxD
+      o.z = br.z + (dz / d) * maxD
+      const vn = (o.vx * dx + o.vz * dz) / d
+      if (vn > 0) {
+        o.vx -= (vn * dx) / d
+        o.vz -= (vn * dz) / d
+      }
+      touched = true
+    }
+  }
+  return touched
 }
 
 // ---------------------------------------------------------------- player
@@ -469,10 +694,11 @@ function updatePlayer(s: State, input: Input) {
     mx /= len
     mz /= len
   }
-  const riding = p.ride === 'skateboard'
-  const slow = p.screamCharging ? 0.5 : 1
-  const speed = C.speed * (riding ? CFG.ride.speed : 1) * slow
-  const accel = C.accel * (riding ? CFG.ride.accel : 1)
+  const ride = p.ride ? CFG.ride[p.ride] : null
+  p.inLake = p.y <= 0.05 && !!lakeAt(s, p.x, p.z)
+  const slow = (p.screamCharging ? 0.5 : 1) * (p.inLake ? C.lakeSpeed : 1)
+  const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * slow
+  const accel = C.accel * (ride ? ride.accel : 1)
   if (p.hitstun > 0) {
     p.hitstun -= DT
     p.vx *= 1 - 3 * DT
@@ -484,26 +710,61 @@ function updatePlayer(s: State, input: Input) {
     if (len > 0.1) p.facing = Math.atan2(mx, mz)
   }
   p.jumpCd = Math.max(0, p.jumpCd - DT)
-  if (input.jump && !p.jumpHeld && p.grounded && p.jumpCd <= 0) {
+  if (input.jump && !p.jumpHeld && p.grounded && p.jumpCd <= 0 && !p.inLake) {
     p.vy = C.jumpV
     p.grounded = false
     p.jumpCd = 0.2
     ev(s, { t: 'jump', x: p.x, z: p.z })
   }
   p.jumpHeld = input.jump
+  p.x += p.vx * DT
+  p.z += p.vz * DT
+  pushOutOfPlatforms(s, p, p.r, p.y)
+  clampArena(s, p, p.r)
+  const gy = groundY(s, p.x, p.z, p.y)
+  p.gy = gy
+  if (p.grounded && p.y > gy + 0.01) p.grounded = false
   if (!p.grounded) {
     p.vy -= CFG.gravity * DT
+    if (p.wings && input.jump && p.vy < C.glideFall) p.vy = C.glideFall
     p.y += p.vy * DT
-    if (p.y <= 0) {
-      p.y = 0
+    if (p.y <= gy) {
+      p.y = gy
       p.vy = 0
       p.grounded = true
       ev(s, { t: 'land', x: p.x, z: p.z })
     }
+  } else {
+    p.y = gy
   }
-  p.x += p.vx * DT
-  p.z += p.vz * DT
-  clampArena(s, p, p.r)
+  // fans and portals
+  if (p.y < 1.2) {
+    const fan = featureAt(s, p.x, p.z, ['fan'])
+    if (fan && fan.cd <= 0) {
+      fan.cd = CFG.fan.cd
+      p.vy = CFG.fan.up
+      p.vx += fan.dirX * CFG.fan.push
+      p.vz += fan.dirZ * CFG.fan.push
+      p.grounded = false
+      p.y = Math.max(p.y, 0.05)
+      ev(s, { t: 'fan', x: p.x, z: p.z })
+    }
+  }
+  p.portalCd = Math.max(0, p.portalCd - DT)
+  if (p.portalCd <= 0 && p.y < 1) {
+    const portal = featureAt(s, p.x, p.z, ['portal'])
+    const other = portal ? s.features.find((f) => f.id === portal.pair) : null
+    if (portal && other) {
+      ev(s, { t: 'portal', x: p.x, z: p.z })
+      const dx = other.x - portal.x
+      const dz = other.z - portal.z
+      const d = Math.hypot(dx, dz) || 1
+      p.x = other.x + (dx / d) * 1.4
+      p.z = other.z + (dz / d) * 1.4
+      p.portalCd = CFG.portal.cd
+      ev(s, { t: 'portal', x: p.x, z: p.z, big: 1 })
+    }
+  }
   p.invuln = Math.max(0, p.invuln - DT)
   if (p.pacifierT > 0) {
     p.pacifierT -= DT
@@ -518,6 +779,10 @@ function updatePlayer(s: State, input: Input) {
       p.rattleT = 0
       ev(s, { t: 'powerEnd', kind: 'rattle' })
     }
+  }
+  // remember nearby finds for the minimap
+  for (const k of s.pickups) {
+    if (dist(k.x, k.z, p.x, p.z) < CFG.seenRadius && !s.seen.includes(k.id)) s.seen.push(k.id)
   }
 }
 
@@ -539,9 +804,13 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
   s.combo = 0
   s.comboT = 0
   if (p.ride) {
-    p.ride = null
-    spawnPickup(s, 'skateboard', p.x - (dx / d) * 1.5, p.z - (dz / d) * 1.5, 6)
-    ev(s, { t: 'rideOff', x: p.x, z: p.z })
+    p.rideHp--
+    if (p.rideHp <= 0) {
+      const kind = p.ride
+      p.ride = null
+      spawnPickup(s, kind, p.x - (dx / d) * 1.5, p.z - (dz / d) * 1.5, 6)
+      ev(s, { t: 'rideOff', x: p.x, z: p.z, kind })
+    }
   }
   ev(s, { t: 'playerHurt', x: p.x, z: p.z, big, points: dmg })
   if (p.hp <= 0) {
@@ -590,14 +859,14 @@ function addTimeBonus(s: State, seconds: number, x: number, z: number, label: st
 
 export function screamRange(p: Player, charge: number): number {
   const S = CFG.scream
-  return (S.baseRange + S.rangePerCharge * charge) * (p.pacifierT > 0 ? S.pacifierRange : 1) * (p.megaphone ? CFG.megaphone.range : 1)
+  return (S.baseRange + S.rangePerCharge * charge) * (p.pacifierT > 0 ? S.pacifierRange : 1) * (p.megaphone ? CFG.megaphone.range : 1) * (p.fedora ? CFG.fedora.range : 1)
 }
 
 function updateScream(s: State, input: Input) {
   const p = s.player
   const C = CFG.player
   p.screamCd = Math.max(0, p.screamCd - DT)
-  if (input.scream && p.screamCd <= 0) {
+  if (input.scream && p.screamCd <= 0 && !p.inLake) {
     p.screamCharging = true
     const chargeTime = C.chargeTime * (p.megaphone ? CFG.megaphone.charge : 1)
     p.screamCharge = p.pacifierT > 0 ? 1 : Math.min(1, p.screamCharge + DT / chargeTime)
@@ -621,6 +890,26 @@ function inCone(px: number, pz: number, facing: number, tx: number, tz: number, 
   while (diff > Math.PI) diff -= Math.PI * 2
   while (diff < -Math.PI) diff += Math.PI * 2
   return Math.abs(diff) < halfAngle + Math.atan2(tr, d)
+}
+
+function scareNpc(s: State, n: Npc, fromX: number, fromZ: number, push: number, label = 'SCARED!') {
+  const st = NPC_STATS[n.kind]
+  const wasScared = n.state === 'flee' || n.state === 'stunned'
+  n.hitFlash = 0.3
+  if (n.state !== 'cower') {
+    n.state = 'flee'
+    n.stateT = CFG.scream.scareTime
+  }
+  const dx = n.x - fromX
+  const dz = n.z - fromZ
+  const d = Math.hypot(dx, dz) || 1
+  n.vx += (dx / d) * push
+  n.vz += (dz / d) * push
+  if (!wasScared) {
+    s.stats.scared++
+    addWreck(s, st.scare, n.x, n.z, n.kind === 'chicken' ? 'BAWK!' : label, st.color)
+    ev(s, { t: 'npcScared', x: n.x, z: n.z, id: n.id, kind: n.kind })
+  }
 }
 
 export function fireScream(s: State, charge: number) {
@@ -652,23 +941,8 @@ export function fireScream(s: State, charge: number) {
   }
   for (const n of s.npcs) {
     if (!inCone(p.x, p.z, p.facing, n.x, n.z, n.r, rangeLen, S.halfAngle)) continue
-    const wasScared = n.state === 'flee' || n.state === 'stunned'
     n.hp -= S.npcDamage * (0.5 + charge)
-    n.hitFlash = 0.3
-    if (n.state !== 'cower') {
-      n.state = 'flee'
-      n.stateT = S.scareTime + charge
-    }
-    const dx = n.x - p.x
-    const dz = n.z - p.z
-    const d = Math.hypot(dx, dz) || 1
-    n.vx += (dx / d) * 5
-    n.vz += (dz / d) * 5
-    if (!wasScared) {
-      s.stats.scared++
-      addWreck(s, CFG.wreck.scare, n.x, n.z, 'SCARED!', 0x8ab4f8)
-      ev(s, { t: 'npcScared', x: n.x, z: n.z, id: n.id })
-    }
+    scareNpc(s, n, p.x, p.z, 5)
   }
   const duo = s.duo
   const duoR = duoRadius(duo)
@@ -694,11 +968,23 @@ export function fireScream(s: State, charge: number) {
   }
 }
 
-// ---------------------------------------------------------------- poop
+// ---------------------------------------------------------------- poop + potatoes
 
 function throwPoop(s: State, power: number) {
   const p = s.player
   const P = CFG.poop
+  if (p.fedora) power = 1
+  if (p.potatoes > 0) {
+    p.potatoes--
+    const fx = Math.sin(p.facing)
+    const fz = Math.cos(p.facing)
+    const speed = P.speed + P.speedPerPower * power
+    s.bombs.push({ id: newId(s), x: p.x + fx * 0.5, y: 0.9 + p.y, z: p.z + fz * 0.5, vx: fx * speed + p.vx * 0.4, vy: P.upV + P.upPerPower * power, vz: fz * speed + p.vz * 0.4, fuse: CFG.potato.fuse })
+    p.poopCd = CFG.player.poopCooldown
+    p.poopHoldT = 0
+    ev(s, { t: 'poopThrow', x: p.x, z: p.z, big: power, kind: 'potato' })
+    return
+  }
   const n = p.rattleT > 0 ? 3 : 1
   for (let i = 0; i < n; i++) {
     const spread = n === 1 ? 0 : (i - 1) * P.rattleSpread
@@ -722,12 +1008,23 @@ function throwPoop(s: State, power: number) {
   ev(s, { t: 'poopThrow', x: p.x, z: p.z, big: power })
 }
 
+function hitNpcWithProjectile(s: State, n: Npc, label: string, stun: number) {
+  const st = NPC_STATS[n.kind]
+  n.state = 'stunned'
+  n.stateT = stun
+  n.hp -= 20
+  n.hitFlash = 0.4
+  s.stats.directHits++
+  addWreck(s, st.bonk, n.x, n.z, label, st.color)
+  ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id, kind: n.kind })
+}
+
 function updatePoops(s: State, input: Input) {
   const p = s.player
   const C = CFG.player
   const P = CFG.poop
   p.poopCd = Math.max(0, p.poopCd - DT)
-  const playing = s.phase !== 'over' && s.phase !== 'won'
+  const playing = s.phase !== 'over' && s.phase !== 'won' && !p.inLake
   if (playing && input.poop) {
     if (!p.poopHeld) p.poopHoldT = 0
     p.poopHoldT += DT
@@ -747,13 +1044,7 @@ function updatePoops(s: State, input: Input) {
     if (q.y < 1.4) {
       for (const n of s.npcs) {
         if (dist(q.x, q.z, n.x, n.z) < q.r + n.r) {
-          n.state = 'stunned'
-          n.stateT = P.stun
-          n.hp -= 20
-          n.hitFlash = 0.4
-          s.stats.directHits++
-          addWreck(s, CFG.wreck.directHit, n.x, n.z, 'DIRECT HIT!', 0x8b5a2b)
-          ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id })
+          hitNpcWithProjectile(s, n, 'DIRECT HIT!', P.stun)
           hit = true
           break
         }
@@ -776,10 +1067,79 @@ function updatePoops(s: State, input: Input) {
         }
       }
     }
-    if (hit || q.y <= 0) {
+    const floor = groundY(s, q.x, q.z, q.y)
+    if (hit || q.y <= floor) {
       addSplat(s, q.x, q.z, 0.45 + rand(s.rng) * 0.25)
-      ev(s, { t: 'splat', x: q.x, z: q.z })
+      ev(s, { t: 'splat', x: q.x, y: floor, z: q.z })
       s.poops.splice(i, 1)
+    }
+  }
+}
+
+function explode(s: State, x: number, z: number) {
+  const R = CFG.potato.radius
+  ev(s, { t: 'explode', x, z, big: 1, range: R })
+  for (const pr of s.props) {
+    if (pr.broken) continue
+    const d = dist(x, z, pr.x, pr.z)
+    if (d < R + pr.r) {
+      const dx = pr.x - x
+      const dz = pr.z - z
+      const dd = Math.hypot(dx, dz) || 1
+      pr.vx += (dx / dd) * 9
+      pr.vz += (dz / dd) * 9
+      pr.angVel += range(s.rng, -8, 8)
+      damageProp(s, pr, CFG.potato.damage * (1 - (d / (R + pr.r)) * 0.4))
+    }
+  }
+  for (const n of s.npcs) {
+    if (dist(x, z, n.x, n.z) < R + n.r) hitNpcWithProjectile(s, n, 'BOOM!', 2.5)
+  }
+  const duo = s.duo
+  if (dist(x, z, duo.x, duo.z) < R + duoRadius(duo)) {
+    duo.power = Math.max(0, duo.power - CFG.duo.shrinkPerHit)
+    duo.hitFlash = 0.4
+    ev(s, { t: 'duoShrink', x: duo.x, z: duo.z, big: 0.6 })
+  }
+  const b = s.boss
+  if (b && b.state !== 'enter' && b.state !== 'dead' && dist(x, z, b.x, b.z) < R + b.r) bossHit(s, 'poop')
+  const p = s.player
+  if (dist(x, z, p.x, p.z) < R * 0.6 && p.y < 1.5) {
+    const dx = p.x - x
+    const dz = p.z - z
+    const dd = Math.hypot(dx, dz) || 1
+    p.vx += (dx / dd) * 6
+    p.vz += (dz / dd) * 6
+    p.vy = Math.max(p.vy, 5)
+    p.grounded = false
+  }
+}
+
+function updateBombs(s: State) {
+  for (let i = s.bombs.length - 1; i >= 0; i--) {
+    const b = s.bombs[i]
+    b.fuse -= DT
+    b.vy -= CFG.gravity * DT
+    b.x += b.vx * DT
+    b.y += b.vy * DT
+    b.z += b.vz * DT
+    const floor = groundY(s, b.x, b.z, b.y)
+    if (b.y <= floor) {
+      b.y = floor
+      b.vy = Math.abs(b.vy) > 1.5 ? -b.vy * 0.3 : 0
+      b.vx *= 1 - Math.min(1, 20 * DT)
+      b.vz *= 1 - Math.min(1, 20 * DT)
+    }
+    let contact = false
+    if (b.y < 1.5) {
+      for (const pr of s.props) if (!pr.broken && b.y < pr.h && dist(b.x, b.z, pr.x, pr.z) < 0.3 + pr.r) contact = true
+      for (const n of s.npcs) if (dist(b.x, b.z, n.x, n.z) < 0.3 + n.r) contact = true
+      const bs = s.boss
+      if (bs && bs.state !== 'enter' && bs.state !== 'dead' && dist(b.x, b.z, bs.x, bs.z) < 0.3 + bs.r) contact = true
+    }
+    if (b.fuse <= 0 || contact) {
+      explode(s, b.x, b.z)
+      s.bombs.splice(i, 1)
     }
   }
 }
@@ -793,7 +1153,7 @@ function addSplat(s: State, x: number, z: number, r: number) {
 
 function spawnPickup(s: State, kind: PickupKind, x: number, z: number, vy = 0) {
   const k: Pickup = { id: newId(s), kind, x, y: 0.5, z, vy, age: 0 }
-  clampArena(s, { x: k.x, z: k.z, vx: 0, vz: 0 }, 0.5)
+  clampArena(s, { x: k.x, z: k.z, vx: 0, vz: 0 }, 0.5, false)
   s.pickups.push(k)
 }
 
@@ -814,11 +1174,26 @@ function collect(s: State, k: Pickup) {
       addTimeBonus(s, CFG.time.clock, k.x, k.z, `-${CFG.time.clock}s`)
       break
     case 'skateboard':
-      p.ride = 'skateboard'
-      ev(s, { t: 'rideOn', x: k.x, z: k.z })
+    case 'quad':
+      if (p.ride && p.ride !== k.kind) spawnPickup(s, p.ride, p.x - Math.sin(p.facing) * 1.5, p.z - Math.cos(p.facing) * 1.5, 4)
+      p.ride = k.kind
+      p.rideHp = CFG.ride[k.kind].hp
+      ev(s, { t: 'rideOn', x: k.x, z: k.z, kind: k.kind })
       break
     case 'megaphone':
       p.megaphone = true
+      break
+    case 'fedora':
+      p.fedora = true
+      break
+    case 'wings':
+      p.wings = true
+      break
+    case 'goggles':
+      p.goggles = true
+      break
+    case 'potato':
+      p.potatoes += CFG.potato.count
       break
   }
   ev(s, { t: 'pickup', x: k.x, z: k.z, kind: k.kind })
@@ -829,16 +1204,17 @@ function updatePickups(s: State) {
   for (let i = s.pickups.length - 1; i >= 0; i--) {
     const k = s.pickups[i]
     k.age += DT
-    if (k.vy !== 0 || k.y > 0) {
+    const floor = groundY(s, k.x, k.z, k.y + 1)
+    if (k.vy !== 0 || k.y > floor) {
       k.vy -= CFG.gravity * DT
       k.y += k.vy * DT
-      if (k.y <= 0) {
-        k.y = 0
+      if (k.y <= floor) {
+        k.y = floor
         k.vy = 0
       }
     }
     if (s.phase === 'over' || s.phase === 'won') continue
-    if (k.age > 0.3 && k.y < 0.6 && dist(k.x, k.z, p.x, p.z) < p.r + 0.55 && p.y < 1) {
+    if (k.age > 0.3 && Math.abs(k.y - p.y) < 0.9 && dist(k.x, k.z, p.x, p.z) < p.r + 0.6) {
       collect(s, k)
       s.pickups.splice(i, 1)
     }
@@ -889,7 +1265,7 @@ function breakProp(s: State, pr: Prop, wreckScale: number) {
 function updateProps(s: State) {
   const p = s.player
   const C = CFG.player
-  const riding = p.ride === 'skateboard'
+  const ride = p.ride ? CFG.ride[p.ride] : null
   for (const pr of s.props) {
     if (pr.broken) continue
     const damp = 1 - Math.min(1, 3.5 * DT)
@@ -899,7 +1275,8 @@ function updateProps(s: State) {
     pr.x += pr.vx * DT
     pr.z += pr.vz * DT
     pr.rot += pr.angVel * DT
-    clampArena(s, pr, pr.r)
+    pushOutOfPlatforms(s, pr, pr.r)
+    clampArena(s, pr, pr.r, false)
 
     if (p.y < pr.h) {
       const dx = pr.x - p.x
@@ -917,12 +1294,12 @@ function updateProps(s: State) {
         pr.x += nx * overlap * (1 - heavy)
         pr.z += nz * overlap * (1 - heavy)
         if (speed > C.smashSpeed) {
-          const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (riding ? CFG.ride.push : 1)
+          const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (ride ? ride.push : 1)
           pr.vx += nx * push
           pr.vz += nz * push
           pr.angVel += range(s.rng, -6, 6)
-          damageProp(s, pr, speed * C.smashDamagePerSpeed * (riding ? CFG.ride.smash : 1))
-          const slow = riding ? 0.35 : 0.6
+          damageProp(s, pr, speed * C.smashDamagePerSpeed * (ride ? ride.smash : 1) * (p.fedora ? 1.5 : 1))
+          const slow = ride ? 0.3 : 0.6
           p.vx *= 1 - heavy * slow
           p.vz *= 1 - heavy * slow
         }
@@ -967,16 +1344,11 @@ function updateProps(s: State) {
     if (sp < 3) continue
     for (const n of s.npcs) {
       if (dist(pr.x, pr.z, n.x, n.z) < pr.r + n.r && n.state !== 'stunned') {
-        n.state = 'stunned'
-        n.stateT = 1.2
-        n.hp -= 15
-        n.hitFlash = 0.4
         n.vx += pr.vx * 0.5
         n.vz += pr.vz * 0.5
         pr.vx *= 0.4
         pr.vz *= 0.4
-        addWreck(s, CFG.wreck.bonk, n.x, n.z, 'BONK!', pr.color)
-        ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id })
+        hitNpcWithProjectile(s, n, 'BONK!', 1.2)
       }
     }
   }
@@ -1006,12 +1378,12 @@ function updateNpcs(s: State) {
     switch (n.state) {
       case 'wander': {
         if (n.stateT <= 0) {
-          const t = randomInside(s, 1.5, 10)
+          const t = n.kind === 'chicken' ? { x: n.x + range(s.rng, -5, 5), z: n.z + range(s.rng, -5, 5) } : randomInside(s, 1.5, 10)
           if (t) {
             n.targetX = t.x
             n.targetZ = t.z
           }
-          n.stateT = range(s.rng, 2, 4.5)
+          n.stateT = n.kind === 'chicken' ? range(s.rng, 0.6, 1.4) : range(s.rng, 2, 4.5)
         }
         const d = moveToward(n, n.targetX, n.targetZ, st.wanderSpeed, 4)
         if (d < 0.6) {
@@ -1019,14 +1391,19 @@ function updateNpcs(s: State) {
           n.vz *= 0.8
         }
         if (dp < st.detect && n.scaredCd <= 0 && s.phase === 'wreck') {
-          n.state = 'chase'
-          n.stateT = 0
+          if (n.kind === 'chicken') {
+            n.state = 'flee'
+            n.stateT = 1.5
+          } else {
+            n.state = 'chase'
+            n.stateT = 0
+          }
         }
         break
       }
       case 'chase': {
         moveToward(n, p.x, p.z, st.chaseSpeed, 6)
-        if (dp > st.detect + 4) {
+        if (dp > st.detect + 4 || p.y > 0.9 || p.inLake) {
           n.state = 'wander'
           n.stateT = 0
         } else if (dp < n.r + p.r + 0.1) {
@@ -1049,12 +1426,12 @@ function updateNpcs(s: State) {
         const dx = n.x - p.x
         const dz = n.z - p.z
         const d = Math.hypot(dx, dz) || 1
-        const wob = Math.sin(s.time * 9 + n.id) * 0.5
+        const wob = Math.sin(s.time * 9 + n.id) * (n.kind === 'chicken' ? 1.2 : 0.5)
         moveToward(n, n.x + (dx / d) * 5 + wob, n.z + (dz / d) * 5 - wob, st.fleeSpeed, 7)
         if (n.stateT <= 0) {
           n.state = 'wander'
           n.stateT = 0
-          n.scaredCd = 2.5
+          n.scaredCd = n.kind === 'chicken' ? 0.5 : 2.5
         }
         break
       }
@@ -1079,7 +1456,9 @@ function updateNpcs(s: State) {
     }
     n.x += n.vx * DT
     n.z += n.vz * DT
-    clampArena(s, n, n.r)
+    pushOutOfPlatforms(s, n, n.r)
+    pushOutOfLakes(s, n, n.r)
+    clampArena(s, n, n.r, false)
     for (const pr of s.props) {
       if (pr.broken) continue
       const dx = n.x - pr.x
@@ -1128,6 +1507,7 @@ function updateDuogringo(s: State) {
   const r = duoRadius(d)
   const speed = D.baseSpeed + D.speedPerPower * d.power
   const dp = dist(d.x, d.z, p.x, p.z)
+  d.y = p.y * 0.8
   switch (d.state) {
     case 'chase': {
       moveToward(d, p.x, p.z, speed, 3)
@@ -1168,12 +1548,16 @@ function spawnBoss(s: State) {
   const def = currentLevel(s).boss
   const p = s.player
   const r = def.scale * 0.32
-  const pos = farPoint(s, p.x, p.z, r + 1, 16)
+  const R = CFG.boss.ringR
+  const clearOfFeatures = (x: number, z: number) => !featureAt(s, x, z, ['platform', 'lake', 'fan', 'portal'], R * 0.5)
+  let c = farPoint(s, p.x, p.z, R * 0.75, 30, clearOfFeatures)
+  if (c.x === 0 && c.z === 0) c = farPoint(s, p.x, p.z, R * 0.6, 30)
+  s.bossRing = { x: c.x, z: c.z, r: R }
   const b: Boss = {
     def,
-    x: pos.x,
-    y: 9,
-    z: pos.z,
+    x: c.x,
+    y: 12,
+    z: c.z,
     vx: 0,
     vz: 0,
     facing: 0,
@@ -1197,6 +1581,43 @@ function spawnBoss(s: State) {
     n.stateT = 999
   }
   ev(s, { t: 'bossEnter', x: b.x, z: b.z, label: def.name })
+}
+
+function bossLand(s: State, b: Boss) {
+  const ring = s.bossRing!
+  // the stage clears itself: everything inside the ring goes flying
+  for (const pr of s.props) {
+    if (pr.broken) continue
+    const d = dist(ring.x, ring.z, pr.x, pr.z)
+    if (d < ring.r + 1) {
+      const dx = pr.x - ring.x
+      const dz = pr.z - ring.z
+      const dd = Math.hypot(dx, dz) || 1
+      pr.vx += (dx / dd) * 12
+      pr.vz += (dz / dd) * 12
+      damageProp(s, pr, 999, 0)
+    }
+  }
+  const p = s.player
+  const dp = dist(ring.x, ring.z, p.x, p.z)
+  if (dp < 5) {
+    const dx = p.x - ring.x
+    const dz = p.z - ring.z
+    const dd = Math.hypot(dx, dz) || 1
+    p.vx += (dx / dd) * 8
+    p.vz += (dz / dd) * 8
+    p.vy = Math.max(p.vy, 4)
+    p.grounded = false
+  }
+  // the player is pulled onto the stage if they are outside
+  if (dp > ring.r - p.r) {
+    const dx = p.x - ring.x
+    const dz = p.z - ring.z
+    const dd = Math.hypot(dx, dz) || 1
+    p.x = ring.x + (dx / dd) * (ring.r - p.r - 0.5)
+    p.z = ring.z + (dz / dd) * (ring.r - p.r - 0.5)
+  }
+  ev(s, { t: 'bossLand', x: b.x, z: b.z, big: 1, range: ring.r })
 }
 
 export function bossPhase(b: Boss) {
@@ -1225,6 +1646,7 @@ export function bossHit(s: State, src: 'scream' | 'poop'): boolean {
     b.stateT = 0
     s.phase = 'won'
     s.phaseT = 0
+    s.bossRing = null
     if (s.bossDamage === 0) addTimeBonus(s, CFG.time.perfectBoss, b.x, b.z, `PERFECT! -${CFG.time.perfectBoss}s`)
     s.clearTime = s.time
     s.levelsCleared++
@@ -1268,14 +1690,16 @@ function updateBoss(s: State) {
   b.invuln = Math.max(0, b.invuln - DT)
   const dp = dist(b.x, b.z, p.x, p.z)
   const dmg = Math.max(10, Math.round(b.def.damage / 10) * 10)
-  let touchedCoast = false
+  let touchedWall = false
   switch (b.state) {
     case 'enter': {
-      b.y = Math.max(0, (b.stateT / B.enterTime) * 9)
+      const k = Math.max(0, b.stateT / B.enterTime)
+      b.y = 12 * k * k
       if (b.stateT <= 0) {
         b.y = 0
+        bossLand(s, b)
         b.state = 'idle'
-        b.stateT = B.idle[ph] + 0.6
+        b.stateT = B.idle[ph] + 1.2
         ev(s, { t: 'levelPhase', label: 'boss', big: 1, x: b.x, z: b.z })
       }
       break
@@ -1388,12 +1812,12 @@ function updateBoss(s: State) {
   }
   b.x += b.vx * DT
   b.z += b.vz * DT
-  touchedCoast = clampArena(s, b, b.r)
-  if (b.state === 'attack' && b.attack === 'charge' && (b.stateT <= 0 || touchedCoast)) {
+  touchedWall = clampArena(s, b, b.r)
+  if (b.state === 'attack' && b.attack === 'charge' && (b.stateT <= 0 || touchedWall)) {
     b.vx = 0
     b.vz = 0
-    ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: touchedCoast ? 0.7 : 0.3, label: 'skid' })
-    enterExposed(s, b, B.exposed[ph] + (touchedCoast ? 0.5 : 0))
+    ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: touchedWall ? 0.7 : 0.3, label: 'skid' })
+    enterExposed(s, b, B.exposed[ph] + (touchedWall ? 0.5 : 0))
   }
   if (b.state !== 'attack') {
     const dx = p.x - b.x
@@ -1454,4 +1878,4 @@ export function skipToBoss(s: State) {
   }
 }
 
-export type { State, Input, Player, Prop, Npc, Poop, Debris, Boss, Duogringo, GameEvent, Pickup }
+export type { State, Input, Player, Prop, Npc, Poop, Debris, Boss, Duogringo, GameEvent, Pickup, Feature, Bomb }

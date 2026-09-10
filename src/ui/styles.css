@@ -175,3 +175,16 @@ canvas#c { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
 .chip.red { background: var(--accent); color: #fff; }
 #clock.bonus { animation: clockBonus 0.7s ease-out; }
 @keyframes clockBonus { 0% { color: var(--green); transform: scale(1.5); } 100% { color: #fff; transform: scale(1); } }
+
+/* minimap + boss card */
+#minimap { position: absolute; left: calc(12px + var(--safe-l)); bottom: calc(12px + var(--safe-b)); width: 140px; height: 140px; opacity: 0.92; }
+#ui.touch #minimap { left: auto; right: calc(12px + var(--safe-r)); top: calc(96px + var(--safe-t)); bottom: auto; width: 84px; height: 84px; }
+.boss-box { display: flex; align-items: center; gap: 16px; text-align: left; background: #1b1b2f; color: #fff; border-color: var(--accent); box-shadow: 0 10px 0 var(--accent); transform: rotate(1.5deg); }
+#bosscard-img { width: 110px; height: 130px; object-fit: cover; border-radius: 12px; border: 3px solid #fff; background: #fff; }
+#bosscard-name { font-size: clamp(1.6rem, 7vw, 2.8rem); font-weight: 700; color: var(--accent); -webkit-text-stroke: 2px #fff; paint-order: stroke fill; line-height: 1; }
+#bosscard-by { font-size: 0.8rem; opacity: 0.8; margin-top: 4px; }
+#bosscard-taunt { font-size: 0.95rem; margin-top: 6px; font-style: italic; }
+.chip.purple { background: #9b6bff; color: #fff; }
+.chip.blue { background: #bfe6ff; }
+.chip.green { background: var(--green); }
+@media (max-width: 640px) { #bosscard-img { width: 76px; height: 92px; } .boss-box { gap: 10px; } }

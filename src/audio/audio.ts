@@ -221,6 +221,27 @@ export class AudioDriver {
       case 'ui':
         this.tone('square', 600, 600, 0.05, 0.08 * v, 0, 'lin')
         break
+      case 'chicken':
+        this.tone('square', 900 * p, 1300 * p, 0.06, 0.12 * v)
+        this.tone('square', 1200 * p, 800 * p, 0.09, 0.1 * v, 0.07)
+        break
+      case 'portal':
+        this.tone('sine', 300, 1400, 0.35, 0.18 * v)
+        this.tone('triangle', 150, 700, 0.35, 0.1 * v, 0.05)
+        break
+      case 'fan':
+        this.burst(0.4, 0.3 * v, 'bandpass', 900, 0, 0.5)
+        this.tone('sine', 200, 900, 0.3, 0.12 * v)
+        break
+      case 'explode':
+        this.tone('sine', 90, 30, 0.5, 0.8 * v)
+        this.burst(0.45, 0.6 * v, 'lowpass', 700)
+        this.burst(0.2, 0.3 * v, 'highpass', 2000, 0.05)
+        break
+      case 'bossLand':
+        this.tone('sine', 60, 25, 0.7, 0.9 * v)
+        this.burst(0.5, 0.5 * v, 'lowpass', 300)
+        break
       default:
         break
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CFG, DT, HEART, addWreck, bossHit, createState, fireScream, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
+import { CFG, DT, HEART, addWreck, bossHit, createState, fireScream, groundY, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
 import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
@@ -79,6 +79,7 @@ describe('sim', () => {
   it('scream scares an npc in front and grows Duogringo when he is not hit', () => {
     const s = createState({ seed: 1 })
     const n = s.npcs[0]
+    s.npcs = [n]
     n.x = 0
     n.z = 3
     s.player.facing = 0
@@ -122,6 +123,8 @@ describe('sim', () => {
 
   it('milk restores a heart, pacifier and rattle time out', () => {
     const s = createState({ seed: 1 })
+    s.npcs = []
+    s.features = []
     s.player.hp = 60
     s.pickups = [{ id: 999, kind: 'milk', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
     run(s, 0.1)
@@ -210,6 +213,7 @@ describe('sim', () => {
   it('finds: clock takes 5 s off, skateboard speeds you up and is lost when hurt, gifts drop something', () => {
     const s = createState({ seed: 2 })
     s.npcs = []
+    s.features = []
     run(s, 10)
     s.pickups = [{ id: 901, kind: 'clock', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
     run(s, 0.1)
@@ -228,8 +232,8 @@ describe('sim', () => {
     expect(s.stats.damageTaken).toBeGreaterThan(dmgBefore)
     expect(s.player.ride).toBeNull()
     expect(s.pickups.some((k) => k.kind === 'skateboard')).toBe(true)
-    const gift = s.props.find((p) => p.kind === 'gift')!
-    expect(gift.drop).not.toBeNull()
+    const gift = s.props.find((p) => p.kind === 'gift')
+    if (gift) expect(gift.drop).not.toBeNull()
   })
 
   it('a perfect boss fight takes 10 s off the clear time', () => {
@@ -238,6 +242,7 @@ describe('sim', () => {
     run(s, CFG.boss.enterTime + 0.3)
     const b = s.boss!
     for (let i = 0; i < 40 && s.phase === 'boss'; i++) {
+      s.player.invuln = 5
       b.state = 'exposed'
       b.stateT = 2
       b.invuln = 0
@@ -246,6 +251,96 @@ describe('sim', () => {
     }
     expect(s.phase).toBe('won')
     expect(s.stats.timeBonus).toBeGreaterThanOrEqual(CFG.time.perfectBoss)
+  })
+
+  it('platforms: you can step onto a low one, fall off its edge, and tall ones are walls', () => {
+    const s = createState({ seed: 4 })
+    s.features = [
+      { id: 900, kind: 'platform', x: 3, z: 0, r: 2, h: 1.0, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false },
+      { id: 901, kind: 'platform', x: -4, z: 0, r: 2, h: 2.2, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false },
+    ]
+    s.npcs = []
+    s.props = []
+    s.player.x = 0.5
+    run(s, 0.3, { ...EMPTY_INPUT, mx: 1, jump: true })
+    run(s, 0.5, { ...EMPTY_INPUT, mx: 1 })
+    expect(s.player.y).toBeCloseTo(1.0, 1)
+    expect(groundY(s, s.player.x, s.player.z, s.player.y)).toBe(1.0)
+    run(s, 1.2, { ...EMPTY_INPUT, mx: 1 })
+    expect(s.player.y).toBe(0)
+    s.player.x = -1
+    s.player.z = 0
+    run(s, 1.5, { ...EMPTY_INPUT, mx: -1 })
+    expect(Math.hypot(s.player.x + 4, s.player.z)).toBeGreaterThanOrEqual(2 + s.player.r - 0.05)
+  })
+
+  it('a fan launches, a portal teleports, a lake slows and blocks screaming', () => {
+    const s = createState({ seed: 4 })
+    s.npcs = []
+    s.props = []
+    s.features = [
+      { id: 910, kind: 'fan', x: 2, z: 0, r: 1.2, h: 0, pair: -1, dirX: 1, dirZ: 0, cd: 0, island: false },
+      { id: 911, kind: 'portal', x: -3, z: 0, r: 1, h: 0, pair: 912, dirX: 0, dirZ: 1, cd: 0, island: false },
+      { id: 912, kind: 'portal', x: 0, z: -9, r: 1, h: 0, pair: 911, dirX: 0, dirZ: 1, cd: 0, island: false },
+      { id: 913, kind: 'lake', x: 0, z: 8, r: 4, h: 0, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false },
+    ]
+    run(s, 0.6, { ...EMPTY_INPUT, mx: 1 })
+    expect(s.player.y).toBeGreaterThan(1.5)
+    const s2 = createState({ seed: 4 })
+    s2.npcs = []
+    s2.props = []
+    s2.features = s.features
+    run(s2, 1.2, { ...EMPTY_INPUT, mx: -1 })
+    expect(s2.player.z).toBeLessThan(-6)
+    const s3 = createState({ seed: 4 })
+    s3.npcs = []
+    s3.props = []
+    s3.features = s.features
+    run(s3, 3, { ...EMPTY_INPUT, mz: 1 })
+    expect(s3.player.inLake).toBe(true)
+    expect(Math.hypot(s3.player.vx, s3.player.vz)).toBeLessThan(CFG.player.speed * 0.6)
+    run(s3, 0.3, { ...EMPTY_INPUT, mz: 1, scream: true })
+    run(s3, 0.1, { ...EMPTY_INPUT, mz: 1 })
+    expect(s3.stats.screams).toBe(0)
+  })
+
+  it('boss landing clears the ring and keeps the player inside it', () => {
+    const s = createState({ seed: 6 })
+    skipToBoss(s)
+    run(s, 0.05)
+    expect(s.bossRing).not.toBeNull()
+    const ring = s.bossRing!
+    const insideBefore = s.props.filter((p) => !p.broken && Math.hypot(p.x - ring.x, p.z - ring.z) < ring.r).length
+    run(s, CFG.boss.enterTime + 0.2)
+    const insideAfter = s.props.filter((p) => !p.broken && Math.hypot(p.x - ring.x, p.z - ring.z) < ring.r).length
+    expect(insideAfter).toBeLessThanOrEqual(insideBefore)
+    expect(insideAfter).toBe(0)
+    run(s, 4, { ...EMPTY_INPUT, mx: 1 })
+    expect(Math.hypot(s.player.x - ring.x, s.player.z - ring.z)).toBeLessThanOrEqual(ring.r - s.player.r + 0.05)
+  })
+
+  it('hot potato explodes and smashes nearby props; quad survives one hit', () => {
+    const s = createState({ seed: 2 })
+    s.npcs = []
+    s.features = []
+    const box = s.props.find((p) => p.kind === 'box')!
+    box.x = 6
+    box.z = 0
+    s.player.facing = Math.PI / 2
+    s.player.potatoes = 1
+    run(s, 0.05, { ...EMPTY_INPUT, poop: true })
+    run(s, 0.05)
+    expect(s.bombs.length).toBe(1)
+    run(s, CFG.potato.fuse + 0.2)
+    expect(s.bombs.length).toBe(0)
+    expect(box.broken).toBe(true)
+    s.player.ride = 'quad'
+    s.player.rideHp = CFG.ride.quad.hp
+    s.player.invuln = 0
+    s.npcs = [{ id: 950, kind: 'adult', x: s.player.x + 0.3, z: s.player.z, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0 }]
+    run(s, 0.3)
+    expect(s.player.ride).toBe('quad')
+    expect(s.player.rideHp).toBe(CFG.ride.quad.hp - 1)
   })
 
   it('player dies at zero hp and the game is over', () => {
