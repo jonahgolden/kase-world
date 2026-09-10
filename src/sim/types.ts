@@ -22,6 +22,7 @@ export type PropKind =
   | 'bench'
   | 'sign'
   | 'trash'
+  | 'gift'
 
 export interface Prop {
   id: number
@@ -101,7 +102,7 @@ export interface Debris {
   settled: boolean
 }
 
-export type PickupKind = 'milk' | 'pacifier' | 'rattle'
+export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone'
 
 export interface Pickup {
   id: number
@@ -139,6 +140,8 @@ export interface Player {
   jumpHeld: boolean
   pacifierT: number // seconds of mega scream left
   rattleT: number // seconds of poop storm left
+  ride: 'skateboard' | null // lost when hurt, can be picked back up
+  megaphone: boolean // level-long scream upgrade
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt'
@@ -218,6 +221,9 @@ export type EventType =
   | 'playerHurt'
   | 'pickup'
   | 'powerEnd'
+  | 'timeBonus'
+  | 'rideOn'
+  | 'rideOff'
   | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'
@@ -256,6 +262,16 @@ export interface GameEvent {
 
 export type Phase = 'wreck' | 'boss' | 'won' | 'over'
 
+export interface Arena {
+  ring: [number, number][] // counter-clockwise in (x, z)
+  minX: number
+  maxX: number
+  minZ: number
+  maxZ: number
+  w: number
+  d: number
+}
+
 export interface Stats {
   smashed: number
   scared: number
@@ -267,6 +283,7 @@ export interface Stats {
   damageTaken: number
   bestCombo: number
   pickups: number
+  timeBonus: number
 }
 
 export interface State {
@@ -283,7 +300,8 @@ export interface State {
   phase: Phase
   phaseT: number
   clearTime: number // level time when the boss fell, 0 until then
-  arena: { w: number; d: number }
+  bossDamage: number // damage taken during the boss phase (0 = perfect)
+  arena: Arena
   player: Player
   props: Prop[]
   npcs: Npc[]

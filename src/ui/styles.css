@@ -159,3 +159,19 @@ canvas#c { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
   #logo { font-size: 3rem; }
   .board { max-height: 32vh; }
 }
+
+/* continent chooser */
+.choose { display: flex; align-items: flex-end; justify-content: center; padding: 0 16px calc(24px + var(--safe-b)); pointer-events: none; }
+.choose-card { pointer-events: auto; background: var(--paper); border: 4px solid var(--ink); border-radius: 22px; padding: 12px 16px; box-shadow: 0 8px 0 var(--ink); display: flex; flex-direction: column; gap: 10px; align-items: center; width: min(460px, 94vw); }
+.choose-row { display: flex; align-items: center; gap: 12px; width: 100%; justify-content: space-between; }
+.choose-mid { text-align: center; flex: 1; min-width: 0; }
+#choose-name { font-size: clamp(1.4rem, 6vw, 2.2rem); font-weight: 700; color: var(--accent); -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill; line-height: 1; }
+#choose-sub { font-size: 0.95rem; margin-top: 4px; }
+#choose-sub.locked { opacity: 0.7; }
+#go:disabled { opacity: 0.4; box-shadow: none; transform: translateY(4px); cursor: default; }
+#fade { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.35s; }
+#fade.on { opacity: 1; }
+.chip.pink { background: #ff8fab; }
+.chip.red { background: var(--accent); color: #fff; }
+#clock.bonus { animation: clockBonus 0.7s ease-out; }
+@keyframes clockBonus { 0% { color: var(--green); transform: scale(1.5); } 100% { color: #fff; transform: scale(1); } }

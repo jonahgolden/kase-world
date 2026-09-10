@@ -3,7 +3,10 @@
 import { makeRng, rand, range, pick } from './rng.ts'
 import { LEVELS, NPC_STATS, PROP_STATS, levelById } from './levels.ts'
 import type { LevelDef } from './levels.ts'
+import { CONTINENTS } from './continents.ts'
+import { closestOnRing, pointInRing } from './geom.ts'
 import type {
+  Arena,
   Boss,
   BossAttack,
   Debris,
@@ -21,7 +24,7 @@ import type {
   State,
 } from './types.ts'
 
-export const VERSION = '0.2.0'
+export const VERSION = '0.3.0'
 export const DT = 1 / 60
 export const HEART = 20
 
@@ -46,6 +49,13 @@ export const CFG = {
     hurtStun: 0.3,
     powerTime: 12,
   },
+  ride: {
+    speed: 1.7,
+    accel: 0.55,
+    smash: 1.8,
+    push: 1.5,
+  },
+  megaphone: { range: 1.4, charge: 0.7 },
   scream: {
     baseRange: 3.2,
     rangePerCharge: 4.8,
@@ -89,6 +99,7 @@ export const CFG = {
     dropChance: 0.1,
     maxDrops: 4,
   },
+  time: { clock: 5, perfectBoss: 10 },
   boss: {
     telegraph: [0.85, 0.65, 0.5],
     exposed: [2.2, 1.9, 1.6],
@@ -102,6 +113,9 @@ export const CFG = {
   },
   caps: { splats: 220, debris: 700 },
 }
+
+const GIFT_DROPS: PickupKind[] = ['clock', 'clock', 'skateboard', 'megaphone', 'pacifier', 'rattle', 'milk', 'milk']
+const FAR_FINDS: PickupKind[] = ['clock', 'skateboard', 'megaphone']
 
 export interface CreateOpts {
   seed?: number
@@ -120,6 +134,11 @@ function ev(s: State, e: GameEvent) {
 
 function dist(ax: number, az: number, bx: number, bz: number) {
   return Math.hypot(bx - ax, bz - az)
+}
+
+export function arenaFor(levelId: string): Arena {
+  const c = CONTINENTS[levelId] ?? CONTINENTS['north-america']
+  return { ring: c.ring, minX: c.minX, maxX: c.maxX, minZ: c.minZ, maxZ: c.maxZ, w: c.maxX - c.minX, d: c.maxZ - c.minZ }
 }
 
 export function createState(opts: CreateOpts = {}): State {
@@ -154,6 +173,8 @@ export function createState(opts: CreateOpts = {}): State {
     jumpHeld: false,
     pacifierT: 0,
     rattleT: 0,
+    ride: null,
+    megaphone: false,
   }
   const s: State = {
     version: VERSION,
@@ -169,7 +190,8 @@ export function createState(opts: CreateOpts = {}): State {
     phase: 'wreck',
     phaseT: 0,
     clearTime: 0,
-    arena: { ...level.arena },
+    bossDamage: 0,
+    arena: arenaFor(level.id),
     player,
     props: [],
     npcs: [],
@@ -178,9 +200,9 @@ export function createState(opts: CreateOpts = {}): State {
     debris: [],
     pickups: [],
     duo: {
-      x: -level.arena.w * 0.4,
+      x: 0,
       y: 0,
-      z: -level.arena.d * 0.4,
+      z: 0,
       vx: 0,
       vz: 0,
       facing: 0,
@@ -207,6 +229,7 @@ export function createState(opts: CreateOpts = {}): State {
       damageTaken: 0,
       bestCombo: 0,
       pickups: 0,
+      timeBonus: 0,
     },
     events: [],
     nextId: 1,
@@ -215,28 +238,65 @@ export function createState(opts: CreateOpts = {}): State {
   return s
 }
 
+// Random point inside the arena at least `margin` from the coast; null if unlucky.
+function randomInside(s: State, margin: number, tries = 40): { x: number; z: number } | null {
+  const A = s.arena
+  for (let i = 0; i < tries; i++) {
+    const x = range(s.rng, A.minX + margin, A.maxX - margin)
+    const z = range(s.rng, A.minZ + margin, A.maxZ - margin)
+    if (!pointInRing(x, z, A.ring)) continue
+    if (closestOnRing(x, z, A.ring).d < margin) continue
+    return { x, z }
+  }
+  return null
+}
+
+function farPoint(s: State, fromX: number, fromZ: number, margin: number, samples = 16): { x: number; z: number } {
+  let best = { x: 0, z: 0 }
+  let bestD = -1
+  for (let i = 0; i < samples; i++) {
+    const p = randomInside(s, margin, 10)
+    if (!p) continue
+    const d = dist(p.x, p.z, fromX, fromZ)
+    if (d > bestD) {
+      bestD = d
+      best = p
+    }
+  }
+  return best
+}
+
 function populate(s: State, level: LevelDef) {
-  const hw = level.arena.w / 2 - 1.5
-  const hd = level.arena.d / 2 - 1.5
   const placed: { x: number; z: number; r: number }[] = []
+  const free = (x: number, z: number, r: number) => {
+    for (const p of placed) if (dist(x, z, p.x, p.z) < r + p.r + 0.7) return false
+    return true
+  }
   const place = (r: number, minFromSpawn: number): { x: number; z: number } | null => {
-    for (let tries = 0; tries < 60; tries++) {
-      const x = range(s.rng, -hw + r, hw - r)
-      const z = range(s.rng, -hd + r, hd - r)
-      if (Math.hypot(x, z) < minFromSpawn + r) continue
-      let ok = true
-      for (const p of placed) {
-        if (dist(x, z, p.x, p.z) < r + p.r + 0.7) {
-          ok = false
-          break
-        }
-      }
-      if (ok) {
-        placed.push({ x, z, r })
-        return { x, z }
-      }
+    for (let tries = 0; tries < 50; tries++) {
+      const p = randomInside(s, r + 0.6, 12)
+      if (!p) continue
+      if (Math.hypot(p.x, p.z) < minFromSpawn + r) continue
+      if (!free(p.x, p.z, r)) continue
+      placed.push({ x: p.x, z: p.z, r })
+      return p
     }
     return null
+  }
+  const placeFar = (r: number): { x: number; z: number } | null => {
+    let best: { x: number; z: number } | null = null
+    let bestD = -1
+    for (let i = 0; i < 24; i++) {
+      const p = randomInside(s, r + 1.0, 12)
+      if (!p || !free(p.x, p.z, r)) continue
+      const d = Math.hypot(p.x, p.z)
+      if (d > bestD) {
+        bestD = d
+        best = p
+      }
+    }
+    if (best) placed.push({ x: best.x, z: best.z, r })
+    return best
   }
   let total = 0
   let drops = 0
@@ -246,7 +306,8 @@ function populate(s: State, level: LevelDef) {
       const pos = place(st.r, 3.5)
       if (!pos) continue
       let drop: PickupKind | null = null
-      if (drops < CFG.wreck.maxDrops && rand(s.rng) < CFG.wreck.dropChance) {
+      if (kind === 'gift') drop = pick(s.rng, GIFT_DROPS)
+      else if (drops < CFG.wreck.maxDrops && rand(s.rng) < CFG.wreck.dropChance) {
         const roll = rand(s.rng)
         drop = roll < 0.5 ? 'milk' : roll < 0.75 ? 'pacifier' : 'rattle'
         drops++
@@ -302,12 +363,16 @@ function populate(s: State, level: LevelDef) {
       })
     }
   }
-  const visible: PickupKind[] = ['milk', 'milk', 'pacifier', 'rattle']
-  for (const kind of visible) {
-    const pos = place(0.4, 6)
-    if (!pos) continue
-    s.pickups.push({ id: newId(s), kind, x: pos.x, y: 0, z: pos.z, vy: 0, age: 0 })
+  for (const [kind, count] of Object.entries(level.finds) as [PickupKind, number][]) {
+    for (let i = 0; i < count; i++) {
+      const pos = FAR_FINDS.includes(kind) ? placeFar(0.4) : place(0.4, 6)
+      if (!pos) continue
+      s.pickups.push({ id: newId(s), kind, x: pos.x, y: 0, z: pos.z, vy: 0, age: 0 })
+    }
   }
+  const duoStart = farPoint(s, 0, 0, 2)
+  s.duo.x = duoStart.x
+  s.duo.z = duoStart.z
 }
 
 export function currentLevel(s: State): LevelDef {
@@ -366,23 +431,30 @@ function decayFlashes(s: State) {
   for (const n of s.npcs) if (n.hitFlash > 0) n.hitFlash = Math.max(0, n.hitFlash - DT)
 }
 
-function clampArena(s: State, o: { x: number; z: number; vx: number; vz: number }, r: number) {
-  const hw = s.arena.w / 2 - r
-  const hd = s.arena.d / 2 - r
-  if (o.x < -hw) {
-    o.x = -hw
-    o.vx = Math.abs(o.vx) * 0.3
-  } else if (o.x > hw) {
-    o.x = hw
-    o.vx = -Math.abs(o.vx) * 0.3
+// Keeps o at least r inside the coast. Returns true when it touched the coast this tick.
+export function clampArena(s: State, o: { x: number; z: number; vx: number; vz: number }, r: number): boolean {
+  const ring = s.arena.ring
+  const inside = pointInRing(o.x, o.z, ring)
+  const h = closestOnRing(o.x, o.z, ring)
+  if (!inside) {
+    o.x = h.x + h.nx * r
+    o.z = h.z + h.nz * r
+    o.vx *= 0.3
+    o.vz *= 0.3
+    return true
   }
-  if (o.z < -hd) {
-    o.z = -hd
-    o.vz = Math.abs(o.vz) * 0.3
-  } else if (o.z > hd) {
-    o.z = hd
-    o.vz = -Math.abs(o.vz) * 0.3
+  if (h.d < r) {
+    const push = r - h.d
+    o.x += h.nx * push
+    o.z += h.nz * push
+    const vn = o.vx * h.nx + o.vz * h.nz
+    if (vn < 0) {
+      o.vx -= vn * h.nx * 1.3
+      o.vz -= vn * h.nz * 1.3
+    }
+    return true
   }
+  return false
 }
 
 // ---------------------------------------------------------------- player
@@ -397,15 +469,18 @@ function updatePlayer(s: State, input: Input) {
     mx /= len
     mz /= len
   }
+  const riding = p.ride === 'skateboard'
   const slow = p.screamCharging ? 0.5 : 1
+  const speed = C.speed * (riding ? CFG.ride.speed : 1) * slow
+  const accel = C.accel * (riding ? CFG.ride.accel : 1)
   if (p.hitstun > 0) {
     p.hitstun -= DT
     p.vx *= 1 - 3 * DT
     p.vz *= 1 - 3 * DT
   } else {
-    const k = Math.min(1, C.accel * DT)
-    p.vx += (mx * C.speed * slow - p.vx) * k
-    p.vz += (mz * C.speed * slow - p.vz) * k
+    const k = Math.min(1, accel * DT)
+    p.vx += (mx * speed - p.vx) * k
+    p.vz += (mz * speed - p.vz) * k
     if (len > 0.1) p.facing = Math.atan2(mx, mz)
   }
   p.jumpCd = Math.max(0, p.jumpCd - DT)
@@ -452,6 +527,7 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
   dmg = Math.max(10, Math.round(dmg / 10) * 10)
   p.hp = Math.max(0, p.hp - dmg)
   s.stats.damageTaken += dmg
+  if (s.phase === 'boss') s.bossDamage += dmg
   p.invuln = CFG.player.hurtInvuln
   p.hitstun = CFG.player.hurtStun
   const dx = p.x - fromX
@@ -462,6 +538,11 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
   if (s.combo >= 3) ev(s, { t: 'comboLost', x: p.x, z: p.z, combo: s.combo })
   s.combo = 0
   s.comboT = 0
+  if (p.ride) {
+    p.ride = null
+    spawnPickup(s, 'skateboard', p.x - (dx / d) * 1.5, p.z - (dz / d) * 1.5, 6)
+    ev(s, { t: 'rideOff', x: p.x, z: p.z })
+  }
   ev(s, { t: 'playerHurt', x: p.x, z: p.z, big, points: dmg })
   if (p.hp <= 0) {
     s.phase = 'over'
@@ -499,11 +580,17 @@ function updateCombo(s: State) {
   }
 }
 
+function addTimeBonus(s: State, seconds: number, x: number, z: number, label: string) {
+  s.time = Math.max(0, s.time - seconds)
+  s.stats.timeBonus += seconds
+  ev(s, { t: 'timeBonus', x, z, points: seconds, label })
+}
+
 // ---------------------------------------------------------------- scream
 
 export function screamRange(p: Player, charge: number): number {
   const S = CFG.scream
-  return (S.baseRange + S.rangePerCharge * charge) * (p.pacifierT > 0 ? S.pacifierRange : 1)
+  return (S.baseRange + S.rangePerCharge * charge) * (p.pacifierT > 0 ? S.pacifierRange : 1) * (p.megaphone ? CFG.megaphone.range : 1)
 }
 
 function updateScream(s: State, input: Input) {
@@ -512,7 +599,8 @@ function updateScream(s: State, input: Input) {
   p.screamCd = Math.max(0, p.screamCd - DT)
   if (input.scream && p.screamCd <= 0) {
     p.screamCharging = true
-    p.screamCharge = p.pacifierT > 0 ? 1 : Math.min(1, p.screamCharge + DT / C.chargeTime)
+    const chargeTime = C.chargeTime * (p.megaphone ? CFG.megaphone.charge : 1)
+    p.screamCharge = p.pacifierT > 0 ? 1 : Math.min(1, p.screamCharge + DT / chargeTime)
     if (p.screamCharge >= 1) {
       p.screamHoldFull += DT
       if (p.screamHoldFull > C.fullHoldGrace) fireScream(s, 1)
@@ -704,7 +792,36 @@ function addSplat(s: State, x: number, z: number, r: number) {
 // ---------------------------------------------------------------- pickups
 
 function spawnPickup(s: State, kind: PickupKind, x: number, z: number, vy = 0) {
-  s.pickups.push({ id: newId(s), kind, x, y: 0.5, z, vy, age: 0 })
+  const k: Pickup = { id: newId(s), kind, x, y: 0.5, z, vy, age: 0 }
+  clampArena(s, { x: k.x, z: k.z, vx: 0, vz: 0 }, 0.5)
+  s.pickups.push(k)
+}
+
+function collect(s: State, k: Pickup) {
+  const p = s.player
+  s.stats.pickups++
+  switch (k.kind) {
+    case 'milk':
+      p.hp = Math.min(p.maxHp, p.hp + HEART)
+      break
+    case 'pacifier':
+      p.pacifierT = CFG.player.powerTime
+      break
+    case 'rattle':
+      p.rattleT = CFG.player.powerTime
+      break
+    case 'clock':
+      addTimeBonus(s, CFG.time.clock, k.x, k.z, `-${CFG.time.clock}s`)
+      break
+    case 'skateboard':
+      p.ride = 'skateboard'
+      ev(s, { t: 'rideOn', x: k.x, z: k.z })
+      break
+    case 'megaphone':
+      p.megaphone = true
+      break
+  }
+  ev(s, { t: 'pickup', x: k.x, z: k.z, kind: k.kind })
 }
 
 function updatePickups(s: State) {
@@ -721,12 +838,8 @@ function updatePickups(s: State) {
       }
     }
     if (s.phase === 'over' || s.phase === 'won') continue
-    if (dist(k.x, k.z, p.x, p.z) < p.r + 0.55 && p.y < 1) {
-      s.stats.pickups++
-      if (k.kind === 'milk') p.hp = Math.min(p.maxHp, p.hp + HEART)
-      else if (k.kind === 'pacifier') p.pacifierT = CFG.player.powerTime
-      else p.rattleT = CFG.player.powerTime
-      ev(s, { t: 'pickup', x: k.x, z: k.z, kind: k.kind })
+    if (k.age > 0.3 && k.y < 0.6 && dist(k.x, k.z, p.x, p.z) < p.r + 0.55 && p.y < 1) {
+      collect(s, k)
       s.pickups.splice(i, 1)
     }
   }
@@ -769,13 +882,14 @@ function breakProp(s: State, pr: Prop, wreckScale: number) {
   }
   if (s.debris.length > CFG.caps.debris) s.debris.splice(0, s.debris.length - CFG.caps.debris)
   if (pr.drop) spawnPickup(s, pr.drop, pr.x, pr.z, 6)
-  if (wreckScale > 0) addWreck(s, pr.points * wreckScale, pr.x, pr.z, undefined, pr.color)
+  if (wreckScale > 0) addWreck(s, pr.points * wreckScale, pr.x, pr.z, pr.kind === 'gift' ? 'SURPRISE!' : undefined, pr.color)
   ev(s, { t: 'smash', x: pr.x, z: pr.z, big: Math.min(1, pr.mass / 6), color: pr.color, points: pr.points })
 }
 
 function updateProps(s: State) {
   const p = s.player
   const C = CFG.player
+  const riding = p.ride === 'skateboard'
   for (const pr of s.props) {
     if (pr.broken) continue
     const damp = 1 - Math.min(1, 3.5 * DT)
@@ -803,13 +917,14 @@ function updateProps(s: State) {
         pr.x += nx * overlap * (1 - heavy)
         pr.z += nz * overlap * (1 - heavy)
         if (speed > C.smashSpeed) {
-          const push = (speed * 1.6) / Math.max(0.6, pr.mass * 0.5)
+          const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (riding ? CFG.ride.push : 1)
           pr.vx += nx * push
           pr.vz += nz * push
           pr.angVel += range(s.rng, -6, 6)
-          damageProp(s, pr, speed * C.smashDamagePerSpeed)
-          p.vx *= 1 - heavy * 0.6
-          p.vz *= 1 - heavy * 0.6
+          damageProp(s, pr, speed * C.smashDamagePerSpeed * (riding ? CFG.ride.smash : 1))
+          const slow = riding ? 0.35 : 0.6
+          p.vx *= 1 - heavy * slow
+          p.vz *= 1 - heavy * slow
         }
       }
     }
@@ -891,8 +1006,11 @@ function updateNpcs(s: State) {
     switch (n.state) {
       case 'wander': {
         if (n.stateT <= 0) {
-          n.targetX = range(s.rng, -s.arena.w / 2 + 2, s.arena.w / 2 - 2)
-          n.targetZ = range(s.rng, -s.arena.d / 2 + 2, s.arena.d / 2 - 2)
+          const t = randomInside(s, 1.5, 10)
+          if (t) {
+            n.targetX = t.x
+            n.targetZ = t.z
+          }
           n.stateT = range(s.rng, 2, 4.5)
         }
         const d = moveToward(n, n.targetX, n.targetZ, st.wanderSpeed, 4)
@@ -950,9 +1068,8 @@ function updateNpcs(s: State) {
         break
       }
       case 'cower': {
-        const ex = Math.abs(n.x) > Math.abs(n.z) ? Math.sign(n.x) * (s.arena.w / 2 - 1) : n.x
-        const ez = Math.abs(n.x) > Math.abs(n.z) ? n.z : Math.sign(n.z || 1) * (s.arena.d / 2 - 1)
-        const d = moveToward(n, ex, ez, st.fleeSpeed, 6)
+        const h = closestOnRing(n.x, n.z, s.arena.ring)
+        const d = moveToward(n, h.x + h.nx * 1.2, h.z + h.nz * 1.2, st.fleeSpeed, 6)
         if (d < 0.5) {
           n.vx *= 0.7
           n.vz *= 0.7
@@ -1050,16 +1167,17 @@ function updateDuogringo(s: State) {
 function spawnBoss(s: State) {
   const def = currentLevel(s).boss
   const p = s.player
-  const far = Math.hypot(p.x, p.z) < 6 ? 1 : -1
+  const r = def.scale * 0.32
+  const pos = farPoint(s, p.x, p.z, r + 1, 16)
   const b: Boss = {
     def,
-    x: Math.max(-s.arena.w / 2 + 3, Math.min(s.arena.w / 2 - 3, -p.x * far * 0.8)),
+    x: pos.x,
     y: 9,
-    z: Math.max(-s.arena.d / 2 + 3, Math.min(s.arena.d / 2 - 3, -p.z * far * 0.8)),
+    z: pos.z,
     vx: 0,
     vz: 0,
     facing: 0,
-    r: def.scale * 0.32,
+    r,
     hits: 0,
     totalHits: def.hitsPerPhase * def.phases,
     state: 'enter',
@@ -1072,11 +1190,8 @@ function spawnBoss(s: State) {
     hitFlash: 0,
     everExposed: false,
   }
-  if (Math.hypot(b.x - p.x, b.z - p.z) < 6) {
-    b.x = s.arena.w / 2 - 4
-    b.z = s.arena.d / 2 - 4
-  }
   s.boss = b
+  s.bossDamage = 0
   for (const n of s.npcs) {
     n.state = 'cower'
     n.stateT = 999
@@ -1110,6 +1225,7 @@ export function bossHit(s: State, src: 'scream' | 'poop'): boolean {
     b.stateT = 0
     s.phase = 'won'
     s.phaseT = 0
+    if (s.bossDamage === 0) addTimeBonus(s, CFG.time.perfectBoss, b.x, b.z, `PERFECT! -${CFG.time.perfectBoss}s`)
     s.clearTime = s.time
     s.levelsCleared++
     s.stats.bossesBeaten++
@@ -1152,6 +1268,7 @@ function updateBoss(s: State) {
   b.invuln = Math.max(0, b.invuln - DT)
   const dp = dist(b.x, b.z, p.x, p.z)
   const dmg = Math.max(10, Math.round(b.def.damage / 10) * 10)
+  let touchedCoast = false
   switch (b.state) {
     case 'enter': {
       b.y = Math.max(0, (b.stateT / B.enterTime) * 9)
@@ -1210,15 +1327,6 @@ function updateBoss(s: State) {
             pr.vz += b.dirZ * 8
             damageProp(s, pr, 200, 0)
           }
-        }
-        const hw = s.arena.w / 2 - b.r - 0.2
-        const hd = s.arena.d / 2 - b.r - 0.2
-        const hitWall = Math.abs(b.x) >= hw || Math.abs(b.z) >= hd
-        if (b.stateT <= 0 || hitWall) {
-          b.vx = 0
-          b.vz = 0
-          ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: hitWall ? 0.7 : 0.3, label: 'skid' })
-          enterExposed(s, b, B.exposed[ph] + (hitWall ? 0.5 : 0))
         }
       } else {
         b.vx *= 1 - 8 * DT
@@ -1280,7 +1388,13 @@ function updateBoss(s: State) {
   }
   b.x += b.vx * DT
   b.z += b.vz * DT
-  clampArena(s, b, b.r)
+  touchedCoast = clampArena(s, b, b.r)
+  if (b.state === 'attack' && b.attack === 'charge' && (b.stateT <= 0 || touchedCoast)) {
+    b.vx = 0
+    b.vz = 0
+    ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: touchedCoast ? 0.7 : 0.3, label: 'skid' })
+    enterExposed(s, b, B.exposed[ph] + (touchedCoast ? 0.5 : 0))
+  }
   if (b.state !== 'attack') {
     const dx = p.x - b.x
     const dz = p.z - b.z

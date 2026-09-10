@@ -14,6 +14,9 @@ export interface UiCallbacks {
   onPause: () => void
   onToggleSound: () => boolean
   onBoard: (board: string) => void
+  onChoose: () => void
+  onChooseMove: (dir: -1 | 1) => void
+  onGo: () => void
 }
 
 const fmtClock = (t: number) => {
@@ -90,7 +93,7 @@ export class Ui {
         <h2>HOW TO PLAY</h2>
         <p class="goal-line">Fill the <b>WRECK</b> meter by smashing stuff and scaring grown-ups. The boss shows up at 100%. Dodge its attacks, then hit it while the <b class="green">green ring</b> is on.</p>
         <div class="ctls">${controls}</div>
-        <p class="goal-line small">🍼 milk = a heart · 👶 pacifier = mega scream · 🪇 rattle = poop storm · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him.</p>
+        <p class="goal-line small">🍼 milk = a heart · 👶 pacifier = mega scream · 🪇 rattle = poop storm · ⏱ clock = 5 s off your time · 🛹 skateboard = fast, lost when you get hit · 📣 megaphone = bigger scream · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him.</p>
         <div class="row-btns">
           <button id="help-resume" class="cta">RESUME</button>
           <button id="help-restart" class="ghost">RESTART LEVEL</button>
@@ -103,7 +106,7 @@ export class Ui {
         <p class="sub">a game by <b>Nova & Louie</b></p>
         <input id="name" maxlength="12" placeholder="YOUR NAME" autocomplete="off" spellcheck="false">
         <button id="play" class="cta">PLAY</button>
-        <div class="row-btns"><button id="board-btn" class="ghost">BEST TIMES</button><button id="how-btn" class="ghost">HOW TO PLAY</button></div>
+        <div class="row-btns"><button id="choose-btn" class="ghost">🌍 CHOOSE CONTINENT</button><button id="board-btn" class="ghost">BEST TIMES</button><button id="how-btn" class="ghost">HOW TO PLAY</button></div>
         <div id="levels" ${dev ? '' : 'hidden'}></div>
       </div>
       <div id="won" class="screen panel" hidden>
@@ -118,14 +121,21 @@ export class Ui {
         <p id="over-sub"></p>
         <div class="row-btns"><button id="restart" class="cta">TRY AGAIN</button><button id="over-title-btn" class="ghost">TITLE</button></div>
       </div>
+      <div id="choose" class="screen choose" hidden>
+        <div class="choose-card">
+          <div class="choose-row"><button id="prev" class="round">◀</button><div class="choose-mid"><div id="choose-name">NORTH AMERICA</div><div id="choose-sub"></div></div><button id="nextc" class="round">▶</button></div>
+          <div class="row-btns"><button id="go" class="cta">GO</button><button id="choose-back" class="ghost">BACK</button></div>
+        </div>
+      </div>
       <div id="board" class="screen panel" hidden>
         <h2>BEST TIMES</h2>
         <div class="tabs" id="board-tabs"></div>
         <div id="board-list" class="board"></div>
         <button id="back" class="ghost">BACK</button>
       </div>
+      <div id="fade"></div>
     `
-    for (const id of ['hud', 'card', 'help', 'title', 'won', 'over', 'board']) this.screens[id] = root.querySelector(`#${id}`)!
+    for (const id of ['hud', 'card', 'help', 'title', 'won', 'over', 'board', 'choose']) this.screens[id] = root.querySelector(`#${id}`)!
     this.popups = root.querySelector('#popups')!
     for (const el of root.querySelectorAll<HTMLElement>('[id]')) this.el.set(el.id, el)
     const nameEl = this.get('name') as HTMLInputElement
@@ -135,6 +145,11 @@ export class Ui {
       if (e.key === 'Enter') play()
     })
     this.get('board-btn').addEventListener('click', () => this.cb.onBoard('north-america'))
+    this.get('choose-btn').addEventListener('click', () => this.cb.onChoose())
+    this.get('prev').addEventListener('click', () => this.cb.onChooseMove(-1))
+    this.get('nextc').addEventListener('click', () => this.cb.onChooseMove(1))
+    this.get('go').addEventListener('click', () => this.cb.onGo())
+    this.get('choose-back').addEventListener('click', () => this.cb.onTitle())
     this.get('how-btn').addEventListener('click', () => this.showHelp(false))
     this.get('back').addEventListener('click', () => this.cb.onTitle())
     this.get('next').addEventListener('click', () => this.cb.onNext())
@@ -180,7 +195,7 @@ export class Ui {
     ;(this.get('name') as HTMLInputElement).value = name
   }
 
-  show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help') {
+  show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help' | 'choose') {
     const hudVisible = id === 'hud' || id === 'won' || id === 'over' || id === 'help'
     for (const [k, el] of Object.entries(this.screens)) {
       if (k === 'card') continue
@@ -188,6 +203,24 @@ export class Ui {
     }
     this.root.classList.toggle('playing', id === 'hud')
     if (id === 'title') setTimeout(() => (this.get('name') as HTMLInputElement).focus(), 50)
+  }
+
+  setChoice(name: string, sub: string, locked: boolean) {
+    this.get('choose-name').textContent = name.toUpperCase()
+    this.get('choose-sub').textContent = sub
+    this.get('choose-sub').classList.toggle('locked', locked)
+    ;(this.get('go') as HTMLButtonElement).disabled = locked
+  }
+
+  fade(on: boolean) {
+    this.get('fade').classList.toggle('on', on)
+  }
+
+  flashClock() {
+    const c = this.get('clock')
+    c.classList.remove('bonus')
+    void c.offsetWidth
+    c.classList.add('bonus')
   }
 
   showHelp(inGame: boolean, soundOn = true) {
@@ -235,6 +268,8 @@ export class Ui {
     const powers: string[] = []
     if (p.pacifierT > 0) powers.push(`<span class="chip gold">MEGA SCREAM ${Math.ceil(p.pacifierT)}</span>`)
     if (p.rattleT > 0) powers.push(`<span class="chip brown">POOP STORM ${Math.ceil(p.rattleT)}</span>`)
+    if (p.ride === 'skateboard') powers.push('<span class="chip pink">🛹</span>')
+    if (p.megaphone) powers.push('<span class="chip red">📣</span>')
     const ph = powers.join('')
     if (this.get('powers').innerHTML !== ph) this.get('powers').innerHTML = ph
 

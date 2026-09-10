@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CFG, DT, HEART, addWreck, bossHit, createState, fireScream, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
+import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
 import type { Input, State } from '../src/sim/types.ts'
@@ -122,11 +123,11 @@ describe('sim', () => {
   it('milk restores a heart, pacifier and rattle time out', () => {
     const s = createState({ seed: 1 })
     s.player.hp = 60
-    s.pickups = [{ id: 999, kind: 'milk', x: 0.2, y: 0, z: 0.2, vy: 0, age: 0 }]
+    s.pickups = [{ id: 999, kind: 'milk', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
     run(s, 0.1)
     expect(s.player.hp).toBe(60 + HEART)
     expect(s.pickups.length).toBe(0)
-    s.pickups = [{ id: 998, kind: 'pacifier', x: 0.2, y: 0, z: 0.2, vy: 0, age: 0 }]
+    s.pickups = [{ id: 998, kind: 'pacifier', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
     run(s, 0.1)
     expect(s.player.pacifierT).toBeGreaterThan(0)
     run(s, CFG.player.powerTime + 0.2)
@@ -164,7 +165,8 @@ describe('sim', () => {
     expect(hits).toBe(b.totalHits)
     expect(s.phase).toBe('won')
     expect(s.levelsCleared).toBe(1)
-    expect(s.clearTime).toBeGreaterThan(0)
+    expect(s.clearTime).toBeGreaterThanOrEqual(0)
+    expect(s.stats.bossesBeaten).toBe(1)
   })
 
   it('boss ignores hits while not exposed', () => {
@@ -186,6 +188,64 @@ describe('sim', () => {
     expect(n.levelId).toBe(LEVELS[1].id)
     expect(n.runTime).toBe(90)
     expect(n.player.hp).toBe(CFG.player.hp)
+  })
+
+  it('everything stays on the continent', () => {
+    for (const lvl of LEVELS) {
+      const s = createState({ seed: 11, levelId: lvl.id })
+      run(s, 30, botInput)
+      const ring = s.arena.ring
+      const check = (x: number, z: number, r: number, what: string) => {
+        expect(pointInRing(x, z, ring), `${lvl.id} ${what} inside`).toBe(true)
+        expect(closestOnRing(x, z, ring).d, `${lvl.id} ${what} clearance`).toBeGreaterThan(r * 0.8)
+      }
+      check(s.player.x, s.player.z, s.player.r, 'player')
+      check(s.duo.x, s.duo.z, 0.3, 'duo')
+      for (const n of s.npcs) check(n.x, n.z, n.r, 'npc')
+      for (const pr of s.props) if (!pr.broken) check(pr.x, pr.z, pr.r, 'prop')
+      for (const k of s.pickups) check(k.x, k.z, 0.2, 'pickup')
+    }
+  })
+
+  it('finds: clock takes 5 s off, skateboard speeds you up and is lost when hurt, gifts drop something', () => {
+    const s = createState({ seed: 2 })
+    s.npcs = []
+    run(s, 10)
+    s.pickups = [{ id: 901, kind: 'clock', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
+    run(s, 0.1)
+    expect(s.time).toBeLessThan(6)
+    expect(s.stats.timeBonus).toBe(CFG.time.clock)
+    s.pickups = [{ id: 902, kind: 'skateboard', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
+    run(s, 0.1)
+    expect(s.player.ride).toBe('skateboard')
+    run(s, 1.5, { ...EMPTY_INPUT, mx: 1 })
+    expect(Math.hypot(s.player.vx, s.player.vz)).toBeGreaterThan(CFG.player.speed * 1.2)
+    s.player.invuln = 0
+    s.player.hp = 100
+    const dmgBefore = s.stats.damageTaken
+    s.npcs = [{ id: 950, kind: 'adult', x: s.player.x + 0.3, z: s.player.z, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0 }]
+    run(s, 0.5)
+    expect(s.stats.damageTaken).toBeGreaterThan(dmgBefore)
+    expect(s.player.ride).toBeNull()
+    expect(s.pickups.some((k) => k.kind === 'skateboard')).toBe(true)
+    const gift = s.props.find((p) => p.kind === 'gift')!
+    expect(gift.drop).not.toBeNull()
+  })
+
+  it('a perfect boss fight takes 10 s off the clear time', () => {
+    const s = createState({ seed: 5 })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.3)
+    const b = s.boss!
+    for (let i = 0; i < 40 && s.phase === 'boss'; i++) {
+      b.state = 'exposed'
+      b.stateT = 2
+      b.invuln = 0
+      bossHit(s, 'poop')
+      run(s, 0.7)
+    }
+    expect(s.phase).toBe('won')
+    expect(s.stats.timeBonus).toBeGreaterThanOrEqual(CFG.time.perfectBoss)
   })
 
   it('player dies at zero hp and the game is over', () => {

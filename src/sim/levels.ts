@@ -1,4 +1,4 @@
-import type { BossDef, NpcKind, PropKind } from './types.ts'
+import type { BossDef, NpcKind, PickupKind, PropKind } from './types.ts'
 
 export interface PropStat {
   r: number
@@ -20,6 +20,7 @@ export const PROP_STATS: Record<PropKind, PropStat> = {
   bench: { r: 0.8, h: 0.6, hp: 45, mass: 2.5, points: 80, color: 0x8b5a2b },
   sign: { r: 0.25, h: 1.8, hp: 25, mass: 1, points: 60, color: 0xffd23f },
   trash: { r: 0.35, h: 0.9, hp: 15, mass: 0.8, points: 40, color: 0x556b2f },
+  gift: { r: 0.5, h: 1.0, hp: 30, mass: 1.5, points: 60, color: 0xff5cad },
 }
 
 export interface NpcStat {
@@ -50,10 +51,10 @@ export interface LevelDef {
   id: string
   name: string
   continent: string
-  arena: { w: number; d: number }
   goalPct: number // fraction of prop points to wreck before the boss shows up
   props: Partial<Record<PropKind, number>>
   npcs: Partial<Record<NpcKind, number>>
+  finds: Partial<Record<PickupKind, number>> // pickups placed in the world; clock/skateboard/megaphone go far from spawn
   boss: BossDef
   theme: Theme
 }
@@ -65,6 +66,7 @@ const boss = (b: Omit<BossDef, 'hitsPerPhase' | 'phases'> & Partial<Pick<BossDef
 })
 
 const SUBURB: Partial<Record<PropKind, number>> = {
+  gift: 2,
   car: 4,
   mailbox: 5,
   hydrant: 3,
@@ -82,10 +84,10 @@ export const LEVELS: LevelDef[] = [
     id: 'north-america',
     name: 'North America',
     continent: 'North America',
-    arena: { w: 36, d: 36 },
     goalPct: 0.5,
     props: SUBURB,
     npcs: { adult: 4, dog: 1 },
+    finds: { milk: 2, pacifier: 1, rattle: 1, clock: 2, skateboard: 1 },
     boss: boss({
       id: 'donald-rump',
       name: 'Donald Rump',
@@ -103,10 +105,10 @@ export const LEVELS: LevelDef[] = [
     id: 'south-america',
     name: 'South America',
     continent: 'South America',
-    arena: { w: 38, d: 38 },
     goalPct: 0.6,
     props: { ...SUBURB, tree: 10, cone: 10 },
     npcs: { adult: 5, dog: 1 },
+    finds: { milk: 2, pacifier: 1, rattle: 1, clock: 2, skateboard: 1, megaphone: 1 },
     boss: boss({
       id: 'insane-bolt',
       name: 'Insane Bolt',
@@ -124,10 +126,10 @@ export const LEVELS: LevelDef[] = [
     id: 'antarctica',
     name: 'Antarctica',
     continent: 'Antarctica',
-    arena: { w: 36, d: 36 },
     goalPct: 0.6,
-    props: { box: 10, barrel: 8, cone: 8, sign: 6, bench: 4, trash: 4, car: 2 },
+    props: { box: 10, barrel: 8, cone: 8, sign: 6, bench: 4, trash: 4, car: 2, gift: 2 },
     npcs: { adult: 5, dog: 2 },
+    finds: { milk: 2, pacifier: 1, rattle: 1, clock: 3, skateboard: 1 },
     boss: boss({
       id: 'president-jeff',
       name: 'President Jeff',
@@ -145,10 +147,10 @@ export const LEVELS: LevelDef[] = [
     id: 'asia',
     name: 'Asia',
     continent: 'Asia',
-    arena: { w: 40, d: 40 },
     goalPct: 0.65,
     props: { ...SUBURB, sign: 8, barrel: 8 },
     npcs: { adult: 6, dog: 2 },
+    finds: { milk: 2, pacifier: 1, rattle: 2, clock: 2, skateboard: 1, megaphone: 1 },
     boss: boss({
       id: 'genghis-khan',
       name: 'Genghis Khan',
@@ -166,10 +168,10 @@ export const LEVELS: LevelDef[] = [
     id: 'africa',
     name: 'Africa',
     continent: 'Africa',
-    arena: { w: 40, d: 40 },
     goalPct: 0.65,
-    props: { tree: 12, box: 8, barrel: 6, cone: 6, bench: 3, trash: 4, sign: 3, car: 2 },
+    props: { tree: 12, box: 8, barrel: 6, cone: 6, bench: 3, trash: 4, sign: 3, car: 2, gift: 2 },
     npcs: { adult: 6, dog: 3 },
+    finds: { milk: 3, pacifier: 1, rattle: 1, clock: 2, skateboard: 1, megaphone: 1 },
     boss: boss({
       id: 'africa-group',
       name: 'The African Animal Group',
@@ -187,10 +189,10 @@ export const LEVELS: LevelDef[] = [
     id: 'australia',
     name: 'Australia',
     continent: 'Australia',
-    arena: { w: 40, d: 40 },
     goalPct: 0.65,
     props: { ...SUBURB, tree: 8, hydrant: 4 },
     npcs: { adult: 6, dog: 3 },
+    finds: { milk: 2, pacifier: 2, rattle: 1, clock: 3, skateboard: 1 },
     boss: boss({
       id: 'australia-group',
       name: 'The Australian Animal Group',
@@ -208,10 +210,10 @@ export const LEVELS: LevelDef[] = [
     id: 'europe',
     name: 'Europe',
     continent: 'Europe',
-    arena: { w: 42, d: 42 },
     goalPct: 0.7,
     props: { ...SUBURB, car: 6, mailbox: 6, sign: 6 },
     npcs: { adult: 7, dog: 3 },
+    finds: { milk: 2, pacifier: 1, rattle: 1, clock: 3, skateboard: 1, megaphone: 1 },
     boss: boss({
       id: 'columbus',
       name: 'Columbus',

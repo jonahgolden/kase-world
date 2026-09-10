@@ -31,7 +31,9 @@ export class Renderer {
   private loader = new GLTFLoader()
   private sun: THREE.DirectionalLight
   private ground: THREE.Mesh | null = null
-  private curbs: THREE.Group | null = null
+  private sand: THREE.Mesh | null = null
+  private water: THREE.Mesh | null = null
+  private board: THREE.Group
   private propViews = new Map<number, THREE.Group & Flashable>()
   private npcViews = new Map<number, THREE.Group & Flashable & { eyes: THREE.Object3D; body: THREE.Object3D }>()
   private poopViews = new Map<number, THREE.Mesh>()
@@ -116,6 +118,9 @@ export class Renderer {
     this.scene.add(this.chargeCone)
     this.scene.add(this.player)
     this.scene.add(this.duo)
+    this.board = this.makeSkateboard()
+    this.board.visible = false
+    this.scene.add(this.board)
     this.player.add(this.placeholderBaby())
     this.duo.add(this.placeholderBird())
     this.resize()
@@ -240,13 +245,18 @@ export class Renderer {
     this.levelKey = key
     const th = level.theme
     this.scene.background = new THREE.Color(th.sky)
-    this.scene.fog = new THREE.Fog(th.fog, 34, 80)
+    this.scene.fog = new THREE.Fog(th.fog, 40, 110)
     if (this.ground) this.scene.remove(this.ground)
-    if (this.curbs) this.scene.remove(this.curbs)
-    this.ground = this.makeGround(s.arena.w, s.arena.d, th.ground, th.ground2)
+    if (this.sand) this.scene.remove(this.sand)
+    if (this.water) this.scene.remove(this.water)
+    this.ground = this.makeContinent(s.arena.ring, 1, 0.7, th.ground, th.ground2, true)
+    this.ground.position.y = -0.7
     this.scene.add(this.ground)
-    this.curbs = this.makeCurbs(s.arena.w, s.arena.d, th.accent)
-    this.scene.add(this.curbs)
+    this.sand = this.makeContinent(s.arena.ring, 1.045, 0.5, 0xe8d59a, 0xe0c98a, false)
+    this.sand.position.y = -1.05
+    this.scene.add(this.sand)
+    this.water = this.makeWater()
+    this.scene.add(this.water)
     for (const v of this.propViews.values()) this.scene.remove(v)
     this.propViews.clear()
     for (const v of this.npcViews.values()) this.scene.remove(v)
@@ -268,49 +278,67 @@ export class Renderer {
     this.sync(s, 0)
   }
 
-  private makeGround(w: number, d: number, c1: number, c2: number): THREE.Mesh {
+  private checker(c1: number, c2: number, cells = 8): THREE.CanvasTexture {
     const size = 256
     const cv = document.createElement('canvas')
     cv.width = size
     cv.height = size
     const ctx = cv.getContext('2d')!
-    const col1 = '#' + c1.toString(16).padStart(6, '0')
-    const col2 = '#' + c2.toString(16).padStart(6, '0')
-    ctx.fillStyle = col1
+    ctx.fillStyle = '#' + c1.toString(16).padStart(6, '0')
     ctx.fillRect(0, 0, size, size)
-    ctx.fillStyle = col2
-    const cells = 8
+    ctx.fillStyle = '#' + c2.toString(16).padStart(6, '0')
     const cs = size / cells
     for (let y = 0; y < cells; y++) for (let x = 0; x < cells; x++) if ((x + y) % 2 === 0) ctx.fillRect(x * cs, y * cs, cs, cs)
     const tex = new THREE.CanvasTexture(cv)
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping
     tex.colorSpace = THREE.SRGBColorSpace
     tex.magFilter = THREE.NearestFilter
-    const W = w + 60
-    const D = d + 60
-    tex.repeat.set(W / 16, D / 16)
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshToonMaterial({ map: tex, gradientMap: this.gradient }))
+    return tex
+  }
+
+  // Cardboard-cutout continent: extruded outline, top at y = depth (caller offsets the mesh).
+  private makeContinent(ring: [number, number][], scale: number, depth: number, c1: number, c2: number, checker: boolean): THREE.Mesh {
+    const shape = new THREE.Shape(ring.map(([x, z]) => new THREE.Vector2(x * scale, -z * scale)))
+    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 1 })
+    geo.rotateX(-Math.PI / 2)
+    const tex = checker ? this.checker(c1, c2) : this.checker(c1, c2, 2)
+    tex.repeat.set(1 / 16, 1 / 16)
+    const top = new THREE.MeshToonMaterial({ map: tex, gradientMap: this.gradient })
+    const side = this.toon(checker ? 0x8b5a2b : 0xc9a96a)
+    const mesh = new THREE.Mesh(geo, [top, side])
+    mesh.receiveShadow = true
+    mesh.castShadow = false
+    return mesh
+  }
+
+  private makeWater(): THREE.Mesh {
+    const tex = this.checker(0x3aa0e8, 0x47acef, 4)
+    tex.repeat.set(30, 30)
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshToonMaterial({ map: tex, gradientMap: this.gradient }))
     mesh.rotation.x = -Math.PI / 2
+    mesh.position.y = -1.2
     mesh.receiveShadow = true
     return mesh
   }
 
-  private makeCurbs(w: number, d: number, color: number): THREE.Group {
+  private makeSkateboard(): THREE.Group {
     const g = new THREE.Group()
-    const mat = this.toon(color)
-    const t = 0.5
-    const h = 0.35
-    const mk = (sx: number, sz: number, x: number, z: number) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), mat)
-      m.position.set(x, h / 2, z)
-      m.castShadow = true
-      m.receiveShadow = true
-      g.add(m)
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 1.1), this.toon(0xff8fab))
+    deck.position.y = 0.12
+    deck.castShadow = true
+    g.add(deck)
+    const wm = this.toon(0x333344)
+    for (const [x, z] of [
+      [-0.2, 0.35],
+      [0.2, 0.35],
+      [-0.2, -0.35],
+      [0.2, -0.35],
+    ]) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 8), wm)
+      w.rotation.z = Math.PI / 2
+      w.position.set(x, 0.07, z)
+      g.add(w)
     }
-    mk(w + t * 2, t, 0, -d / 2 - t / 2)
-    mk(w + t * 2, t, 0, d / 2 + t / 2)
-    mk(t, d, -w / 2 - t / 2, 0)
-    mk(t, d, w / 2 + t / 2, 0)
     return g
   }
 
@@ -397,6 +425,12 @@ export class Renderer {
       case 'trash':
         add(new THREE.CylinderGeometry(0.32, 0.28, 0.85, 10), mat(color), 0, 0.43)
         add(new THREE.CylinderGeometry(0.36, 0.36, 0.1, 10), mat(0x333344), 0, 0.9)
+        break
+      case 'gift':
+        add(new THREE.BoxGeometry(0.9, 0.8, 0.9), mat(color), 0, 0.4)
+        add(new THREE.BoxGeometry(0.95, 0.85, 0.16), mat(0xffd23f), 0, 0.4)
+        add(new THREE.BoxGeometry(0.16, 0.85, 0.95), mat(0xffd23f), 0, 0.4)
+        add(new THREE.SphereGeometry(0.16, 8, 6), mat(0xffd23f), 0, 0.9)
         break
     }
     return g
@@ -485,11 +519,25 @@ export class Renderer {
       add(new THREE.TorusGeometry(0.22, 0.06, 8, 16), 0xffd23f, 0, 0.3, 0, Math.PI / 2)
       add(new THREE.SphereGeometry(0.12, 10, 8), 0xff8fab, 0, 0.3, 0.14)
       add(new THREE.SphereGeometry(0.08, 8, 6), 0xffd23f, 0, 0.3, -0.16)
-    } else {
+    } else if (k.kind === 'rattle') {
       add(new THREE.SphereGeometry(0.22, 10, 8), 0xff8fab, 0, 0.5)
       add(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6), 0x8b5a2b, 0, 0.18)
       add(new THREE.SphereGeometry(0.07, 8, 6), 0xffd23f, 0.16, 0.6)
       add(new THREE.SphereGeometry(0.07, 8, 6), 0x4aa3ff, -0.16, 0.55)
+    } else if (k.kind === 'clock') {
+      const face = add(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16), 0xffd23f, 0, 0.45, 0, Math.PI / 2)
+      face.castShadow = true
+      add(new THREE.BoxGeometry(0.04, 0.2, 0.02), 0x1b1b2f, 0, 0.53, 0.06)
+      add(new THREE.BoxGeometry(0.14, 0.04, 0.02), 0x1b1b2f, 0.06, 0.45, 0.06)
+      add(new THREE.SphereGeometry(0.07, 8, 6), 0xff5c5c, 0, 0.8)
+    } else if (k.kind === 'skateboard') {
+      const b = this.makeSkateboard()
+      b.rotation.z = 0.35
+      g.add(b)
+    } else if (k.kind === 'megaphone') {
+      const cone = add(new THREE.ConeGeometry(0.28, 0.5, 12), 0xff5c5c, 0, 0.45, 0, -Math.PI / 2)
+      cone.rotation.z = 0.2
+      add(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 8), 0x1b1b2f, 0, 0.25, -0.25, Math.PI / 2)
     }
     this.pickupViews.set(k.id, g)
     this.scene.add(g)
@@ -609,7 +657,17 @@ export class Renderer {
         this.particles.burst(x, 1, z, 4, 0xff3b3b, 1.5, 0.1)
         break
       case 'pickup':
-        this.particles.burst(x, 0.8, z, 18, e.kind === 'milk' ? 0xffffff : e.kind === 'pacifier' ? 0xffd23f : 0xff8fab, 3, 0.12)
+        this.particles.burst(x, 0.8, z, 18, e.kind === 'milk' ? 0xffffff : e.kind === 'pacifier' || e.kind === 'clock' ? 0xffd23f : e.kind === 'megaphone' ? 0xff5c5c : 0xff8fab, 3, 0.12)
+        break
+      case 'timeBonus':
+        this.particles.burst(x, 1.2, z, 26, 0x4cd137, 4, 0.14)
+        this.addShake(0.2)
+        break
+      case 'rideOn':
+        this.particles.burst(x, 0.3, z, 14, 0xff8fab, 3, 0.1)
+        break
+      case 'rideOff':
+        this.particles.burst(x, 0.5, z, 10, 0xff8fab, 3, 0.1)
         break
       case 'goalReached':
         this.addShake(0.8)
@@ -675,8 +733,15 @@ export class Renderer {
     this.time += dt
     const p = s.player
     // player
-    this.player.position.set(p.x, p.y, p.z)
+    const riding = p.ride === 'skateboard'
+    this.player.position.set(p.x, p.y + (riding ? 0.16 : 0), p.z)
     this.player.rotation.y = p.facing
+    this.board.visible = riding
+    if (riding) {
+      this.board.position.set(p.x, p.y, p.z)
+      this.board.rotation.y = p.facing
+      this.board.rotation.z = Math.sin(this.time * 6) * 0.06
+    }
     const speed = Math.hypot(p.vx, p.vz)
     const ch = p.screamCharging ? p.screamCharge : 0
     const squash = 1 + p.screamFlash * 0.6 + ch * 0.35 + (ch > 0 ? Math.sin(this.time * 40) * 0.05 * ch : 0)
@@ -709,8 +774,8 @@ export class Renderer {
     }
     if (p.invuln > 0) this.flash(this.playerMats, Math.floor(this.time * 20) % 2 === 0 ? 0xff3b3b : 0xffffff, 0.6)
     else if (ch > 0) this.flash(this.playerMats, 0xff5c5c, ch * 0.5)
-    else if (p.pacifierT > 0) this.flash(this.playerMats, 0xffd23f, 0.25 + Math.sin(this.time * 8) * 0.15)
-    else if (p.rattleT > 0) this.flash(this.playerMats, 0xff8fab, 0.2 + Math.sin(this.time * 8) * 0.12)
+    else if (p.pacifierT > 0) this.flash(this.playerMats, 0xffd23f, 0.12 + Math.sin(this.time * 8) * 0.06)
+    else if (p.rattleT > 0) this.flash(this.playerMats, 0xff8fab, 0.1 + Math.sin(this.time * 8) * 0.05)
     else this.flash(this.playerMats, 0, 0)
 
     // duogringo

@@ -21,6 +21,8 @@ goes in `sim/` with a test; new visuals go in `render/renderer.ts`.
 - `pnpm test` sim tests · `pnpm typecheck` game + worker
 - `pnpm shot [--mobile] [--only=wreck|boss|title]` headless bot playtest, PNGs in `shots/` (needs `pnpm dev` running)
 - `pnpm deploy` build + `wrangler deploy` · `pnpm db:migrate` apply `worker/schema.sql` to remote D1
+- `node scripts/build-continents.ts` regenerates `src/sim/continents.ts` + `public/continents.geojson`
+  from `data/continents.geojson` (Natural Earth 110m, dissolved + simplified with mapshaper)
 
 ## URL params (dev)
 
@@ -35,6 +37,9 @@ player · `?auto=1` skip title · `?skip=boss` boss in 2 s · `?mute=1` · `?nam
 - Sounds: drop files in `public/assets/audio/`, list them in `manifest.json` under the event name.
   Any event without files is synthesized. Event names = `EventType` in `src/sim/types.ts`.
 - Tuning: every number lives in `CFG` (`src/sim/sim.ts`), `PROP_STATS` / `NPC_STATS` / `LEVELS` (`levels.ts`).
+- Arenas are the real continent outlines (`src/sim/continents.ts`, generated). `finds` per level in
+  `levels.ts` place clocks/skateboard/megaphone far from spawn (detours), milk/pacifier/rattle nearer.
+  Gift props drop a seeded surprise. Globe hub: `src/render/globe.ts` (icosphere colored by the GeoJSON).
 
 ## Status
 
@@ -48,4 +53,8 @@ continent + world (`/api/times`, table `times`), hearts, boss gauge only in boss
 scream/poop with charge shown on the baby, pickups (milk, pacifier, rattle), level card, help/pause
 overlay (`?`, Esc), click-to-poop, attract demo on title. All 7 continents share one boss behavior.
 Research memos (design + continent-arena recipe) are summarized in ~/.claude/TODO.md queue.
-Next: user's answers on level goal variety, unlock ladder, globe hub; then continent-shaped arenas.
+v0.3 (deployed): arenas are continent-shaped cutouts with coast + water; globe hub on the title with
+boss cards + locks, fly-in transition into each level, continent chooser with saved progress
+(`kw.progress`); finds with detour trade-offs (⏱ clock -5 s, 🛹 skateboard fast until hit, 📣 megaphone,
+🎁 gifts); perfect boss = -10 s. Time boards are global, per continent + world.
+Next: family playtest of v0.3; then goal shapes (find N, chase) and per-continent boss attacks.

@@ -4,9 +4,10 @@ import { botInput } from './sim/bot.ts'
 import { LEVELS } from './sim/levels.ts'
 import type { GameEvent, State } from './sim/types.ts'
 import { Renderer } from './render/renderer.ts'
+import { Globe } from './render/globe.ts'
 import { InputDriver } from './input/input.ts'
 import { AudioDriver } from './audio/audio.ts'
-import { Ui } from './ui/ui.ts'
+import { Ui, medalFor } from './ui/ui.ts'
 import { fetchBoard, fmtMs, localBests, playerName, saveLocalBest, submitTime } from './net/leaderboard.ts'
 
 const params = new URLSearchParams(location.search)
@@ -17,18 +18,36 @@ const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in windo
 const canvas = document.getElementById('c') as HTMLCanvasElement
 const uiRoot = document.getElementById('ui') as HTMLElement
 
-type Mode = 'title' | 'play' | 'paused' | 'won' | 'over' | 'board' | 'help'
+type Mode = 'title' | 'choose' | 'fly' | 'play' | 'paused' | 'won' | 'over' | 'board' | 'help'
+const GLOBE_MODES: Mode[] = ['title', 'choose', 'fly', 'board', 'help']
 let mode: Mode = 'title'
 let state: State | null = null
-let attract: State | null = null
-let attractAcc = 0
 let acc = 0
 let last = performance.now()
 let hitstop = 0
-let startLevelId: string | null = null
 let name = 'KASE'
 let endTimer = 0
-let helpFrom: Mode = 'title'
+let runStartIndex = 0
+let chosen = 0
+let helpFromGame = false
+
+const PROGRESS_KEY = 'kw.progress'
+function loadUnlocked(): number {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}') as { unlocked?: number }
+    return Math.min(LEVELS.length - 1, Math.max(0, p.unlocked ?? 0))
+  } catch {
+    return 0
+  }
+}
+function saveUnlocked(i: number) {
+  try {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify({ unlocked: Math.max(loadUnlocked(), i) }))
+  } catch {
+    /* ignore */
+  }
+}
+let unlocked = dev ? LEVELS.length - 1 : loadUnlocked()
 
 const audio = new AudioDriver()
 audio.muted = params.has('mute')
@@ -37,9 +56,9 @@ void audio.loadManifest()
 const ui = new Ui(
   uiRoot,
   {
-    onPlay: (n, levelId) => startRun(n, levelId),
+    onPlay: (n, levelId) => launch(n, levelId ?? LEVELS[0].id),
     onNext: () => nextLevel(),
-    onRestart: () => startRun(name, state?.levelId ?? startLevelId),
+    onRestart: () => restartLevel(),
     onTitle: () => goTitle(),
     onResume: () => resume(),
     onPause: () => pause(),
@@ -48,12 +67,16 @@ const ui = new Ui(
       return !audio.muted
     },
     onBoard: (b) => void showBoard(b),
+    onChoose: () => openChooser(),
+    onChooseMove: (dir) => moveChoice(dir),
+    onGo: () => launch((uiRoot.querySelector('#name') as HTMLInputElement).value.trim(), LEVELS[chosen].id),
   },
   touch,
   dev,
 )
 const input = new InputDriver(uiRoot, canvas)
 const renderer = new Renderer(canvas, touch)
+const globe = new Globe()
 
 ui.setName(params.get('name') ?? playerName.get())
 ui.show('title')
@@ -65,13 +88,18 @@ window.addEventListener('pointerdown', unlockAudio, { passive: true })
 window.addEventListener('keydown', unlockAudio)
 
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyR' && (mode === 'over' || mode === 'won' || mode === 'paused')) startRun(name, state?.levelId ?? startLevelId)
+  if (e.code === 'KeyR' && (mode === 'over' || mode === 'won' || mode === 'paused')) restartLevel()
   if (e.code === 'Enter' && mode === 'won') nextLevel()
   if (e.code === 'KeyM') audio.muted = !audio.muted
   if (e.code === 'Escape' || e.code === 'KeyP') {
     if (mode === 'play') pause()
     else if (mode === 'paused') resume()
-    else if (mode === 'help') goTitle()
+    else if (mode === 'help' || mode === 'board' || mode === 'choose') goTitle()
+  }
+  if (mode === 'choose') {
+    if (e.code === 'ArrowLeft') moveChoice(-1)
+    if (e.code === 'ArrowRight') moveChoice(1)
+    if (e.code === 'Enter') launch((uiRoot.querySelector('#name') as HTMLInputElement).value.trim(), LEVELS[chosen].id)
   }
 })
 
@@ -81,21 +109,59 @@ document.addEventListener('visibilitychange', () => {
   last = performance.now()
 })
 
-function startRun(n: string, levelId: string | null) {
+function setName(n: string) {
   name = (n || 'KASE').toUpperCase().slice(0, 12)
   playerName.set(name)
-  startLevelId = levelId
+}
+
+// Title -> fly to the continent -> level.
+function launch(n: string, levelId: string) {
+  setName(n)
+  const idx = Math.max(0, LEVELS.findIndex((l) => l.id === levelId))
+  if (idx > unlocked && !dev) return
+  runStartIndex = idx
   const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
-  state = createState({ seed, levelId: levelId ?? params.get('level') ?? undefined })
-  beginLevel(true)
+  const next = createState({ seed, levelId })
+  audio.unlock()
+  audio.play('ui')
+  flyInto(next, true)
+}
+
+function flyInto(next: State, fresh: boolean) {
+  mode = 'fly'
+  ui.show('title')
+  uiRoot.querySelector<HTMLElement>('#title')!.hidden = true
+  globe.setProgress({ unlocked, bests: localBests() }, next.levelId)
+  globe.flyTo(next.levelId, true, () => {
+    ui.fade(true)
+    window.setTimeout(() => {
+      state = next
+      beginLevel(fresh)
+      window.setTimeout(() => ui.fade(false), 120)
+    }, 380)
+  })
 }
 
 function nextLevel() {
   if (!state) return
   const next = nextLevelState(state)
   if (!next) return
-  state = next
-  beginLevel(false)
+  ui.fade(true)
+  window.setTimeout(() => {
+    globe.spin()
+    globe.flyTo(state!.levelId, false, undefined, 0.01)
+    window.setTimeout(() => {
+      ui.fade(false)
+      flyInto(next, false)
+    }, 100)
+  }, 380)
+}
+
+function restartLevel() {
+  if (!state) return
+  const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
+  state = createState({ seed, levelId: state.levelId })
+  beginLevel(true)
 }
 
 function beginLevel(fresh: boolean) {
@@ -104,14 +170,13 @@ function beginLevel(fresh: boolean) {
   acc = 0
   hitstop = 0
   endTimer = 0
-  attract = null
   renderer.setLevel(state)
   ui.show('hud')
   ui.updateHud(state, 0)
   ui.showCard(state)
   mode = 'play'
   audio.unlock()
-  audio.play('ui')
+  audio.play('levelPhase', { vol: 0.4 })
   if (touch && !bot && !params.has('auto') && !document.fullscreenElement) {
     try {
       document.documentElement.requestFullscreen?.()?.catch(() => {})
@@ -142,14 +207,50 @@ function goTitle() {
   audio.play('ui')
   mode = 'title'
   state = null
+  helpFromGame = false
   ui.hideCard()
+  ui.fade(false)
   ui.show('title')
-  startAttract()
+  globe.setProgress({ unlocked, bests: localBests() }, null)
+  globe.spin()
+}
+
+function openChooser() {
+  audio.play('ui')
+  mode = 'choose'
+  chosen = Math.min(unlocked, chosen)
+  ui.show('choose')
+  showChoice()
+}
+
+function moveChoice(dir: -1 | 1) {
+  chosen = (chosen + dir + LEVELS.length) % LEVELS.length
+  audio.play('ui')
+  showChoice()
+}
+
+function showChoice() {
+  const lvl = LEVELS[chosen]
+  const locked = chosen > unlocked && !dev
+  const best = localBests()[lvl.id]
+  const medal = best !== undefined ? medalFor(best) : null
+  const sub = locked
+    ? `Locked. Conquer ${LEVELS[chosen - 1].name} first.`
+    : best !== undefined
+      ? `Your best: ${fmtMs(best)} ${medal === 'gold' ? '🥇' : medal === 'silver' ? '🥈' : medal === 'bronze' ? '🥉' : ''} · boss: ${lvl.boss.name}`
+      : `Not conquered yet · boss: ${lvl.boss.name}`
+  ui.setChoice(lvl.name, sub, locked)
+  globe.setProgress({ unlocked, bests: localBests() }, lvl.id)
+  globe.flyTo(lvl.id, false, undefined, 0.8)
 }
 
 async function onLevelCleared(s: State) {
   const timeMs = Math.round(s.clearTime * 1000)
   const isBest = saveLocalBest(s.levelId, timeMs)
+  if (s.levelIndex + 1 > unlocked) {
+    unlocked = Math.min(LEVELS.length - 1, s.levelIndex + 1)
+    saveUnlocked(unlocked)
+  }
   const hasNext = s.levelIndex + 1 < LEVELS.length
   mode = 'won'
   ui.showWon(s, hasNext, timeMs, isBest)
@@ -159,7 +260,7 @@ async function onLevelCleared(s: State) {
     : await submitTime({ name, kind: 'level', level: levelId, timeMs, levelsCleared: s.levelsCleared, version: VERSION, stats: { ...s.stats } })
   let sub = res.ok ? `World rank #${res.rank} for ${currentLevel(s).name}` : `Time kept on this device (${res.error ?? 'offline'})`
   if (isBest) sub = 'NEW PERSONAL BEST! ' + sub
-  if (!hasNext && s.levelsCleared >= LEVELS.length && !bot) {
+  if (!hasNext && runStartIndex === 0 && s.levelsCleared >= LEVELS.length && !bot) {
     const runMs = Math.round(s.runTime * 1000)
     saveLocalBest('world', runMs)
     const w = await submitTime({ name, kind: 'world', level: 'world', timeMs: runMs, levelsCleared: s.levelsCleared, version: VERSION, stats: { ...s.stats } })
@@ -214,10 +315,27 @@ function handleEvents(s: State) {
         break
       case 'pickup': {
         const pt = renderer.project(e.x ?? 0, 1.6, e.z ?? 0)
-        const label = e.kind === 'milk' ? '+1 HEART' : e.kind === 'pacifier' ? 'MEGA SCREAM!' : 'POOP STORM!'
-        ui.popup(label, pt.x, pt.y, e.kind === 'milk' ? '#ff5c5c' : e.kind === 'pacifier' ? '#ffd23f' : '#d9a066', 0.8)
+        const labels: Record<string, [string, string]> = {
+          milk: ['+1 HEART', '#ff5c5c'],
+          pacifier: ['MEGA SCREAM!', '#ffd23f'],
+          rattle: ['POOP STORM!', '#d9a066'],
+          clock: ['', '#4cd137'],
+          skateboard: ['SKATEBOARD!', '#ff8fab'],
+          megaphone: ['MEGAPHONE!', '#ff5c5c'],
+        }
+        const [label, color] = labels[e.kind ?? ''] ?? ['', '#fff']
+        if (label) ui.popup(label, pt.x, pt.y, color, 0.8)
         break
       }
+      case 'timeBonus': {
+        const pt = renderer.project(e.x ?? 0, 2.2, e.z ?? 0)
+        ui.popup(e.label ?? `-${e.points}s`, pt.x, pt.y, '#4cd137', 1.1)
+        ui.flashClock()
+        break
+      }
+      case 'rideOff':
+        ui.toast('Lost the skateboard! Grab it back!', 1400)
+        break
       case 'goalReached':
         hitstop = Math.max(hitstop, 0.15)
         ui.toast('100% WRECKED. BOSS TIME!', 2200, 'boss')
@@ -269,6 +387,7 @@ function playSound(e: GameEvent) {
     case 'bossExposed':
     case 'comboLost':
     case 'powerEnd':
+    case 'rideOff':
       return
     case 'combo':
       if ((e.combo ?? 0) >= 2) audio.play('multUp', { pitch: 1 + Math.min(2, ((e.combo ?? 1) - 1) * 0.12) })
@@ -277,7 +396,11 @@ function playSound(e: GameEvent) {
       audio.play('scream', { big: e.big, vol: 0.7 + (e.big ?? 0) * 0.4, pitch: 1.1 - (e.big ?? 0) * 0.25 })
       return
     case 'pickup':
+    case 'rideOn':
       audio.play('bossPhase', { vol: 0.5 })
+      return
+    case 'timeBonus':
+      audio.play('win', { vol: 0.35 })
       return
     case 'goalReached':
       audio.play('levelPhase')
@@ -287,28 +410,18 @@ function playSound(e: GameEvent) {
   }
 }
 
-function startAttract() {
-  attract = createState({ seed: 7 + Math.floor(Math.random() * 1000), levelId: params.get('level') ?? undefined, runId: 'attract' })
-  attractAcc = 0
-  renderer.setLevel(attract)
-}
-
 function loop(now: number) {
   requestAnimationFrame(loop)
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
-  if (attract && (mode === 'title' || mode === 'board' || (mode === 'help' && !state))) {
-    attractAcc += dt
-    let n = 0
-    while (attractAcc >= DT && n < 4) {
-      step(attract, botInput(attract))
-      for (const e of attract.events) renderer.onEvent(e, attract)
-      attractAcc -= DT
-      n++
-    }
-    if ((attract.phase === 'over' || attract.phase === 'won') && attract.phaseT > 3) startAttract()
-    renderer.sync(attract, dt)
-  } else if (state) {
+  const globeMode = GLOBE_MODES.includes(mode) && !(mode === 'help' && helpFromGame)
+  if (globeMode) {
+    globe.resize(renderer.camera.aspect)
+    globe.update(dt)
+    renderer.gl.render(globe.scene, globe.camera)
+    return
+  }
+  if (state) {
     if (mode === 'play') {
       if (hitstop > 0) {
         hitstop -= dt
@@ -353,18 +466,27 @@ function loop(now: number) {
 }
 
 async function boot() {
-  await renderer.load()
-  if (bot || params.has('auto')) startRun(params.get('name') ?? (bot ? 'BOT' : playerName.get()), params.get('level'))
-  else startAttract()
+  await Promise.all([renderer.load(), globe.load()])
+  globe.setProgress({ unlocked, bests: localBests() }, null)
+  if (bot || params.has('auto')) {
+    setName(params.get('name') ?? (bot ? 'BOT' : playerName.get()))
+    const levelId = params.get('level') ?? LEVELS[0].id
+    runStartIndex = Math.max(0, LEVELS.findIndex((l) => l.id === levelId))
+    state = createState({ seed: Number(params.get('seed')) || 1, levelId })
+    beginLevel(true)
+  }
   requestAnimationFrame(loop)
 }
 
 uiRoot.querySelector('#how-btn')!.addEventListener('click', () => {
-  helpFrom = mode
+  helpFromGame = false
   mode = 'help'
 })
+uiRoot.querySelector('#btn-help')!.addEventListener('click', () => {
+  helpFromGame = true
+})
 uiRoot.querySelector('#help-title')!.addEventListener('click', () => {
-  if (helpFrom === 'title' && mode === 'help') goTitle()
+  if (mode === 'help') goTitle()
 })
 
 void boot()
