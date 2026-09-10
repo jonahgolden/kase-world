@@ -139,7 +139,9 @@ canvas#c { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
 
 @media (max-width: 640px) {
   .hud-top { grid-template-columns: 1fr auto; gap: 6px 8px; }
-  .hud-mid { grid-column: 1 / -1; }
+  .hearts { grid-row: 1; grid-column: 1; }
+  .hud-right { grid-row: 1; grid-column: 2; }
+  .hud-mid { grid-row: 2; grid-column: 1 / -1; }
   #goal-wrap, #boss-wrap { width: calc(100% - 16px); }
   #heart-row i { width: 16px; height: 15px; }
   .hearts .who { font-size: 1.2rem; }
