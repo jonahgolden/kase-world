@@ -40,10 +40,12 @@ player · `?auto=1` skip title · `?skip=boss` boss in 2 s · `?mute=1` · `?nam
 
 See the bottom of this file. Update it at the end of every session; keep it short.
 
-### 2026-09-10 — session 1
-Built from scratch (old R3F attempt lives on branches `master`, `simplification`). Playable: level 1
-North America with wreck phase, scream, poop, Duogringo pest, Donald Rump boss (3 phases × 3 hits),
-score + chain multiplier, local + global leaderboard, touch controls, attract mode. All 7 continents
-are defined with their boss cards but share one boss behavior. Not yet playtested by the family.
-Next: family playtest → tune feel; then distinct boss attacks per continent, mini-map, water zone
-(Kacone + 15 Kelly Jelly + Poodoom), home-recorded sounds, iOS PWA manifest.
+### 2026-09-10 — session 1 (v0.1 then v0.2 after first parent feedback)
+v0.1: fresh build, level 1 playable, points + countdown, deployed. Parent feedback: goal unclear,
+points/timer/bars felt disconnected, scream cone backwards, poop key undiscoverable.
+v0.2 (deployed): one WRECK meter per level (boss at 100%), stopwatch, time-based boards per
+continent + world (`/api/times`, table `times`), hearts, boss gauge only in boss mode, hold-to-charge
+scream/poop with charge shown on the baby, pickups (milk, pacifier, rattle), level card, help/pause
+overlay (`?`, Esc), click-to-poop, attract demo on title. All 7 continents share one boss behavior.
+Research memos (design + continent-arena recipe) are summarized in ~/.claude/TODO.md queue.
+Next: user's answers on level goal variety, unlock ladder, globe hub; then continent-shaped arenas.

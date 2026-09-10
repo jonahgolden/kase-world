@@ -12,6 +12,8 @@ import type {
   Input,
   Npc,
   NpcKind,
+  Pickup,
+  PickupKind,
   Player,
   Poop,
   Prop,
@@ -19,8 +21,9 @@ import type {
   State,
 } from './types.ts'
 
-export const VERSION = '0.1.0'
+export const VERSION = '0.2.0'
 export const DT = 1 / 60
+export const HEART = 20
 
 export const CFG = {
   gravity: 22,
@@ -32,56 +35,59 @@ export const CFG = {
     jumpV: 7.5,
     smashSpeed: 2.0,
     smashDamagePerSpeed: 9,
-    chargeTime: 1.1,
-    minCharge: 0.3,
-    screamCooldown: 0.75,
-    poopRegen: 0.14,
-    poopCost: 0.25,
+    chargeTime: 0.9,
+    minCharge: 0.25,
+    fullHoldGrace: 0.4,
+    screamCooldown: 0.15,
+    poopHoldMax: 0.5,
+    poopAutoThrow: 0.9,
+    poopCooldown: 0.25,
     hurtInvuln: 1.0,
     hurtStun: 0.3,
+    powerTime: 12,
   },
   scream: {
-    baseRange: 3.5,
-    rangePerCharge: 4.5,
+    baseRange: 3.2,
+    rangePerCharge: 4.8,
     halfAngle: Math.PI / 3,
-    propDamage: 20,
-    propDamagePerCharge: 40,
-    knock: 6,
-    knockPerCharge: 8,
+    propDamage: 18,
+    propDamagePerCharge: 42,
+    knock: 5,
+    knockPerCharge: 9,
     npcDamage: 25,
     scareTime: 3.0,
+    pacifierRange: 1.5,
   },
   poop: {
-    speed: 11,
+    speed: 10,
+    speedPerPower: 7,
     upV: 5,
+    upPerPower: 2.5,
     r: 0.22,
     stun: 2.2,
     propDamage: 25,
+    rattleSpread: 0.35,
   },
   duo: {
     baseR: 0.45,
     rPerPower: 0.9,
     baseSpeed: 1.4,
     speedPerPower: 2.8,
-    baseDamage: 6,
-    damagePerPower: 22,
     peckTime: 0.45,
     peckCd: 1.4,
-    growPerScream: 0.06,
+    growPerScream: 0.05,
     growPerCharge: 0.1,
     shrinkPerHit: 0.25,
     decayPerSec: 0.012,
   },
-  chainTime: 3.0,
-  maxMult: 10,
-  points: {
-    scare: 100,
-    directHit: 150,
-    propNpcHit: 120,
-    duoShrink: 200,
-    bossHit: 300,
-    bossKill: 2000,
-    timeBonusPerSec: 20,
+  combo: { window: 2.0, max: 10, gainPerStep: 0.1 },
+  wreck: {
+    scare: 60,
+    directHit: 80,
+    bonk: 80,
+    duoShrink: 100,
+    dropChance: 0.1,
+    maxDrops: 4,
   },
   boss: {
     telegraph: [0.85, 0.65, 0.5],
@@ -101,7 +107,7 @@ export interface CreateOpts {
   seed?: number
   levelId?: string
   runId?: string
-  carry?: { score: number; levelsCleared: number; runTime: number; stats: State['stats']; levelIndex: number }
+  carry?: { levelsCleared: number; runTime: number; stats: State['stats']; hp: number }
 }
 
 function newId(s: State): number {
@@ -131,7 +137,7 @@ export function createState(opts: CreateOpts = {}): State {
     vz: 0,
     facing: 0,
     r: P.r,
-    hp: P.hp,
+    hp: Math.max(HEART * 2, opts.carry?.hp ?? P.hp),
     maxHp: P.hp,
     grounded: true,
     jumpCd: 0,
@@ -142,10 +148,12 @@ export function createState(opts: CreateOpts = {}): State {
     screamHoldFull: 0,
     screamCd: 0,
     screamFlash: 0,
-    poopMeter: 1,
-    poopCd: 0,
     poopHeld: false,
+    poopHoldT: 0,
+    poopCd: 0,
     jumpHeld: false,
+    pacifierT: 0,
+    rattleT: 0,
   }
   const s: State = {
     version: VERSION,
@@ -160,7 +168,7 @@ export function createState(opts: CreateOpts = {}): State {
     levelsCleared: opts.carry?.levelsCleared ?? 0,
     phase: 'wreck',
     phaseT: 0,
-    timer: level.wreckTime,
+    clearTime: 0,
     arena: { ...level.arena },
     player,
     props: [],
@@ -168,6 +176,7 @@ export function createState(opts: CreateOpts = {}): State {
     poops: [],
     splats: [],
     debris: [],
+    pickups: [],
     duo: {
       x: -level.arena.w * 0.4,
       y: 0,
@@ -182,9 +191,11 @@ export function createState(opts: CreateOpts = {}): State {
       hitFlash: 0,
     },
     boss: null,
-    score: opts.carry?.score ?? 0,
-    mult: 1,
-    chainT: 0,
+    wreck: 0,
+    wreckPoints: 0,
+    wreckGoalPoints: 1,
+    combo: 0,
+    comboT: 0,
     stats: opts.carry?.stats ?? {
       smashed: 0,
       scared: 0,
@@ -194,7 +205,8 @@ export function createState(opts: CreateOpts = {}): State {
       bossHits: 0,
       bossesBeaten: 0,
       damageTaken: 0,
-      bestMult: 1,
+      bestCombo: 0,
+      pickups: 0,
     },
     events: [],
     nextId: 1,
@@ -226,11 +238,19 @@ function populate(s: State, level: LevelDef) {
     }
     return null
   }
+  let total = 0
+  let drops = 0
   for (const [kind, count] of Object.entries(level.props) as [PropKind, number][]) {
     const st = PROP_STATS[kind]
     for (let i = 0; i < count; i++) {
       const pos = place(st.r, 3.5)
       if (!pos) continue
+      let drop: PickupKind | null = null
+      if (drops < CFG.wreck.maxDrops && rand(s.rng) < CFG.wreck.dropChance) {
+        const roll = rand(s.rng)
+        drop = roll < 0.5 ? 'milk' : roll < 0.75 ? 'pacifier' : 'rattle'
+        drops++
+      }
       s.props.push({
         id: newId(s),
         kind,
@@ -251,9 +271,12 @@ function populate(s: State, level: LevelDef) {
         color: st.color,
         broken: false,
         hitFlash: 0,
+        drop,
       })
+      total += st.points
     }
   }
+  s.wreckGoalPoints = Math.max(1, Math.round(total * level.goalPct))
   for (const [kind, count] of Object.entries(level.npcs) as [NpcKind, number][]) {
     const st = NPC_STATS[kind]
     for (let i = 0; i < count; i++) {
@@ -279,6 +302,12 @@ function populate(s: State, level: LevelDef) {
       })
     }
   }
+  const visible: PickupKind[] = ['milk', 'milk', 'pacifier', 'rattle']
+  for (const kind of visible) {
+    const pos = place(0.4, 6)
+    if (!pos) continue
+    s.pickups.push({ id: newId(s), kind, x: pos.x, y: 0, z: pos.z, vy: 0, age: 0 })
+  }
 }
 
 export function currentLevel(s: State): LevelDef {
@@ -292,14 +321,12 @@ export function nextLevelState(s: State, seed?: number): State | null {
     seed: seed ?? s.seed + 1,
     levelId: next.id,
     runId: s.runId,
-    carry: {
-      score: s.score,
-      levelsCleared: s.levelsCleared,
-      runTime: s.runTime,
-      stats: s.stats,
-      levelIndex: s.levelIndex + 1,
-    },
+    carry: { levelsCleared: s.levelsCleared, runTime: s.runTime, stats: s.stats, hp: s.player.maxHp },
   })
+}
+
+export function hearts(p: Player): number {
+  return p.hp / HEART
 }
 
 // ---------------------------------------------------------------- step
@@ -313,6 +340,7 @@ export function step(s: State, input: Input) {
   if (s.phase === 'over' || s.phase === 'won') {
     updateDebris(s)
     updatePoops(s, { ...input, poop: false })
+    updatePickups(s)
     return
   }
   s.runTime += DT
@@ -324,7 +352,8 @@ export function step(s: State, input: Input) {
   updateDuogringo(s)
   updateBoss(s)
   updateDebris(s)
-  updateChain(s)
+  updatePickups(s)
+  updateCombo(s)
   updatePhase(s)
 }
 
@@ -368,7 +397,7 @@ function updatePlayer(s: State, input: Input) {
     mx /= len
     mz /= len
   }
-  const slow = p.screamCharging ? 0.45 : 1
+  const slow = p.screamCharging ? 0.5 : 1
   if (p.hitstun > 0) {
     p.hitstun -= DT
     p.vx *= 1 - 3 * DT
@@ -401,11 +430,26 @@ function updatePlayer(s: State, input: Input) {
   p.z += p.vz * DT
   clampArena(s, p, p.r)
   p.invuln = Math.max(0, p.invuln - DT)
+  if (p.pacifierT > 0) {
+    p.pacifierT -= DT
+    if (p.pacifierT <= 0) {
+      p.pacifierT = 0
+      ev(s, { t: 'powerEnd', kind: 'pacifier' })
+    }
+  }
+  if (p.rattleT > 0) {
+    p.rattleT -= DT
+    if (p.rattleT <= 0) {
+      p.rattleT = 0
+      ev(s, { t: 'powerEnd', kind: 'rattle' })
+    }
+  }
 }
 
 export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, big = 0.5) {
   const p = s.player
   if (p.invuln > 0 || s.phase === 'over') return false
+  dmg = Math.max(10, Math.round(dmg / 10) * 10)
   p.hp = Math.max(0, p.hp - dmg)
   s.stats.damageTaken += dmg
   p.invuln = CFG.player.hurtInvuln
@@ -415,11 +459,9 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
   const d = Math.hypot(dx, dz) || 1
   p.vx = (dx / d) * 7
   p.vz = (dz / d) * 7
-  if (s.mult > 1) {
-    s.mult = 1
-    s.chainT = 0
-    ev(s, { t: 'multLost', x: p.x, z: p.z })
-  }
+  if (s.combo >= 3) ev(s, { t: 'comboLost', x: p.x, z: p.z, combo: s.combo })
+  s.combo = 0
+  s.comboT = 0
   ev(s, { t: 'playerHurt', x: p.x, z: p.z, big, points: dmg })
   if (p.hp <= 0) {
     s.phase = 'over'
@@ -429,35 +471,40 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
   return true
 }
 
-// ---------------------------------------------------------------- scoring
+// ---------------------------------------------------------------- wreck + combo
 
-export function addScore(s: State, pts: number, x: number, z: number, label?: string, color?: number) {
+export function addWreck(s: State, pts: number, x: number, z: number, label?: string, color?: number) {
   if (s.phase === 'over') return
-  if (s.chainT > 0 && s.mult < CFG.maxMult) {
-    s.mult++
-    if (s.mult > s.stats.bestMult) s.stats.bestMult = s.mult
-    ev(s, { t: 'multUp', x, z, mult: s.mult })
-  }
-  s.chainT = CFG.chainTime
-  const gained = Math.round(pts * s.mult)
-  s.score += gained
-  ev(s, { t: 'score', x, z, points: gained, mult: s.mult, label, color })
+  if (s.comboT > 0 && s.combo < CFG.combo.max) s.combo++
+  else if (s.comboT <= 0) s.combo = 1
+  if (s.combo > s.stats.bestCombo) s.stats.bestCombo = s.combo
+  s.comboT = CFG.combo.window
+  const gain = Math.round(pts * (1 + CFG.combo.gainPerStep * (s.combo - 1)))
+  const before = s.wreckPoints
+  s.wreckPoints = Math.min(s.wreckGoalPoints, s.wreckPoints + gain)
+  s.wreck = s.wreckPoints / s.wreckGoalPoints
+  const pct = (s.wreckPoints - before) / s.wreckGoalPoints
+  ev(s, { t: 'wreck', x, z, points: gain, pct, combo: s.combo, label, color })
+  if (s.combo >= 2) ev(s, { t: 'combo', x, z, combo: s.combo })
 }
 
-function updateChain(s: State) {
-  if (s.chainT > 0) {
-    s.chainT -= DT
-    if (s.chainT <= 0) {
-      s.chainT = 0
-      if (s.mult > 1) {
-        s.mult = 1
-        ev(s, { t: 'multLost', x: s.player.x, z: s.player.z })
-      }
+function updateCombo(s: State) {
+  if (s.comboT > 0) {
+    s.comboT -= DT
+    if (s.comboT <= 0) {
+      s.comboT = 0
+      if (s.combo >= 3) ev(s, { t: 'comboLost', x: s.player.x, z: s.player.z, combo: s.combo })
+      s.combo = 0
     }
   }
 }
 
 // ---------------------------------------------------------------- scream
+
+export function screamRange(p: Player, charge: number): number {
+  const S = CFG.scream
+  return (S.baseRange + S.rangePerCharge * charge) * (p.pacifierT > 0 ? S.pacifierRange : 1)
+}
 
 function updateScream(s: State, input: Input) {
   const p = s.player
@@ -465,10 +512,10 @@ function updateScream(s: State, input: Input) {
   p.screamCd = Math.max(0, p.screamCd - DT)
   if (input.scream && p.screamCd <= 0) {
     p.screamCharging = true
-    p.screamCharge = Math.min(1, p.screamCharge + DT / C.chargeTime)
+    p.screamCharge = p.pacifierT > 0 ? 1 : Math.min(1, p.screamCharge + DT / C.chargeTime)
     if (p.screamCharge >= 1) {
       p.screamHoldFull += DT
-      if (p.screamHoldFull > 0.35) fireScream(s, 1)
+      if (p.screamHoldFull > C.fullHoldGrace) fireScream(s, 1)
     }
   } else if (p.screamCharging) {
     fireScream(s, Math.max(C.minCharge, p.screamCharge))
@@ -497,7 +544,7 @@ export function fireScream(s: State, charge: number) {
   p.screamCd = CFG.player.screamCooldown
   p.screamFlash = 0.35
   s.stats.screams++
-  const rangeLen = S.baseRange + S.rangePerCharge * charge
+  const rangeLen = screamRange(p, charge)
   const fx = Math.sin(p.facing)
   const fz = Math.cos(p.facing)
   ev(s, { t: 'scream', x: p.x, z: p.z, big: charge, facing: p.facing, range: rangeLen })
@@ -513,7 +560,7 @@ export function fireScream(s: State, charge: number) {
     pr.vx += (dx / d) * knock + fx * knock * 0.3
     pr.vz += (dz / d) * knock + fz * knock * 0.3
     pr.angVel += range(s.rng, -4, 4)
-    damageProp(s, pr, (S.propDamage + S.propDamagePerCharge * charge) * falloff, p.x, p.z)
+    damageProp(s, pr, (S.propDamage + S.propDamagePerCharge * charge) * falloff)
   }
   for (const n of s.npcs) {
     if (!inCone(p.x, p.z, p.facing, n.x, n.z, n.r, rangeLen, S.halfAngle)) continue
@@ -531,12 +578,12 @@ export function fireScream(s: State, charge: number) {
     n.vz += (dz / d) * 5
     if (!wasScared) {
       s.stats.scared++
-      addScore(s, CFG.points.scare, n.x, n.z, 'SCARED!', 0x8ab4f8)
+      addWreck(s, CFG.wreck.scare, n.x, n.z, 'SCARED!', 0x8ab4f8)
       ev(s, { t: 'npcScared', x: n.x, z: n.z, id: n.id })
     }
   }
   const duo = s.duo
-  const duoR = CFG.duo.baseR + CFG.duo.rPerPower * duo.power
+  const duoR = duoRadius(duo)
   if (inCone(p.x, p.z, p.facing, duo.x, duo.z, duoR, rangeLen, S.halfAngle)) {
     duo.power = Math.max(0, duo.power - CFG.duo.shrinkPerHit)
     duo.state = 'hurt'
@@ -547,7 +594,7 @@ export function fireScream(s: State, charge: number) {
     const d = Math.hypot(dx, dz) || 1
     duo.vx = (dx / d) * 9
     duo.vz = (dz / d) * 9
-    addScore(s, CFG.points.duoShrink, duo.x, duo.z, 'DUOGRINGO SHRUNK!', 0x4cd137)
+    addWreck(s, CFG.wreck.duoShrink, duo.x, duo.z, 'DUOGRINGO SHRUNK!', 0x4cd137)
     ev(s, { t: 'duoShrink', x: duo.x, z: duo.z, big: 0.6 })
   } else {
     duo.power = Math.min(1, duo.power + CFG.duo.growPerScream + CFG.duo.growPerCharge * charge)
@@ -561,31 +608,46 @@ export function fireScream(s: State, charge: number) {
 
 // ---------------------------------------------------------------- poop
 
-function updatePoops(s: State, input: Input) {
+function throwPoop(s: State, power: number) {
   const p = s.player
-  const C = CFG.player
   const P = CFG.poop
-  p.poopMeter = Math.min(1, p.poopMeter + C.poopRegen * DT)
-  p.poopCd = Math.max(0, p.poopCd - DT)
-  if (s.phase !== 'over' && s.phase !== 'won' && input.poop && !p.poopHeld && p.poopMeter >= C.poopCost && p.poopCd <= 0) {
-    p.poopMeter -= C.poopCost
-    p.poopCd = 0.22
-    s.stats.poops++
-    const fx = Math.sin(p.facing)
-    const fz = Math.cos(p.facing)
+  const n = p.rattleT > 0 ? 3 : 1
+  for (let i = 0; i < n; i++) {
+    const spread = n === 1 ? 0 : (i - 1) * P.rattleSpread
+    const fx = Math.sin(p.facing + spread)
+    const fz = Math.cos(p.facing + spread)
+    const speed = P.speed + P.speedPerPower * power
     s.poops.push({
       id: newId(s),
       x: p.x + fx * 0.5,
       y: 0.8 + p.y,
       z: p.z + fz * 0.5,
-      vx: fx * P.speed + p.vx * 0.5,
-      vy: P.upV,
-      vz: fz * P.speed + p.vz * 0.5,
+      vx: fx * speed + p.vx * 0.4,
+      vy: P.upV + P.upPerPower * power,
+      vz: fz * speed + p.vz * 0.4,
       r: P.r,
     })
-    ev(s, { t: 'poopThrow', x: p.x, z: p.z })
   }
-  p.poopHeld = input.poop
+  s.stats.poops += n
+  p.poopCd = p.rattleT > 0 ? CFG.player.poopCooldown * 0.4 : CFG.player.poopCooldown
+  p.poopHoldT = 0
+  ev(s, { t: 'poopThrow', x: p.x, z: p.z, big: power })
+}
+
+function updatePoops(s: State, input: Input) {
+  const p = s.player
+  const C = CFG.player
+  const P = CFG.poop
+  p.poopCd = Math.max(0, p.poopCd - DT)
+  const playing = s.phase !== 'over' && s.phase !== 'won'
+  if (playing && input.poop) {
+    if (!p.poopHeld) p.poopHoldT = 0
+    p.poopHoldT += DT
+    if (p.poopHoldT >= C.poopAutoThrow && p.poopCd <= 0) throwPoop(s, 1)
+  } else if (playing && p.poopHeld && p.poopCd <= 0) {
+    throwPoop(s, Math.min(1, p.poopHoldT / C.poopHoldMax))
+  }
+  p.poopHeld = playing && input.poop
 
   for (let i = s.poops.length - 1; i >= 0; i--) {
     const q = s.poops[i]
@@ -602,7 +664,7 @@ function updatePoops(s: State, input: Input) {
           n.hp -= 20
           n.hitFlash = 0.4
           s.stats.directHits++
-          addScore(s, CFG.points.directHit, n.x, n.z, 'DIRECT HIT!', 0x8b5a2b)
+          addWreck(s, CFG.wreck.directHit, n.x, n.z, 'DIRECT HIT!', 0x8b5a2b)
           ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id })
           hit = true
           break
@@ -617,7 +679,7 @@ function updatePoops(s: State, input: Input) {
         for (const pr of s.props) {
           if (pr.broken || q.y > pr.h) continue
           if (dist(q.x, q.z, pr.x, pr.z) < q.r + pr.r) {
-            damageProp(s, pr, P.propDamage, q.x, q.z)
+            damageProp(s, pr, P.propDamage)
             pr.vx += q.vx * 0.15
             pr.vz += q.vz * 0.15
             hit = true
@@ -639,22 +701,51 @@ function addSplat(s: State, x: number, z: number, r: number) {
   if (s.splats.length > CFG.caps.splats) s.splats.shift()
 }
 
+// ---------------------------------------------------------------- pickups
+
+function spawnPickup(s: State, kind: PickupKind, x: number, z: number, vy = 0) {
+  s.pickups.push({ id: newId(s), kind, x, y: 0.5, z, vy, age: 0 })
+}
+
+function updatePickups(s: State) {
+  const p = s.player
+  for (let i = s.pickups.length - 1; i >= 0; i--) {
+    const k = s.pickups[i]
+    k.age += DT
+    if (k.vy !== 0 || k.y > 0) {
+      k.vy -= CFG.gravity * DT
+      k.y += k.vy * DT
+      if (k.y <= 0) {
+        k.y = 0
+        k.vy = 0
+      }
+    }
+    if (s.phase === 'over' || s.phase === 'won') continue
+    if (dist(k.x, k.z, p.x, p.z) < p.r + 0.55 && p.y < 1) {
+      s.stats.pickups++
+      if (k.kind === 'milk') p.hp = Math.min(p.maxHp, p.hp + HEART)
+      else if (k.kind === 'pacifier') p.pacifierT = CFG.player.powerTime
+      else p.rattleT = CFG.player.powerTime
+      ev(s, { t: 'pickup', x: k.x, z: k.z, kind: k.kind })
+      s.pickups.splice(i, 1)
+    }
+  }
+}
+
 // ---------------------------------------------------------------- props
 
-function damageProp(s: State, pr: Prop, dmg: number, fromX: number, fromZ: number, pointsScale = 1) {
+function damageProp(s: State, pr: Prop, dmg: number, wreckScale = 1) {
   if (pr.broken) return
   pr.hp -= dmg
   pr.hitFlash = 0.25
   if (pr.hp <= 0) {
-    breakProp(s, pr, pointsScale)
+    breakProp(s, pr, wreckScale)
   } else {
     ev(s, { t: 'propHit', x: pr.x, z: pr.z, big: Math.min(1, dmg / 60), color: pr.color })
   }
-  void fromX
-  void fromZ
 }
 
-function breakProp(s: State, pr: Prop, pointsScale: number) {
+function breakProp(s: State, pr: Prop, wreckScale: number) {
   pr.broken = true
   s.stats.smashed++
   const n = 4 + Math.min(6, Math.floor(pr.mass))
@@ -677,7 +768,8 @@ function breakProp(s: State, pr: Prop, pointsScale: number) {
     })
   }
   if (s.debris.length > CFG.caps.debris) s.debris.splice(0, s.debris.length - CFG.caps.debris)
-  if (pointsScale > 0) addScore(s, pr.points * pointsScale, pr.x, pr.z, undefined, pr.color)
+  if (pr.drop) spawnPickup(s, pr.drop, pr.x, pr.z, 6)
+  if (wreckScale > 0) addWreck(s, pr.points * wreckScale, pr.x, pr.z, undefined, pr.color)
   ev(s, { t: 'smash', x: pr.x, z: pr.z, big: Math.min(1, pr.mass / 6), color: pr.color, points: pr.points })
 }
 
@@ -695,7 +787,6 @@ function updateProps(s: State) {
     pr.rot += pr.angVel * DT
     clampArena(s, pr, pr.r)
 
-    // player bump
     if (p.y < pr.h) {
       const dx = pr.x - p.x
       const dz = pr.z - p.z
@@ -716,14 +807,13 @@ function updateProps(s: State) {
           pr.vx += nx * push
           pr.vz += nz * push
           pr.angVel += range(s.rng, -6, 6)
-          damageProp(s, pr, speed * C.smashDamagePerSpeed, p.x, p.z)
+          damageProp(s, pr, speed * C.smashDamagePerSpeed)
           p.vx *= 1 - heavy * 0.6
           p.vz *= 1 - heavy * 0.6
         }
       }
     }
   }
-  // prop vs prop: dominoes
   const live = s.props.filter((q) => !q.broken)
   for (let i = 0; i < live.length; i++) {
     const a = live[i]
@@ -751,13 +841,12 @@ function updateProps(s: State) {
         b.vx += nx * imp * (a.mass / ta)
         b.vz += nz * imp * (a.mass / ta)
         if (rel > 2.5) {
-          damageProp(s, b, rel * 4 * a.mass, a.x, a.z)
-          damageProp(s, a, rel * 1.5 * b.mass, b.x, b.z)
+          damageProp(s, b, rel * 4 * a.mass)
+          damageProp(s, a, rel * 1.5 * b.mass)
         }
       }
     }
   }
-  // moving props vs npcs
   for (const pr of live) {
     const sp = Math.hypot(pr.vx, pr.vz)
     if (sp < 3) continue
@@ -771,7 +860,7 @@ function updateProps(s: State) {
         n.vz += pr.vz * 0.5
         pr.vx *= 0.4
         pr.vz *= 0.4
-        addScore(s, CFG.points.propNpcHit, n.x, n.z, 'BONK!', pr.color)
+        addWreck(s, CFG.wreck.bonk, n.x, n.z, 'BONK!', pr.color)
         ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id })
       }
     }
@@ -835,9 +924,7 @@ function updateNpcs(s: State) {
       case 'recoil': {
         n.vx *= 1 - 4 * DT
         n.vz *= 1 - 4 * DT
-        if (n.stateT <= 0) {
-          n.state = 'chase'
-        }
+        if (n.stateT <= 0) n.state = 'chase'
         break
       }
       case 'flee': {
@@ -876,7 +963,6 @@ function updateNpcs(s: State) {
     n.x += n.vx * DT
     n.z += n.vz * DT
     clampArena(s, n, n.r)
-    // keep out of props
     for (const pr of s.props) {
       if (pr.broken) continue
       const dx = n.x - pr.x
@@ -890,7 +976,6 @@ function updateNpcs(s: State) {
       }
     }
   }
-  // npc vs npc separation
   for (let i = 0; i < s.npcs.length; i++) {
     for (let j = i + 1; j < s.npcs.length; j++) {
       const a = s.npcs[i]
@@ -941,7 +1026,7 @@ function updateDuogringo(s: State) {
       d.vz *= 1 - 5 * DT
       if (d.stateT <= 0) {
         if (dp < r + p.r + 0.6) {
-          hurtPlayer(s, D.baseDamage + D.damagePerPower * d.power, d.x, d.z, 0.3 + d.power * 0.5)
+          hurtPlayer(s, 10 + Math.round(d.power * 2) * 10, d.x, d.z, 0.3 + d.power * 0.5)
         }
         d.peckCd = D.peckCd
         d.state = 'chase'
@@ -985,6 +1070,7 @@ function spawnBoss(s: State) {
     invuln: 0,
     exposedLeft: 0,
     hitFlash: 0,
+    everExposed: false,
   }
   if (Math.hypot(b.x - p.x, b.z - p.z) < 6) {
     b.x = s.arena.w / 2 - 4
@@ -1018,17 +1104,15 @@ export function bossHit(s: State, src: 'scream' | 'poop'): boolean {
   b.hitFlash = 0.4
   b.invuln = 0.6
   const ph = bossPhase(b)
-  addScore(s, CFG.points.bossHit * (ph + 1), b.x, b.z, src === 'poop' ? 'POOP HIT!' : 'SCREAM HIT!', 0xff5c5c)
-  ev(s, { t: 'bossHurt', x: b.x, z: b.z, big: 0.7 })
+  ev(s, { t: 'bossHurt', x: b.x, z: b.z, big: 0.7, label: src === 'poop' ? 'POOP HIT!' : 'SCREAM HIT!' })
   if (b.hits >= b.totalHits) {
     b.state = 'dead'
     b.stateT = 0
     s.phase = 'won'
     s.phaseT = 0
+    s.clearTime = s.time
     s.levelsCleared++
     s.stats.bossesBeaten++
-    const timeBonus = Math.round(Math.max(0, 60 - s.phaseT) * CFG.points.timeBonusPerSec)
-    addScore(s, CFG.points.bossKill + timeBonus, b.x, b.z, `${b.def.name.toUpperCase()} DEFEATED!`, 0xffd23f)
     ev(s, { t: 'bossDead', x: b.x, z: b.z, big: 1, label: b.def.name })
     ev(s, { t: 'win', label: currentLevel(s).name })
     return true
@@ -1037,7 +1121,7 @@ export function bossHit(s: State, src: 'scream' | 'poop'): boolean {
   if (newPhase !== ph) {
     b.state = 'phaseChange'
     b.stateT = CFG.boss.phaseChangeTime
-    ev(s, { t: 'bossPhase', x: b.x, z: b.z, big: 0.8, mult: newPhase })
+    ev(s, { t: 'bossPhase', x: b.x, z: b.z, big: 0.8, combo: newPhase })
   } else {
     b.exposedLeft = Math.max(0.8, b.stateT)
     b.state = 'hurt'
@@ -1051,6 +1135,13 @@ export function bossHit(s: State, src: 'scream' | 'poop'): boolean {
   return true
 }
 
+function enterExposed(s: State, b: Boss, t: number) {
+  b.state = 'exposed'
+  b.stateT = t
+  ev(s, { t: 'bossExposed', x: b.x, z: b.z, big: b.everExposed ? 0 : 1 })
+  b.everExposed = true
+}
+
 function updateBoss(s: State) {
   const b = s.boss
   if (!b || b.state === 'dead') return
@@ -1060,6 +1151,7 @@ function updateBoss(s: State) {
   b.stateT -= DT
   b.invuln = Math.max(0, b.invuln - DT)
   const dp = dist(b.x, b.z, p.x, p.z)
+  const dmg = Math.max(10, Math.round(b.def.damage / 10) * 10)
   switch (b.state) {
     case 'enter': {
       b.y = Math.max(0, (b.stateT / B.enterTime) * 9)
@@ -1110,35 +1202,30 @@ function updateBoss(s: State) {
         const sp = b.def.chargeSpeed * B.chargeMult[ph]
         b.vx = b.dirX * sp
         b.vz = b.dirZ * sp
-        if (dp < b.r + p.r && p.y < 1.2) {
-          hurtPlayer(s, b.def.damage, b.x, b.z, 0.8)
-        }
+        if (dp < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8)
         for (const pr of s.props) {
           if (pr.broken) continue
           if (dist(b.x, b.z, pr.x, pr.z) < b.r + pr.r) {
             pr.vx += b.dirX * 8
             pr.vz += b.dirZ * 8
-            damageProp(s, pr, 200, b.x, b.z, 0.5)
+            damageProp(s, pr, 200, 0)
           }
         }
         const hw = s.arena.w / 2 - b.r - 0.2
         const hd = s.arena.d / 2 - b.r - 0.2
         const hitWall = Math.abs(b.x) >= hw || Math.abs(b.z) >= hd
         if (b.stateT <= 0 || hitWall) {
-          b.state = 'exposed'
-          b.stateT = B.exposed[ph] + (hitWall ? 0.5 : 0)
           b.vx = 0
           b.vz = 0
           ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: hitWall ? 0.7 : 0.3, label: 'skid' })
+          enterExposed(s, b, B.exposed[ph] + (hitWall ? 0.5 : 0))
         }
       } else {
         b.vx *= 1 - 8 * DT
         b.vz *= 1 - 8 * DT
         if (b.stateT <= 0) {
           const R = B.stompRadius * (0.8 + b.def.scale * 0.1)
-          if (dp < R + p.r && p.grounded) {
-            hurtPlayer(s, b.def.damage * 0.8, b.x, b.z, 0.8)
-          }
+          if (dp < R + p.r && p.grounded) hurtPlayer(s, dmg, b.x, b.z, 0.8)
           for (const pr of s.props) {
             if (pr.broken) continue
             const d = dist(b.x, b.z, pr.x, pr.z)
@@ -1148,7 +1235,7 @@ function updateBoss(s: State) {
               const dd = Math.hypot(dx, dz) || 1
               pr.vx += (dx / dd) * 7
               pr.vz += (dz / dd) * 7
-              damageProp(s, pr, 60, b.x, b.z, 0.5)
+              damageProp(s, pr, 60, 0)
             }
           }
           for (const n of s.npcs) {
@@ -1158,8 +1245,7 @@ function updateBoss(s: State) {
             }
           }
           ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: 1, range: R })
-          b.state = 'exposed'
-          b.stateT = B.exposed[ph]
+          enterExposed(s, b, B.exposed[ph])
         }
       }
       break
@@ -1238,19 +1324,20 @@ function updateDebris(s: State) {
 // ---------------------------------------------------------------- phase
 
 function updatePhase(s: State) {
-  if (s.phase === 'wreck') {
-    s.timer -= DT
-    if (s.timer <= 0) {
-      s.timer = 0
-      s.phase = 'boss'
-      s.phaseT = 0
-      spawnBoss(s)
-    }
+  if (s.phase === 'wreck' && s.wreckPoints >= s.wreckGoalPoints) {
+    s.wreck = 1
+    s.phase = 'boss'
+    s.phaseT = 0
+    ev(s, { t: 'goalReached', x: s.player.x, z: s.player.z, big: 1 })
+    spawnBoss(s)
   }
 }
 
 export function skipToBoss(s: State) {
-  if (s.phase === 'wreck') s.timer = Math.min(s.timer, 2)
+  if (s.phase === 'wreck') {
+    s.wreckPoints = s.wreckGoalPoints
+    s.wreck = 1
+  }
 }
 
-export type { State, Input, Player, Prop, Npc, Poop, Debris, Boss, Duogringo, GameEvent }
+export type { State, Input, Player, Prop, Npc, Poop, Debris, Boss, Duogringo, GameEvent, Pickup }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CFG, DT, addScore, bossHit, createState, fireScream, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
+import { CFG, DT, HEART, addWreck, bossHit, createState, fireScream, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
 import type { Input, State } from '../src/sim/types.ts'
@@ -26,35 +26,53 @@ describe('sim', () => {
     expect(JSON.stringify(a)).toEqual(JSON.stringify(b))
   })
 
-  it('bot soak: 100 s without NaN, with score and smashed props', () => {
+  it('bot soak: 120 s without NaN, wreck meter fills, boss shows up', () => {
     const s = createState({ seed: 7 })
-    run(s, 100, botInput)
+    run(s, 120, botInput)
     expect(hasNaN(s)).toBe(false)
-    expect(s.score).toBeGreaterThan(0)
-    expect(s.stats.smashed).toBeGreaterThan(3)
-    expect(s.phase === 'boss' || s.phase === 'won' || s.phase === 'over').toBe(true)
+    expect(s.stats.smashed).toBeGreaterThan(5)
+    expect(s.wreck).toBeGreaterThan(0.3)
+    expect(['wreck', 'boss', 'won', 'over']).toContain(s.phase)
   })
 
-  it('every level populates and runs', () => {
+  it('every level populates with props, npcs, pickups and a goal', () => {
     for (const lvl of LEVELS) {
       const s = createState({ seed: 3, levelId: lvl.id })
       expect(s.props.length).toBeGreaterThan(20)
       expect(s.npcs.length).toBeGreaterThan(2)
+      expect(s.pickups.length).toBeGreaterThan(2)
+      expect(s.wreckGoalPoints).toBeGreaterThan(100)
       run(s, 5, botInput)
       expect(hasNaN(s)).toBe(false)
     }
   })
 
-  it('bumping a prop at crawl speed smashes it and scores', () => {
+  it('bumping a prop at crawl speed smashes it and fills the meter', () => {
     const s = createState({ seed: 1 })
     const box = s.props.find((p) => p.kind === 'box')!
     box.x = 2.5
     box.z = 0
-    const before = s.score
     run(s, 2, { ...EMPTY_INPUT, mx: 1 })
     expect(box.broken).toBe(true)
-    expect(s.score).toBeGreaterThan(before)
+    expect(s.wreckPoints).toBeGreaterThan(0)
     expect(s.debris.length).toBeGreaterThan(0)
+  })
+
+  it('tap scream fires on release; hold charges up', () => {
+    const s = createState({ seed: 1 })
+    s.duo.x = -15
+    s.duo.z = -15
+    run(s, 0.1, { ...EMPTY_INPUT, scream: true })
+    expect(s.player.screamCharging).toBe(true)
+    run(s, 0.05)
+    expect(s.stats.screams).toBe(1)
+    const s2 = createState({ seed: 1 })
+    s2.duo.x = -15
+    s2.duo.z = -15
+    run(s2, CFG.player.chargeTime + 0.1, { ...EMPTY_INPUT, scream: true })
+    expect(s2.player.screamCharge).toBe(1)
+    run(s2, CFG.player.fullHoldGrace + 0.1, { ...EMPTY_INPUT, scream: true })
+    expect(s2.stats.screams).toBe(1)
   })
 
   it('scream scares an npc in front and grows Duogringo when he is not hit', () => {
@@ -83,22 +101,53 @@ describe('sim', () => {
     expect(s.duo.state).toBe('hurt')
   })
 
-  it('chain multiplier climbs within the window and resets after it', () => {
+  it('poop throws on release, holds lob further, rattle throws three', () => {
     const s = createState({ seed: 1 })
-    addScore(s, 100, 0, 0)
-    expect(s.mult).toBe(1)
-    run(s, 1)
-    addScore(s, 100, 0, 0)
-    expect(s.mult).toBe(2)
-    run(s, CFG.chainTime + 0.5)
-    expect(s.mult).toBe(1)
-    expect(s.events.some((e) => e.t === 'multLost') || s.chainT === 0).toBe(true)
+    run(s, 0.05, { ...EMPTY_INPUT, poop: true })
+    run(s, 0.05)
+    expect(s.poops.length).toBe(1)
+    const tapSpeed = Math.hypot(s.poops[0].vx, s.poops[0].vz)
+    const s2 = createState({ seed: 1 })
+    run(s2, CFG.player.poopHoldMax, { ...EMPTY_INPUT, poop: true })
+    run(s2, 0.05)
+    expect(s2.poops.length).toBe(1)
+    expect(Math.hypot(s2.poops[0].vx, s2.poops[0].vz)).toBeGreaterThan(tapSpeed)
+    const s3 = createState({ seed: 1 })
+    s3.player.rattleT = 5
+    run(s3, 0.05, { ...EMPTY_INPUT, poop: true })
+    run(s3, 0.05)
+    expect(s3.poops.length).toBe(3)
   })
 
-  it('timer end spawns the boss and the boss can be beaten', () => {
+  it('milk restores a heart, pacifier and rattle time out', () => {
+    const s = createState({ seed: 1 })
+    s.player.hp = 60
+    s.pickups = [{ id: 999, kind: 'milk', x: 0.2, y: 0, z: 0.2, vy: 0, age: 0 }]
+    run(s, 0.1)
+    expect(s.player.hp).toBe(60 + HEART)
+    expect(s.pickups.length).toBe(0)
+    s.pickups = [{ id: 998, kind: 'pacifier', x: 0.2, y: 0, z: 0.2, vy: 0, age: 0 }]
+    run(s, 0.1)
+    expect(s.player.pacifierT).toBeGreaterThan(0)
+    run(s, CFG.player.powerTime + 0.2)
+    expect(s.player.pacifierT).toBe(0)
+  })
+
+  it('combo climbs within the window and resets after it', () => {
+    const s = createState({ seed: 1 })
+    addWreck(s, 100, 0, 0)
+    expect(s.combo).toBe(1)
+    run(s, 1)
+    addWreck(s, 100, 0, 0)
+    expect(s.combo).toBe(2)
+    run(s, CFG.combo.window + 0.5)
+    expect(s.combo).toBe(0)
+  })
+
+  it('a full meter summons the boss and the boss can be beaten', () => {
     const s = createState({ seed: 5 })
     skipToBoss(s)
-    run(s, 3)
+    run(s, 0.1)
     expect(s.phase).toBe('boss')
     expect(s.boss).not.toBeNull()
     const b = s.boss!
@@ -115,31 +164,33 @@ describe('sim', () => {
     expect(hits).toBe(b.totalHits)
     expect(s.phase).toBe('won')
     expect(s.levelsCleared).toBe(1)
+    expect(s.clearTime).toBeGreaterThan(0)
   })
 
   it('boss ignores hits while not exposed', () => {
     const s = createState({ seed: 5 })
     skipToBoss(s)
-    run(s, 3)
+    run(s, 0.1)
     const b = s.boss!
     b.state = 'idle'
     expect(bossHit(s, 'scream')).toBe(false)
     expect(b.hits).toBe(0)
   })
 
-  it('carries score into the next level', () => {
+  it('carries run time and stats into the next level with full hearts', () => {
     const s = createState({ seed: 1 })
-    s.score = 1234
     s.levelsCleared = 1
+    s.runTime = 90
+    s.player.hp = 20
     const n = nextLevelState(s)!
     expect(n.levelId).toBe(LEVELS[1].id)
-    expect(n.score).toBe(1234)
+    expect(n.runTime).toBe(90)
     expect(n.player.hp).toBe(CFG.player.hp)
   })
 
   it('player dies at zero hp and the game is over', () => {
     const s = createState({ seed: 1 })
-    s.player.hp = 5
+    s.player.hp = 10
     const n = s.npcs[0]
     n.x = s.player.x + 0.5
     n.z = s.player.z

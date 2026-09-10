@@ -2,8 +2,8 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
-import type { Boss, GameEvent, Npc, Prop, PropKind, State } from '../sim/types.ts'
-import { bossPhase, currentLevel, duoRadius } from '../sim/sim.ts'
+import type { Boss, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
+import { bossPhase, currentLevel, duoRadius, screamRange } from '../sim/sim.ts'
 import { ASSETS } from './assets.ts'
 import { Particles } from './particles.ts'
 
@@ -37,6 +37,8 @@ export class Renderer {
   private poopViews = new Map<number, THREE.Mesh>()
   private poopGeo = new THREE.SphereGeometry(0.22, 10, 8)
   private poopMat: THREE.MeshToonMaterial
+  private pickupViews = new Map<number, THREE.Group>()
+  private chargeCone: THREE.Mesh
   private debris: THREE.InstancedMesh
   private splats: THREE.InstancedMesh
   private player: THREE.Group = new THREE.Group()
@@ -106,6 +108,12 @@ export class Renderer {
     this.splats.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.scene.add(this.splats)
     this.particles = new Particles(this.scene, this.gradient)
+    const coneGeo = new THREE.CircleGeometry(1, 20, -Math.PI / 2 - Math.PI / 3, (Math.PI * 2) / 3)
+    coneGeo.rotateX(-Math.PI / 2)
+    this.chargeCone = new THREE.Mesh(coneGeo, new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.22, depthWrite: false }))
+    this.chargeCone.position.y = 0.04
+    this.chargeCone.visible = false
+    this.scene.add(this.chargeCone)
     this.scene.add(this.player)
     this.scene.add(this.duo)
     this.player.add(this.placeholderBaby())
@@ -245,6 +253,8 @@ export class Renderer {
     this.npcViews.clear()
     for (const v of this.poopViews.values()) this.scene.remove(v)
     this.poopViews.clear()
+    for (const v of this.pickupViews.values()) this.scene.remove(v)
+    this.pickupViews.clear()
     this.removeBoss()
     this.particles.clear()
     for (const r of this.rings) this.scene.remove(r.mesh)
@@ -453,6 +463,39 @@ export class Renderer {
     return g
   }
 
+  // ------------------------------------------------------------ pickups
+
+  private ensurePickup(k: Pickup): THREE.Group {
+    let g = this.pickupViews.get(k.id)
+    if (g) return g
+    g = new THREE.Group()
+    const add = (geo: THREE.BufferGeometry, color: number, x = 0, y = 0, z = 0, rx = 0) => {
+      const m = new THREE.Mesh(geo, this.toon(color))
+      m.position.set(x, y, z)
+      m.rotation.x = rx
+      m.castShadow = true
+      g!.add(m)
+      return m
+    }
+    if (k.kind === 'milk') {
+      add(new THREE.CylinderGeometry(0.16, 0.18, 0.5, 10), 0xffffff, 0, 0.25)
+      add(new THREE.CylinderGeometry(0.08, 0.1, 0.16, 8), 0x4aa3ff, 0, 0.58)
+      add(new THREE.SphereGeometry(0.09, 8, 6), 0xffd9b8, 0, 0.7)
+    } else if (k.kind === 'pacifier') {
+      add(new THREE.TorusGeometry(0.22, 0.06, 8, 16), 0xffd23f, 0, 0.3, 0, Math.PI / 2)
+      add(new THREE.SphereGeometry(0.12, 10, 8), 0xff8fab, 0, 0.3, 0.14)
+      add(new THREE.SphereGeometry(0.08, 8, 6), 0xffd23f, 0, 0.3, -0.16)
+    } else {
+      add(new THREE.SphereGeometry(0.22, 10, 8), 0xff8fab, 0, 0.5)
+      add(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6), 0x8b5a2b, 0, 0.18)
+      add(new THREE.SphereGeometry(0.07, 8, 6), 0xffd23f, 0.16, 0.6)
+      add(new THREE.SphereGeometry(0.07, 8, 6), 0x4aa3ff, -0.16, 0.55)
+    }
+    this.pickupViews.set(k.id, g)
+    this.scene.add(g)
+    return g
+  }
+
   // ------------------------------------------------------------ boss
 
   private removeBoss() {
@@ -565,6 +608,13 @@ export class Renderer {
       case 'duoGrow':
         this.particles.burst(x, 1, z, 4, 0xff3b3b, 1.5, 0.1)
         break
+      case 'pickup':
+        this.particles.burst(x, 0.8, z, 18, e.kind === 'milk' ? 0xffffff : e.kind === 'pacifier' ? 0xffd23f : 0xff8fab, 3, 0.12)
+        break
+      case 'goalReached':
+        this.addShake(0.8)
+        this.particles.burst(x, 1, z, 40, 0xffd23f, 5, 0.18)
+        break
       case 'bossEnter':
         this.addShake(0.3)
         break
@@ -599,7 +649,7 @@ export class Renderer {
       case 'land':
         this.particles.burst(x, 0.1, z, 6, 0xffffff, 2, 0.1)
         break
-      case 'multUp':
+      default:
         break
     }
   }
@@ -609,7 +659,7 @@ export class Renderer {
   }
 
   private ring(x: number, z: number, facing: number, range: number, color: number, life: number, cone: boolean) {
-    const geo = cone ? new THREE.CircleGeometry(1, 20, Math.PI / 2 - Math.PI / 3, (Math.PI * 2) / 3) : new THREE.RingGeometry(0.85, 1, 32)
+    const geo = cone ? new THREE.CircleGeometry(1, 20, -Math.PI / 2 - Math.PI / 3, (Math.PI * 2) / 3) : new THREE.RingGeometry(0.85, 1, 32)
     geo.rotateX(-Math.PI / 2)
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }))
     mesh.position.set(x, 0.05, z)
@@ -628,8 +678,21 @@ export class Renderer {
     this.player.position.set(p.x, p.y, p.z)
     this.player.rotation.y = p.facing
     const speed = Math.hypot(p.vx, p.vz)
-    const squash = 1 + p.screamFlash * 0.6 + (p.screamCharging ? Math.sin(this.time * 40) * 0.04 * p.screamCharge : 0)
-    this.player.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash))
+    const ch = p.screamCharging ? p.screamCharge : 0
+    const squash = 1 + p.screamFlash * 0.6 + ch * 0.35 + (ch > 0 ? Math.sin(this.time * 40) * 0.05 * ch : 0)
+    const wide = 1 + ch * 0.25
+    this.player.scale.set(wide / Math.sqrt(squash), squash, wide / Math.sqrt(squash))
+    this.chargeCone.visible = ch > 0
+    if (ch > 0) {
+      this.chargeCone.position.set(p.x, 0.04, p.z)
+      this.chargeCone.rotation.y = p.facing
+      this.chargeCone.scale.setScalar(screamRange(p, ch))
+      const cm = this.chargeCone.material as THREE.MeshBasicMaterial
+      cm.opacity = 0.15 + ch * 0.2
+      cm.color.setHSL(0.13 - ch * 0.13, 1, 0.7)
+    }
+    const poopCharge = p.poopHeld ? Math.min(1, p.poopHoldT / 0.5) : 0
+    if (poopCharge > 0) this.player.scale.y *= 1 - poopCharge * 0.12
     if (this.playerMixer) {
       const want = speed > 0.6 ? 'walk' : 'walk-idle'
       if (want !== this.playerCurrent && this.playerActions[want]) {
@@ -644,7 +707,11 @@ export class Renderer {
     } else {
       this.player.rotation.z = Math.sin(this.time * 14) * 0.08 * Math.min(1, speed / 3)
     }
-    this.flash(this.playerMats, p.invuln > 0 && Math.floor(this.time * 20) % 2 === 0 ? 0xff3b3b : 0, p.invuln > 0 ? 0.6 : 0)
+    if (p.invuln > 0) this.flash(this.playerMats, Math.floor(this.time * 20) % 2 === 0 ? 0xff3b3b : 0xffffff, 0.6)
+    else if (ch > 0) this.flash(this.playerMats, 0xff5c5c, ch * 0.5)
+    else if (p.pacifierT > 0) this.flash(this.playerMats, 0xffd23f, 0.25 + Math.sin(this.time * 8) * 0.15)
+    else if (p.rattleT > 0) this.flash(this.playerMats, 0xff8fab, 0.2 + Math.sin(this.time * 8) * 0.12)
+    else this.flash(this.playerMats, 0, 0)
 
     // duogringo
     const d = s.duo
@@ -717,6 +784,21 @@ export class Renderer {
       if (!seen.has(id)) {
         this.scene.remove(m)
         this.poopViews.delete(id)
+      }
+    }
+
+    // pickups
+    const seenPickups = new Set<number>()
+    for (const k of s.pickups) {
+      seenPickups.add(k.id)
+      const g = this.ensurePickup(k)
+      g.position.set(k.x, k.y + 0.15 + Math.abs(Math.sin(this.time * 2.5 + k.id)) * 0.2, k.z)
+      g.rotation.y = this.time * 1.5 + k.id
+    }
+    for (const [id, g] of this.pickupViews) {
+      if (!seenPickups.has(id)) {
+        this.scene.remove(g)
+        this.pickupViews.delete(id)
       }
     }
 

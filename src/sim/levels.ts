@@ -34,8 +34,8 @@ export interface NpcStat {
 }
 
 export const NPC_STATS: Record<NpcKind, NpcStat> = {
-  adult: { r: 0.4, hp: 60, wanderSpeed: 1.4, chaseSpeed: 2.7, fleeSpeed: 4.2, detect: 6, damage: 12, color: 0x8ab4f8 },
-  dog: { r: 0.3, hp: 30, wanderSpeed: 2.2, chaseSpeed: 3.8, fleeSpeed: 5.5, detect: 7, damage: 7, color: 0xc49a6c },
+  adult: { r: 0.4, hp: 60, wanderSpeed: 1.4, chaseSpeed: 2.7, fleeSpeed: 4.2, detect: 6, damage: 10, color: 0x8ab4f8 },
+  dog: { r: 0.3, hp: 30, wanderSpeed: 2.2, chaseSpeed: 3.8, fleeSpeed: 5.5, detect: 7, damage: 10, color: 0xc49a6c },
 }
 
 export interface Theme {
@@ -51,7 +51,7 @@ export interface LevelDef {
   name: string
   continent: string
   arena: { w: number; d: number }
-  wreckTime: number
+  goalPct: number // fraction of prop points to wreck before the boss shows up
   props: Partial<Record<PropKind, number>>
   npcs: Partial<Record<NpcKind, number>>
   boss: BossDef
@@ -83,7 +83,7 @@ export const LEVELS: LevelDef[] = [
     name: 'North America',
     continent: 'North America',
     arena: { w: 36, d: 36 },
-    wreckTime: 75,
+    goalPct: 0.5,
     props: SUBURB,
     npcs: { adult: 4, dog: 1 },
     boss: boss({
@@ -104,7 +104,7 @@ export const LEVELS: LevelDef[] = [
     name: 'South America',
     continent: 'South America',
     arena: { w: 38, d: 38 },
-    wreckTime: 75,
+    goalPct: 0.6,
     props: { ...SUBURB, tree: 10, cone: 10 },
     npcs: { adult: 5, dog: 1 },
     boss: boss({
@@ -125,7 +125,7 @@ export const LEVELS: LevelDef[] = [
     name: 'Antarctica',
     continent: 'Antarctica',
     arena: { w: 36, d: 36 },
-    wreckTime: 75,
+    goalPct: 0.6,
     props: { box: 10, barrel: 8, cone: 8, sign: 6, bench: 4, trash: 4, car: 2 },
     npcs: { adult: 5, dog: 2 },
     boss: boss({
@@ -146,7 +146,7 @@ export const LEVELS: LevelDef[] = [
     name: 'Asia',
     continent: 'Asia',
     arena: { w: 40, d: 40 },
-    wreckTime: 80,
+    goalPct: 0.65,
     props: { ...SUBURB, sign: 8, barrel: 8 },
     npcs: { adult: 6, dog: 2 },
     boss: boss({
@@ -167,7 +167,7 @@ export const LEVELS: LevelDef[] = [
     name: 'Africa',
     continent: 'Africa',
     arena: { w: 40, d: 40 },
-    wreckTime: 80,
+    goalPct: 0.65,
     props: { tree: 12, box: 8, barrel: 6, cone: 6, bench: 3, trash: 4, sign: 3, car: 2 },
     npcs: { adult: 6, dog: 3 },
     boss: boss({
@@ -188,7 +188,7 @@ export const LEVELS: LevelDef[] = [
     name: 'Australia',
     continent: 'Australia',
     arena: { w: 40, d: 40 },
-    wreckTime: 80,
+    goalPct: 0.65,
     props: { ...SUBURB, tree: 8, hydrant: 4 },
     npcs: { adult: 6, dog: 3 },
     boss: boss({
@@ -209,7 +209,7 @@ export const LEVELS: LevelDef[] = [
     name: 'Europe',
     continent: 'Europe',
     arena: { w: 42, d: 42 },
-    wreckTime: 85,
+    goalPct: 0.7,
     props: { ...SUBURB, car: 6, mailbox: 6, sign: 6 },
     npcs: { adult: 7, dog: 3 },
     boss: boss({

@@ -5,7 +5,7 @@ export interface Input {
   mx: number // -1..1, +x right
   mz: number // -1..1, +z toward camera (down on screen)
   scream: boolean // hold to charge, release to fire
-  poop: boolean // tap
+  poop: boolean // tap to throw, hold to lob further
   jump: boolean // tap
 }
 
@@ -43,6 +43,7 @@ export interface Prop {
   color: number
   broken: boolean
   hitFlash: number
+  drop: PickupKind | null
 }
 
 export type NpcKind = 'adult' | 'dog'
@@ -100,6 +101,18 @@ export interface Debris {
   settled: boolean
 }
 
+export type PickupKind = 'milk' | 'pacifier' | 'rattle'
+
+export interface Pickup {
+  id: number
+  kind: PickupKind
+  x: number
+  y: number
+  z: number
+  vy: number
+  age: number
+}
+
 export interface Player {
   x: number
   y: number
@@ -109,7 +122,7 @@ export interface Player {
   vz: number
   facing: number // radians; direction vector = (sin, cos)
   r: number
-  hp: number
+  hp: number // hearts = hp / 20
   maxHp: number
   grounded: boolean
   jumpCd: number
@@ -120,10 +133,12 @@ export interface Player {
   screamHoldFull: number
   screamCd: number
   screamFlash: number
-  poopMeter: number
-  poopCd: number
   poopHeld: boolean
+  poopHoldT: number
+  poopCd: number
   jumpHeld: boolean
+  pacifierT: number // seconds of mega scream left
+  rattleT: number // seconds of poop storm left
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt'
@@ -186,6 +201,7 @@ export interface Boss {
   invuln: number
   exposedLeft: number
   hitFlash: number
+  everExposed: boolean
 }
 
 export type EventType =
@@ -194,15 +210,21 @@ export type EventType =
   | 'scream'
   | 'poopThrow'
   | 'splat'
-  | 'score'
+  | 'wreck'
+  | 'combo'
+  | 'comboLost'
   | 'npcScared'
   | 'npcHit'
   | 'playerHurt'
+  | 'pickup'
+  | 'powerEnd'
+  | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'
   | 'bossAttack'
   | 'bossStomp'
   | 'bossBlocked'
+  | 'bossExposed'
   | 'bossHurt'
   | 'bossPhase'
   | 'bossDead'
@@ -212,8 +234,6 @@ export type EventType =
   | 'levelPhase'
   | 'gameOver'
   | 'win'
-  | 'multUp'
-  | 'multLost'
   | 'jump'
   | 'land'
 
@@ -222,14 +242,16 @@ export interface GameEvent {
   x?: number
   y?: number
   z?: number
-  points?: number
-  mult?: number
+  points?: number // wreck points gained
+  pct?: number // wreck fraction gained (0..1)
+  combo?: number
   big?: number // 0..1 intensity for shake / hitstop
   label?: string
   color?: number
   facing?: number
   range?: number
   id?: number
+  kind?: string
 }
 
 export type Phase = 'wreck' | 'boss' | 'won' | 'over'
@@ -243,7 +265,8 @@ export interface Stats {
   bossHits: number
   bossesBeaten: number
   damageTaken: number
-  bestMult: number
+  bestCombo: number
+  pickups: number
 }
 
 export interface State {
@@ -252,14 +275,14 @@ export interface State {
   seed: number
   rng: Rng
   tick: number
-  time: number
-  runTime: number
+  time: number // seconds in this level
+  runTime: number // seconds in the whole run (levels only, not end screens)
   levelId: string
   levelIndex: number
   levelsCleared: number
   phase: Phase
   phaseT: number
-  timer: number
+  clearTime: number // level time when the boss fell, 0 until then
   arena: { w: number; d: number }
   player: Player
   props: Prop[]
@@ -267,11 +290,14 @@ export interface State {
   poops: Poop[]
   splats: Splat[]
   debris: Debris[]
+  pickups: Pickup[]
   duo: Duogringo
   boss: Boss | null
-  score: number
-  mult: number
-  chainT: number
+  wreck: number // 0..1 progress toward the boss
+  wreckPoints: number
+  wreckGoalPoints: number
+  combo: number
+  comboT: number
   stats: Stats
   events: GameEvent[]
   nextId: number

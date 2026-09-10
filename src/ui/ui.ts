@@ -1,52 +1,101 @@
-// HTML overlay: title, HUD, end screens, leaderboard, popups. Reads state, never mutates it.
+// HTML overlay: title, HUD, level card, help/pause, end screens, boards, popups. Reads state, never mutates it.
 import { LEVELS } from '../sim/levels.ts'
-import { CFG, bossPhase, currentLevel } from '../sim/sim.ts'
+import { HEART, bossPhase, currentLevel } from '../sim/sim.ts'
 import type { State } from '../sim/types.ts'
-import type { ScoreRow } from '../net/leaderboard.ts'
+import { fmtMs } from '../net/leaderboard.ts'
+import type { TimeRow } from '../net/leaderboard.ts'
 
 export interface UiCallbacks {
   onPlay: (name: string, levelId: string | null) => void
   onNext: () => void
-  onEndRun: () => void
   onRestart: () => void
-  onBoard: () => void
-  onBack: () => void
+  onTitle: () => void
+  onResume: () => void
+  onPause: () => void
+  onToggleSound: () => boolean
+  onBoard: (board: string) => void
 }
 
-const fmtTime = (t: number) => {
-  const s = Math.max(0, Math.ceil(t))
+const fmtClock = (t: number) => {
+  const s = Math.max(0, Math.floor(t))
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 }
 
-const fmt = (n: number) => n.toLocaleString('en-US')
+export function medalFor(ms: number): 'gold' | 'silver' | 'bronze' | null {
+  if (ms <= 120_000) return 'gold'
+  if (ms <= 180_000) return 'silver'
+  if (ms <= 300_000) return 'bronze'
+  return null
+}
+
+const MEDAL = { gold: '🥇', silver: '🥈', bronze: '🥉' }
 
 export class Ui {
   private root: HTMLElement
   private screens: Record<string, HTMLElement> = {}
-  private hud: HTMLElement
   private popups: HTMLElement
   private el = new Map<string, HTMLElement>()
-  private lastMult = 1
-  private lastPhase = ''
+  private lastHearts = -1
+  private lastBoss = ''
+  private lastPct = -1
   private devTaps = 0
+  private hintT = 0
 
   constructor(root: HTMLElement, private cb: UiCallbacks, private touch: boolean, dev: boolean) {
     this.root = root
+    const controls = this.touch
+      ? `<div class="ctl"><b>MOVE</b><span>drag anywhere on the left half</span></div>
+         <div class="ctl"><b>SCREAM</b><span>hold the red button. Longer hold = bigger scream</span></div>
+         <div class="ctl"><b>💩 POOP</b><span>tap to throw, hold to throw further</span></div>
+         <div class="ctl"><b>JUMP</b><span>tap. Jump over the boss stomp</span></div>`
+      : `<div class="ctl"><b>MOVE</b><span>WASD or arrow keys</span></div>
+         <div class="ctl"><b>SCREAM</b><span>hold SPACE (or right mouse). Longer hold = bigger scream</span></div>
+         <div class="ctl"><b>POOP</b><span>click, or E. Hold to throw further</span></div>
+         <div class="ctl"><b>JUMP</b><span>SHIFT. Jump over the boss stomp</span></div>
+         <div class="ctl"><b>PAUSE</b><span>ESC or P</span></div>`
     root.innerHTML = `
       <div id="hud" class="screen">
         <div class="hud-top">
-          <div class="hud-score"><div id="score">0</div><div class="mult-row"><span id="mult" class="mult">x1</span><div class="chain"><div id="chain"></div></div></div></div>
-          <div class="hud-mid"><div id="timer">1:15</div><div id="boss-hud" hidden><div id="boss-name"></div><div id="boss-pips"></div></div></div>
-          <div class="hud-right"><div class="hp"><div id="hp"></div></div><div class="duo"><span>🐦</span><div class="duo-bar"><div id="duo"></div></div></div></div>
+          <div class="hearts" id="hearts"><span class="who">👶</span><span id="heart-row"></span><span id="powers"></span></div>
+          <div class="hud-mid">
+            <div id="goal-wrap">
+              <div id="goal-label">NORTH AMERICA</div>
+              <div class="goal-bar"><div id="goal-fill"></div><div id="goal-text">WRECK IT!</div></div>
+              <img id="goal-boss" alt="">
+            </div>
+            <div id="boss-wrap" hidden>
+              <img id="boss-img" alt="">
+              <div class="boss-col"><div id="boss-name"></div><div class="boss-bar"><div id="boss-fill"></div><div id="boss-segs"></div></div></div>
+            </div>
+          </div>
+          <div class="hud-right"><div id="clock">0:00</div><button id="btn-help" class="round" aria-label="help">?</button></div>
         </div>
         <div id="toast"></div>
+        <div id="hint"></div>
         <div id="popups"></div>
         <div id="joy-zone"><div id="joy"><div id="joy-knob"></div></div></div>
-        <div class="meters"><div class="meter"><label>SCREAM</label><div><div id="scream-meter"></div></div></div><div class="meter"><label>POOP</label><div><div id="poop-meter"></div></div></div></div>
         <div class="buttons">
           <button id="btn-jump" class="btn">JUMP</button>
           <button id="btn-poop" class="btn">💩</button>
-          <button id="btn-scream" class="btn big">SCREAM</button>
+          <button id="btn-scream" class="btn big"><i id="scream-ring"></i><span>SCREAM</span></button>
+        </div>
+      </div>
+      <div id="card" class="screen card" hidden>
+        <div class="card-box">
+          <div id="card-name">NORTH AMERICA</div>
+          <div class="card-goal"><span id="card-goal">Wreck 60% of it</span> <span class="arrow">→</span> <img id="card-boss" alt=""> <span id="card-boss-name">boss</span></div>
+        </div>
+      </div>
+      <div id="help" class="screen panel" hidden>
+        <h2>HOW TO PLAY</h2>
+        <p class="goal-line">Fill the <b>WRECK</b> meter by smashing stuff and scaring grown-ups. The boss shows up at 100%. Dodge its attacks, then hit it while the <b class="green">green ring</b> is on.</p>
+        <div class="ctls">${controls}</div>
+        <p class="goal-line small">🍼 milk = a heart · 👶 pacifier = mega scream · 🪇 rattle = poop storm · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him.</p>
+        <div class="row-btns">
+          <button id="help-resume" class="cta">RESUME</button>
+          <button id="help-restart" class="ghost">RESTART LEVEL</button>
+          <button id="help-sound" class="ghost">SOUND: ON</button>
+          <button id="help-title" class="ghost">QUIT TO TITLE</button>
         </div>
       </div>
       <div id="title" class="screen panel">
@@ -54,52 +103,53 @@ export class Ui {
         <p class="sub">a game by <b>Nova & Louie</b></p>
         <input id="name" maxlength="12" placeholder="YOUR NAME" autocomplete="off" spellcheck="false">
         <button id="play" class="cta">PLAY</button>
-        <button id="board-btn" class="ghost">LEADERBOARD</button>
-        <p class="hint">${
-          this.touch
-            ? 'Left side: drag to move · SCREAM: hold · 💩: tap · JUMP: tap'
-            : 'Move: WASD or arrows · Scream: hold SPACE · Poop: E · Jump: SHIFT'
-        }</p>
+        <div class="row-btns"><button id="board-btn" class="ghost">BEST TIMES</button><button id="how-btn" class="ghost">HOW TO PLAY</button></div>
         <div id="levels" ${dev ? '' : 'hidden'}></div>
       </div>
       <div id="won" class="screen panel" hidden>
-        <h2 id="won-title">CLEARED!</h2>
-        <div class="big-score"><span>SCORE</span><b id="won-score">0</b></div>
+        <h2 id="won-title">CONQUERED!</h2>
+        <div class="big-time"><span id="won-medal"></span><b id="won-time">0:00.0</b></div>
         <p id="won-sub"></p>
-        <button id="next" class="cta">NEXT CONTINENT ▶</button>
-        <button id="end-run" class="ghost">END RUN & SAVE SCORE</button>
+        <div id="won-board" class="board"></div>
+        <div class="row-btns"><button id="next" class="cta">NEXT CONTINENT ▶</button><button id="won-title-btn" class="ghost">TITLE</button></div>
       </div>
       <div id="over" class="screen panel" hidden>
-        <h2 id="over-title">GAME OVER</h2>
-        <div class="big-score"><span>SCORE</span><b id="over-score">0</b></div>
+        <h2 id="over-title">KASE NEEDS A NAP</h2>
         <p id="over-sub"></p>
-        <div id="over-board" class="board"></div>
-        <button id="restart" class="cta">PLAY AGAIN</button>
+        <div class="row-btns"><button id="restart" class="cta">TRY AGAIN</button><button id="over-title-btn" class="ghost">TITLE</button></div>
       </div>
       <div id="board" class="screen panel" hidden>
-        <h2>LEADERBOARD</h2>
-        <div class="tabs"><button data-board="alltime" class="tab on">ALL TIME</button><button data-board="today" class="tab">TODAY</button></div>
+        <h2>BEST TIMES</h2>
+        <div class="tabs" id="board-tabs"></div>
         <div id="board-list" class="board"></div>
         <button id="back" class="ghost">BACK</button>
       </div>
     `
-    for (const id of ['hud', 'title', 'won', 'over', 'board']) this.screens[id] = root.querySelector(`#${id}`)!
-    this.hud = this.screens.hud
+    for (const id of ['hud', 'card', 'help', 'title', 'won', 'over', 'board']) this.screens[id] = root.querySelector(`#${id}`)!
     this.popups = root.querySelector('#popups')!
-    for (const id of ['score', 'mult', 'chain', 'timer', 'boss-hud', 'boss-name', 'boss-pips', 'hp', 'duo', 'toast', 'scream-meter', 'poop-meter', 'name', 'won-title', 'won-score', 'won-sub', 'next', 'over-title', 'over-score', 'over-sub', 'over-board', 'board-list', 'levels']) {
-      this.el.set(id, root.querySelector(`#${id}`)!)
-    }
+    for (const el of root.querySelectorAll<HTMLElement>('[id]')) this.el.set(el.id, el)
     const nameEl = this.get('name') as HTMLInputElement
-    root.querySelector('#play')!.addEventListener('click', () => this.cb.onPlay(nameEl.value.trim(), null))
+    const play = () => this.cb.onPlay(nameEl.value.trim(), null)
+    this.get('play').addEventListener('click', play)
     nameEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.cb.onPlay(nameEl.value.trim(), null)
+      if (e.key === 'Enter') play()
     })
-    root.querySelector('#board-btn')!.addEventListener('click', () => this.cb.onBoard())
-    root.querySelector('#back')!.addEventListener('click', () => this.cb.onBack())
-    root.querySelector('#next')!.addEventListener('click', () => this.cb.onNext())
-    root.querySelector('#end-run')!.addEventListener('click', () => this.cb.onEndRun())
-    root.querySelector('#restart')!.addEventListener('click', () => this.cb.onRestart())
-    root.querySelector('#logo')!.addEventListener('click', () => {
+    this.get('board-btn').addEventListener('click', () => this.cb.onBoard('north-america'))
+    this.get('how-btn').addEventListener('click', () => this.showHelp(false))
+    this.get('back').addEventListener('click', () => this.cb.onTitle())
+    this.get('next').addEventListener('click', () => this.cb.onNext())
+    this.get('restart').addEventListener('click', () => this.cb.onRestart())
+    this.get('won-title-btn').addEventListener('click', () => this.cb.onTitle())
+    this.get('over-title-btn').addEventListener('click', () => this.cb.onTitle())
+    this.get('btn-help').addEventListener('click', () => this.cb.onPause())
+    this.get('help-resume').addEventListener('click', () => this.cb.onResume())
+    this.get('help-restart').addEventListener('click', () => this.cb.onRestart())
+    this.get('help-title').addEventListener('click', () => this.cb.onTitle())
+    this.get('help-sound').addEventListener('click', () => {
+      const on = this.cb.onToggleSound()
+      this.get('help-sound').textContent = `SOUND: ${on ? 'ON' : 'OFF'}`
+    })
+    this.get('logo').addEventListener('click', () => {
       if (++this.devTaps >= 5) this.get('levels').hidden = false
     })
     const levels = this.get('levels')
@@ -111,6 +161,15 @@ export class Ui {
       b.addEventListener('click', () => this.cb.onPlay(nameEl.value.trim(), l.id))
       levels.appendChild(b)
     }
+    const tabs = this.get('board-tabs')
+    for (const l of [...LEVELS.map((x) => ({ id: x.id, name: x.name })), { id: 'world', name: '🌍 WORLD' }]) {
+      const b = document.createElement('button')
+      b.className = 'tab'
+      b.dataset.board = l.id
+      b.textContent = l.name.toUpperCase()
+      b.addEventListener('click', () => this.cb.onBoard(l.id))
+      tabs.appendChild(b)
+    }
   }
 
   get(id: string): HTMLElement {
@@ -121,61 +180,105 @@ export class Ui {
     ;(this.get('name') as HTMLInputElement).value = name
   }
 
-  show(id: 'title' | 'hud' | 'won' | 'over' | 'board') {
-    for (const [k, el] of Object.entries(this.screens)) el.hidden = k !== id && !(id !== 'title' && id !== 'board' && k === 'hud')
-    if (id === 'title') this.screens.hud.hidden = true
+  show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help') {
+    const hudVisible = id === 'hud' || id === 'won' || id === 'over' || id === 'help'
+    for (const [k, el] of Object.entries(this.screens)) {
+      if (k === 'card') continue
+      el.hidden = k === 'hud' ? !hudVisible : k !== id
+    }
     this.root.classList.toggle('playing', id === 'hud')
     if (id === 'title') setTimeout(() => (this.get('name') as HTMLInputElement).focus(), 50)
   }
 
-  updateHud(s: State) {
-    const p = s.player
-    this.get('score').textContent = fmt(s.score)
-    const mult = this.get('mult')
-    if (s.mult !== this.lastMult) {
-      mult.textContent = `x${s.mult}`
-      mult.classList.toggle('hot', s.mult >= 5)
-      mult.classList.remove('pop')
-      void mult.offsetWidth
-      mult.classList.add('pop')
-      this.lastMult = s.mult
-    }
-    this.get('chain').style.width = `${(s.chainT / CFG.chainTime) * 100}%`
-    this.get('hp').style.width = `${(p.hp / p.maxHp) * 100}%`
-    this.get('hp').classList.toggle('low', p.hp <= 30)
-    const duo = this.get('duo')
-    duo.style.width = `${s.duo.power * 100}%`
-    duo.style.background = s.duo.power > 0.66 ? '#ff3b3b' : s.duo.power > 0.33 ? '#ffb020' : '#4cd137'
-    this.get('scream-meter').style.width = `${p.screamCharging ? p.screamCharge * 100 : p.screamCd > 0 ? 0 : 100}%`
-    this.get('scream-meter').classList.toggle('charging', p.screamCharging)
-    this.get('poop-meter').style.width = `${p.poopMeter * 100}%`
-    this.root.querySelector('#btn-scream')!.classList.toggle('ready', p.screamCd <= 0)
-    this.root.querySelector('#btn-poop')!.classList.toggle('ready', p.poopMeter >= CFG.player.poopCost)
+  showHelp(inGame: boolean, soundOn = true) {
+    this.get('help-resume').hidden = !inGame
+    this.get('help-restart').hidden = !inGame
+    this.get('help-title').textContent = inGame ? 'QUIT TO TITLE' : 'BACK'
+    this.get('help-sound').textContent = `SOUND: ${soundOn ? 'ON' : 'OFF'}`
+    this.show('help')
+  }
 
-    const timer = this.get('timer')
-    const bossHud = this.get('boss-hud')
-    if (s.phase === 'wreck') {
-      timer.hidden = false
-      bossHud.hidden = true
-      timer.textContent = fmtTime(s.timer)
-      timer.classList.toggle('urgent', s.timer < 10)
-    } else if (s.boss) {
-      timer.hidden = true
-      bossHud.hidden = false
-      const b = s.boss
-      if (this.lastPhase !== s.levelId + b.def.id) {
-        this.get('boss-name').innerHTML = `${b.def.name} <small>drawn by ${b.def.drawnBy}</small>`
-        this.lastPhase = s.levelId + b.def.id
-      }
-      const pips = this.get('boss-pips')
-      const ph = bossPhase(b)
+  showCard(s: State) {
+    const lvl = currentLevel(s)
+    this.get('card-name').textContent = lvl.name.toUpperCase()
+    this.get('card-goal').textContent = `Wreck ${Math.round(lvl.goalPct * 100)}% of it`
+    ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
+    this.get('card-boss-name').textContent = lvl.boss.name
+    const card = this.screens.card
+    card.hidden = false
+    card.classList.remove('out')
+    window.setTimeout(() => card.classList.add('out'), 2600)
+    window.setTimeout(() => (card.hidden = true), 3100)
+    this.hintT = this.touch ? 0 : 9
+    this.get('hint').textContent = 'hold SPACE to scream · click to poop · SHIFT to jump'
+    this.get('hint').classList.toggle('show', this.hintT > 0)
+  }
+
+  hideCard() {
+    this.screens.card.hidden = true
+  }
+
+  updateHud(s: State, dt: number) {
+    const p = s.player
+    const lvl = currentLevel(s)
+    const hearts = Math.round((p.hp / HEART) * 2) / 2
+    if (hearts !== this.lastHearts) {
       let html = ''
-      for (let i = 0; i < b.totalHits; i++) {
-        const cls = i < b.hits ? 'hit' : Math.floor(i / b.def.hitsPerPhase) === ph ? 'now' : ''
-        html += `<i class="${cls}"></i>`
+      for (let i = 0; i < p.maxHp / HEART; i++) {
+        const v = hearts - i
+        html += `<i class="${v >= 1 ? 'full' : v >= 0.5 ? 'half' : 'empty'}"></i>`
       }
-      pips.innerHTML = html
-      bossHud.classList.toggle('open', b.state === 'exposed')
+      this.get('heart-row').innerHTML = html
+      this.get('hearts').classList.toggle('low', hearts <= 1)
+      this.lastHearts = hearts
+    }
+    const powers: string[] = []
+    if (p.pacifierT > 0) powers.push(`<span class="chip gold">MEGA SCREAM ${Math.ceil(p.pacifierT)}</span>`)
+    if (p.rattleT > 0) powers.push(`<span class="chip brown">POOP STORM ${Math.ceil(p.rattleT)}</span>`)
+    const ph = powers.join('')
+    if (this.get('powers').innerHTML !== ph) this.get('powers').innerHTML = ph
+
+    this.get('clock').textContent = fmtClock(s.time)
+
+    if (s.phase === 'wreck') {
+      this.get('goal-wrap').hidden = false
+      this.get('boss-wrap').hidden = true
+      const pct = Math.floor(s.wreck * 100)
+      if (pct !== this.lastPct) {
+        this.get('goal-fill').style.width = `${pct}%`
+        this.get('goal-text').textContent = pct === 0 ? 'WRECK IT!' : `${pct}% WRECKED`
+        this.get('goal-wrap').classList.toggle('almost', pct >= 85)
+        this.lastPct = pct
+      }
+      if (this.lastBoss !== lvl.id) {
+        this.get('goal-label').textContent = lvl.name.toUpperCase()
+        ;(this.get('goal-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
+        ;(this.get('boss-img') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
+        this.get('boss-name').innerHTML = `${lvl.boss.name} <small>by ${lvl.boss.drawnBy}</small>`
+        this.lastBoss = lvl.id
+      }
+    } else if (s.boss) {
+      this.get('goal-wrap').hidden = true
+      this.get('boss-wrap').hidden = false
+      const b = s.boss
+      this.get('boss-fill').style.width = `${(1 - b.hits / b.totalHits) * 100}%`
+      const segs = this.get('boss-segs')
+      if (segs.childElementCount !== b.def.phases) {
+        segs.innerHTML = Array.from({ length: b.def.phases }, () => '<i></i>').join('')
+      }
+      this.get('boss-wrap').classList.toggle('open', b.state === 'exposed')
+      this.get('boss-wrap').classList.toggle('angry', bossPhase(b) >= 1)
+    }
+
+    const ring = this.get('scream-ring')
+    const ch = p.screamCharging ? p.screamCharge : 0
+    ring.style.setProperty('--ch', `${ch * 360}deg`)
+    this.get('btn-scream').classList.toggle('charging', p.screamCharging)
+    this.get('btn-poop').classList.toggle('charging', p.poopHeld && p.poopHoldT > 0.12)
+
+    if (this.hintT > 0) {
+      this.hintT -= dt
+      if (this.hintT <= 0) this.get('hint').classList.remove('show')
     }
   }
 
@@ -187,7 +290,7 @@ export class Ui {
     el.style.left = `${x}px`
     el.style.top = `${y}px`
     el.style.color = color
-    el.style.fontSize = `${Math.min(3.2, 1.1 + size)}rem`
+    el.style.fontSize = `${Math.min(3.2, 1.0 + size)}rem`
     this.popups.appendChild(el)
     setTimeout(() => el.remove(), 900)
   }
@@ -200,60 +303,52 @@ export class Ui {
     ;(t as unknown as { _t: number })._t = window.setTimeout(() => (t.className = ''), ms)
   }
 
-  showWon(s: State, hasNext: boolean) {
-    this.get('won-title').textContent = `${currentLevel(s).name.toUpperCase()} CLEARED!`
-    this.get('won-score').textContent = fmt(s.score)
-    this.get('won-sub').textContent = hasNext
-      ? `${s.boss?.def.name ?? 'The boss'} is toast. ${LEVELS.length - s.levelsCleared} continents left.`
-      : 'You wrecked the whole world. Nova and Louie salute you.'
+  showWon(s: State, hasNext: boolean, timeMs: number, isBest: boolean) {
+    const medal = medalFor(timeMs)
+    this.get('won-title').textContent = `${currentLevel(s).name.toUpperCase()} CONQUERED!`
+    this.get('won-time').textContent = fmtMs(timeMs)
+    this.get('won-medal').textContent = medal ? MEDAL[medal] : '⏱️'
+    this.get('won-sub').textContent = isBest ? 'NEW PERSONAL BEST! Saving...' : 'Saving...'
+    this.get('won-board').innerHTML = ''
     this.get('next').hidden = !hasNext
     this.show('won')
   }
 
-  showOver(s: State, title: string, sub: string) {
-    this.get('over-title').textContent = title
-    this.get('over-score').textContent = fmt(s.score)
-    this.get('over-sub').textContent = sub
-    this.get('over-board').innerHTML = ''
+  setWonSub(text: string) {
+    this.get('won-sub').textContent = text
+  }
+
+  showOver(s: State) {
+    const lvl = currentLevel(s)
+    const pct = Math.floor(s.wreck * 100)
+    this.get('over-sub').textContent =
+      s.phase === 'over' && s.boss
+        ? `${lvl.boss.name} won this time. You got ${s.boss.hits} of ${s.boss.totalHits} hits in.`
+        : `You wrecked ${pct}% of ${lvl.name} in ${fmtClock(s.time)}.`
     this.show('over')
   }
 
-  setOverSub(sub: string) {
-    this.get('over-sub').textContent = sub
-  }
-
-  renderBoard(target: 'over-board' | 'board-list', rows: ScoreRow[] | null, note?: string) {
+  renderBoard(target: 'won-board' | 'board-list', rows: TimeRow[] | null, note?: string) {
     const el = this.get(target)
     if (!rows) {
       el.innerHTML = `<div class="empty">${note ?? 'Leaderboard offline'}</div>`
       return
     }
     if (rows.length === 0) {
-      el.innerHTML = `<div class="empty">${note ?? 'No scores yet. Be first!'}</div>`
+      el.innerHTML = `<div class="empty">${note ?? 'No times yet. Be first!'}</div>`
       return
     }
     el.innerHTML = rows
-      .map(
-        (r, i) =>
-          `<div class="row ${r.mine ? 'mine' : ''}"><span class="rank">${i + 1}</span><span class="nm">${escapeHtml(r.name)}</span><span class="lv">${levelShort(r.level, r.levelsCleared)}</span><span class="sc">${fmt(r.score)}</span></div>`,
-      )
+      .map((r, i) => {
+        const medal = medalFor(r.timeMs)
+        return `<div class="row ${r.mine ? 'mine' : ''}"><span class="rank">${i + 1}</span><span class="nm">${escapeHtml(r.name)}</span><span class="md">${medal ? MEDAL[medal] : ''}</span><span class="tm">${fmtMs(r.timeMs)}</span></div>`
+      })
       .join('')
   }
 
-  bindBoardTabs(fn: (board: 'alltime' | 'today') => void) {
-    for (const b of this.root.querySelectorAll<HTMLButtonElement>('.tab')) {
-      b.addEventListener('click', () => {
-        for (const o of this.root.querySelectorAll('.tab')) o.classList.remove('on')
-        b.classList.add('on')
-        fn(b.dataset.board as 'alltime' | 'today')
-      })
-    }
+  setBoardTab(board: string) {
+    for (const b of this.root.querySelectorAll<HTMLButtonElement>('#board-tabs .tab')) b.classList.toggle('on', b.dataset.board === board)
   }
-}
-
-function levelShort(level: string, cleared: number) {
-  const l = LEVELS.find((x) => x.id === level)
-  return `${cleared}🌍 ${l ? l.name.split(' ').map((w) => w[0]).join('') : ''}`
 }
 
 function escapeHtml(s: string) {

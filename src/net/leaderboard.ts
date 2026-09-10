@@ -1,17 +1,15 @@
-export interface ScoreRow {
+export interface TimeRow {
   id?: number
   name: string
-  score: number
   level: string
+  timeMs: number
   levelsCleared: number
   createdAt?: string
   mine?: boolean
 }
 
-export type Board = 'alltime' | 'today'
-
 const NAME_KEY = 'kw.name'
-const LOCAL_KEY = 'kw.scores'
+const BEST_KEY = 'kw.best'
 
 export const playerName = {
   get(): string {
@@ -30,35 +28,34 @@ export const playerName = {
   },
 }
 
-export function localScores(): ScoreRow[] {
+export function localBests(): Record<string, number> {
   try {
-    return JSON.parse(localStorage.getItem(LOCAL_KEY) ?? '[]') as ScoreRow[]
+    return JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}') as Record<string, number>
   } catch {
-    return []
+    return {}
   }
 }
 
-export function saveLocal(row: ScoreRow) {
-  const rows = localScores()
-  rows.push(row)
-  rows.sort((a, b) => b.score - a.score)
+// Returns true when this time is a new personal best for the board.
+export function saveLocalBest(board: string, timeMs: number): boolean {
+  const bests = localBests()
+  const prev = bests[board]
+  if (prev !== undefined && prev <= timeMs) return false
+  bests[board] = timeMs
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(rows.slice(0, 30)))
+    localStorage.setItem(BEST_KEY, JSON.stringify(bests))
   } catch {
     /* ignore */
   }
+  return true
 }
 
-export function localBest(): number {
-  return localScores()[0]?.score ?? 0
-}
-
-export async function fetchBoard(board: Board, limit = 20): Promise<ScoreRow[] | null> {
+export async function fetchBoard(board: string, limit = 20): Promise<TimeRow[] | null> {
   try {
-    const res = await fetch(`/api/scores?board=${board}&limit=${limit}`, { cache: 'no-store' })
+    const res = await fetch(`/api/times?board=${encodeURIComponent(board)}&limit=${limit}`, { cache: 'no-store' })
     if (!res.ok) return null
-    const data = (await res.json()) as { scores: ScoreRow[] }
-    return data.scores
+    const data = (await res.json()) as { times: TimeRow[] }
+    return data.times
   } catch {
     return null
   }
@@ -66,17 +63,17 @@ export async function fetchBoard(board: Board, limit = 20): Promise<ScoreRow[] |
 
 export interface SubmitPayload {
   name: string
-  score: number
+  kind: 'level' | 'world'
   level: string
+  timeMs: number
   levelsCleared: number
-  durationMs: number
   version: string
   stats: Record<string, number>
 }
 
-export async function submitScore(payload: SubmitPayload): Promise<{ ok: boolean; rank?: number; error?: string }> {
+export async function submitTime(payload: SubmitPayload): Promise<{ ok: boolean; rank?: number; error?: string }> {
   try {
-    const res = await fetch('/api/scores', {
+    const res = await fetch('/api/times', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
@@ -86,4 +83,11 @@ export async function submitScore(payload: SubmitPayload): Promise<{ ok: boolean
   } catch (e) {
     return { ok: false, error: String(e) }
   }
+}
+
+export function fmtMs(ms: number): string {
+  const s = ms / 1000
+  const m = Math.floor(s / 60)
+  const sec = s - m * 60
+  return `${m}:${sec.toFixed(1).padStart(4, '0')}`
 }
