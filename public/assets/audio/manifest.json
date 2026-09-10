@@ -1,0 +1,18 @@
+{
+  "_readme": "Map a sound event to one or more files under /assets/audio/. Drop in home recordings and list them here. Missing entries fall back to synthesized placeholder sounds.",
+  "scream": ["scream.m4a"],
+  "smash": [],
+  "splat": [],
+  "poopThrow": [],
+  "npcScared": [],
+  "playerHurt": [],
+  "bossTelegraph": [],
+  "bossHurt": [],
+  "bossDead": [],
+  "duoGrow": [],
+  "jump": [],
+  "multUp": [],
+  "multLost": [],
+  "win": [],
+  "gameOver": []
+}
