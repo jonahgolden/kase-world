@@ -28,14 +28,24 @@ export function botInput(s: State): Input {
     return out
   }
 
-  let pickup: { x: number; z: number; d: number } | null = null
+  let pickup: { x: number; z: number; d: number; y: number } | null = null
   for (const k of s.pickups) {
+    if (k.y > 1.5) continue // tall platforms need a fan; the bot is not that clever
     const d = Math.hypot(k.x - p.x, k.z - p.z)
-    if (d < 6 && (!pickup || d < pickup.d)) pickup = { x: k.x, z: k.z, d }
+    const want = s.goal.kind === 'find' && k.kind === 'lantern' ? 999 : 6
+    if (d < want && (!pickup || d < pickup.d)) pickup = { x: k.x, z: k.z, d, y: k.y }
+  }
+  if (s.goal.kind === 'find' && !pickup) {
+    for (const pr of s.props) {
+      if (pr.broken || pr.kind !== 'crate') continue
+      const d = Math.hypot(pr.x - p.x, pr.z - p.z)
+      if (!pickup || d < pickup.d) pickup = { x: pr.x, z: pr.z, d, y: 0 }
+    }
   }
   if (pickup) {
     out.mx = (pickup.x - p.x) / pickup.d
     out.mz = (pickup.z - p.z) / pickup.d
+    if (pickup.y > 0.3 && pickup.d < 5.5 && s.tick % 25 === 0) out.jump = true
     return out
   }
 

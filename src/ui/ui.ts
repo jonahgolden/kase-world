@@ -100,7 +100,7 @@ export class Ui {
         <h2>HOW TO PLAY</h2>
         <p class="goal-line">Fill the <b>WRECK</b> meter by smashing stuff and scaring grown-ups. The boss shows up at 100%. Dodge its attacks, then hit it while the <b class="green">green ring</b> is on.</p>
         <div class="ctls">${controls}</div>
-        <p class="goal-line small">Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
+        <p class="goal-line small">Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
         <div class="row-btns">
           <button id="help-resume" class="cta">RESUME</button>
           <button id="help-restart" class="ghost">RESTART LEVEL</button>
@@ -241,7 +241,7 @@ export class Ui {
   showCard(s: State) {
     const lvl = currentLevel(s)
     this.get('card-name').textContent = lvl.name.toUpperCase()
-    this.get('card-goal').textContent = `Wreck ${Math.round(lvl.goalPct * 100)}% of it`
+    this.get('card-goal').textContent = lvl.goal.kind === 'find' ? `Find ${lvl.goal.count} lanterns 🏮 (red crates hide some)` : `Wreck ${Math.round(lvl.goal.pct * 100)}% of it`
     ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
     this.get('card-boss-name').textContent = lvl.boss.name
     const card = this.screens.card
@@ -381,6 +381,8 @@ export class Ui {
     if (p.wings) powers.push('<span class="chip blue">🪽</span>')
     if (p.goggles) powers.push('<span class="chip green">🥽</span>')
     if (p.potatoes > 0) powers.push(`<span class="chip brown">🥔×${p.potatoes}</span>`)
+    if (p.congaT > 0) powers.push(`<span class="chip pink">💃 CONGA ${Math.ceil(p.congaT)}</span>`)
+    if (p.giantT > 0) powers.push(`<span class="chip green">🦣 GIANT ${Math.ceil(p.giantT)}</span>`)
     const ph = powers.join('')
     if (this.get('powers').innerHTML !== ph) this.get('powers').innerHTML = ph
 
@@ -392,7 +394,8 @@ export class Ui {
       const pct = Math.floor(s.wreck * 100)
       if (pct !== this.lastPct) {
         this.get('goal-fill').style.width = `${pct}%`
-        this.get('goal-text').textContent = pct === 0 ? 'WRECK IT!' : `${pct}% WRECKED`
+        if (s.goal.kind === 'find') this.get('goal-text').textContent = `🏮 ${s.found} / ${s.goal.count} LANTERNS`
+        else this.get('goal-text').textContent = pct === 0 ? 'WRECK IT!' : `${pct}% WRECKED`
         this.get('goal-wrap').classList.toggle('almost', pct >= 85)
         this.lastPct = pct
       }

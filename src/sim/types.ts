@@ -23,6 +23,7 @@ export type PropKind =
   | 'sign'
   | 'trash'
   | 'gift'
+  | 'crate'
 
 export interface Prop {
   id: number
@@ -48,7 +49,7 @@ export interface Prop {
 }
 
 export type NpcKind = 'adult' | 'dog' | 'chicken'
-export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower'
+export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow'
 
 export interface Npc {
   id: number
@@ -102,7 +103,9 @@ export interface Debris {
   settled: boolean
 }
 
-export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato'
+export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'lantern'
+
+export type Goal = { kind: 'wreck'; pct: number } | { kind: 'find'; count: number }
 
 export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake'
 
@@ -177,6 +180,9 @@ export interface Player {
   portalCd: number
   inLake: boolean
   gy: number // ground height under the player
+  baseR: number
+  congaT: number // seconds of conga line left
+  giantT: number // seconds of giant mode left
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt'
@@ -264,6 +270,8 @@ export type EventType =
   | 'fan'
   | 'explode'
   | 'splash'
+  | 'congaSmash'
+  | 'found'
   | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'
@@ -355,6 +363,9 @@ export interface State {
   duo: Duogringo
   boss: Boss | null
   bossRing: { x: number; z: number; r: number } | null
+  conga: number[] // npc ids in the conga line, in order
+  goal: Goal
+  found: number // lanterns collected on find levels
   wreck: number // 0..1 progress toward the boss
   wreckPoints: number
   wreckGoalPoints: number

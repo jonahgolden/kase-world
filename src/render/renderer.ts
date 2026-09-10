@@ -17,6 +17,9 @@ const PICKUP_COLOR: Record<string, number> = {
   wings: 0xbfe6ff,
   goggles: 0x4cd137,
   potato: 0xd9a066,
+  conga: 0xff8fab,
+  giant: 0x4cd137,
+  lantern: 0xff3b3b,
 }
 import { ASSETS } from './assets.ts'
 import { Particles } from './particles.ts'
@@ -100,6 +103,7 @@ export class Renderer {
   private tmpS = new THREE.Vector3()
   private tmpE = new THREE.Euler()
   private time = 0
+  private giantScale = 1
   readonly lowEnd: boolean
 
   constructor(canvas: HTMLCanvasElement, touch: boolean) {
@@ -618,6 +622,12 @@ export class Renderer {
         add(new THREE.CylinderGeometry(0.32, 0.28, 0.85, 10), mat(color), 0, 0.43)
         add(new THREE.CylinderGeometry(0.36, 0.36, 0.1, 10), mat(0x333344), 0, 0.9)
         break
+      case 'crate':
+        add(new THREE.BoxGeometry(0.95, 0.85, 0.95), mat(color), 0, 0.43)
+        add(new THREE.BoxGeometry(1.0, 0.1, 1.0), mat(0xffd23f), 0, 0.85)
+        add(new THREE.BoxGeometry(1.0, 0.1, 1.0), mat(0xffd23f), 0, 0.05)
+        add(new THREE.CylinderGeometry(0.16, 0.16, 0.2, 10), mat(0xff3b3b), 0, 0.98)
+        break
       case 'gift':
         add(new THREE.BoxGeometry(0.9, 0.8, 0.9), mat(color), 0, 0.4)
         add(new THREE.BoxGeometry(0.95, 0.85, 0.16), mat(0xffd23f), 0, 0.4)
@@ -691,6 +701,11 @@ export class Renderer {
       legs.position.y = 0.1
       body.add(legs)
       body.name = 'chickenBody'
+      const hat = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.28, 8), this.toon(0xff8fab))
+      hat.position.set(0, 0.9, 0.2)
+      hat.name = 'partyhat'
+      hat.visible = false
+      body.add(hat)
       const wrap = new THREE.Group()
       wrap.add(body)
       body.position.y = 0
@@ -723,6 +738,11 @@ export class Renderer {
       g.eyes = eyes
       body.add(eyes)
     }
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 8), this.toon(0xff8fab))
+    hat.position.y = n.kind === 'adult' ? 1.55 : 0.85
+    hat.name = 'partyhat'
+    hat.visible = false
+    body.add(hat)
     g.body = body
     g.add(body)
     this.npcViews.set(n.id, g)
@@ -789,6 +809,24 @@ export class Renderer {
       add(new THREE.TorusGeometry(0.16, 0.06, 8, 16), 0x4cd137, -0.18, 0.5, 0)
       add(new THREE.TorusGeometry(0.16, 0.06, 8, 16), 0x4cd137, 0.18, 0.5, 0)
       add(new THREE.BoxGeometry(0.1, 0.05, 0.05), 0x1b1b2f, 0, 0.5, 0)
+    } else if (k.kind === 'conga') {
+      add(new THREE.SphereGeometry(0.24, 10, 8), 0xffd23f, 0, 0.6)
+      add(new THREE.SphereGeometry(0.24, 10, 8), 0xff8fab, 0.3, 0.45)
+      add(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6), 0x8b5a2b, 0, 0.25)
+      add(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6), 0x8b5a2b, 0.3, 0.1)
+    } else if (k.kind === 'giant') {
+      const b = add(new THREE.CylinderGeometry(0.2, 0.24, 0.6, 10), 0x4cd137, 0, 0.35)
+      b.scale.setScalar(1.3)
+      add(new THREE.CylinderGeometry(0.1, 0.12, 0.2, 8), 0x1b1b2f, 0, 0.8)
+      add(new THREE.SphereGeometry(0.07, 8, 6), 0xbfffbf, 0.12, 0.55)
+      add(new THREE.SphereGeometry(0.05, 8, 6), 0xbfffbf, -0.1, 0.4)
+    } else if (k.kind === 'lantern') {
+      add(new THREE.CylinderGeometry(0.22, 0.22, 0.42, 10), 0xff3b3b, 0, 0.5)
+      add(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 10), 0xffd23f, 0, 0.74)
+      add(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 10), 0xffd23f, 0, 0.26)
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff1a8 }))
+      glow.position.y = 0.5
+      g.add(glow)
     } else if (k.kind === 'potato') {
       const pot = add(new THREE.SphereGeometry(0.28, 10, 8), 0xc49a6c, 0, 0.45)
       pot.scale.set(1.3, 0.9, 1)
@@ -940,6 +978,13 @@ export class Renderer {
         break
       case 'fan':
         this.particles.burst(x, 0.3, z, 14, 0xffffff, 2, 0.1)
+        break
+      case 'found':
+        this.particles.burst(x, 1.2, z, 30, 0xff3b3b, 4, 0.14)
+        this.particles.burst(x, 1.2, z, 12, 0xffd23f, 3, 0.12)
+        break
+      case 'congaSmash':
+        this.particles.burst(x, 0.8, z, 10, 0xff8fab, 3, 0.12)
         break
       case 'explode':
         this.addShake(0.9)
@@ -1130,7 +1175,14 @@ export class Renderer {
     const ch = p.screamCharging ? p.screamCharge : 0
     const squash = 1 + p.screamFlash * 0.6 + ch * 0.35 + (ch > 0 ? Math.sin(this.time * 40) * 0.05 * ch : 0)
     const wide = 1 + ch * 0.25
-    this.player.scale.set(wide / Math.sqrt(squash), squash, wide / Math.sqrt(squash))
+    const giantWant = p.giantT > 0 ? 2.4 : 1
+    this.giantScale += (giantWant - this.giantScale) * Math.min(1, dt * 6)
+    const gs = this.giantScale
+    this.player.scale.set((wide / Math.sqrt(squash)) * gs, squash * gs, (wide / Math.sqrt(squash)) * gs)
+    if (gs > 1.3 && speed > 1 && this.time % 0.35 < dt) {
+      this.particles.burst(p.x, 0.1, p.z, 8, 0x776655, 3, 0.14)
+      this.addShake(0.12)
+    }
     this.chargeCone.visible = ch > 0
     if (ch > 0) {
       this.chargeCone.position.set(p.x, 0.04, p.z)
@@ -1212,6 +1264,9 @@ export class Renderer {
       v.body.rotation.x = n.state === 'flee' ? -0.25 : n.state === 'chase' ? 0.2 : 0
       const eyeScale = n.state === 'flee' || n.state === 'stunned' ? 1.6 : 1
       v.eyes.scale.setScalar(eyeScale)
+      const hat = v.getObjectByName('partyhat')
+      if (hat) hat.visible = n.state === 'follow'
+      if (n.state === 'follow') v.body.rotation.z = Math.sin(this.time * 10 + n.id) * 0.25
       this.flash(v.mats, 0xffffff, n.hitFlash > 0 ? 0.7 : 0)
     }
 
@@ -1366,8 +1421,8 @@ export class Renderer {
   private updateCamera(s: State, dt: number) {
     const p = s.player
     const portrait = this.camera.aspect < 1
-    const back = (portrait ? 10.5 : 9) + this.bossMode * 3
-    const up = (portrait ? 12 : 8.5) + this.bossMode * 2.5
+    const back = (portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3
+    const up = (portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3
     const lookAhead = 0.35
     let tx = p.x + p.vx * lookAhead
     let tz = p.z + p.vz * lookAhead

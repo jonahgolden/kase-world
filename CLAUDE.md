@@ -65,4 +65,10 @@ and sit on platforms/islands/far coasts; minimap (continent outline, remembered 
 chickens; NPC scares worth more; new finds: fedora (EPIC), quad (2 hits), wings (glide), goggles
 (map reveal), hot potatoes (contact bombs). Credits read "the Erbalaban Bros" except Louie's water
 monsters. Bot soak + 21 sim tests cover platforms, fans, portals, lakes, ring, bombs.
-Next: family playtest of v0.4 → tune; then goal shapes (find N, chase) and per-continent boss attacks.
+v0.5 (deployed): Conga Rattle (grown-ups within 6.5 join a line behind Kase, smash what they bump,
+end dizzy), Giant Formula (2.4x baby, unhurtable, smashes on touch, scares everyone, 8 s), and the
+second goal shape: Asia is a FIND level (7 lanterns, 3 in red crates in the wreck spots, 4 on
+platforms/islands/far coast; meter shows the count). `LevelDef.goal` is `{kind:'wreck',pct}` or
+`{kind:'find',count}`. Bot handles find levels and hops onto low platforms.
+Next: family playtest → tune; then chase goal (S. America, Duogringo steals the pacifier) and
+per-continent boss attacks; unbuilt string ideas: Zzz nap bomb, decoy baby, boomerang binky, giraffe.

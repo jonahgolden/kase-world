@@ -343,6 +343,78 @@ describe('sim', () => {
     expect(s.player.rideHp).toBe(CFG.ride.quad.hp - 1)
   })
 
+  it('conga rattle: nearby grown-ups follow, smash what they bump, and end up dizzy', () => {
+    const s = createState({ seed: 8 })
+    s.features = []
+    s.npcs = s.npcs.slice(0, 3)
+    for (const n of s.npcs) {
+      n.x = s.player.x + 2
+      n.z = s.player.z
+      n.state = 'wander'
+    }
+    const box = s.props.find((p) => p.kind === 'box')!
+    box.x = 6
+    box.z = 0
+    s.pickups = [{ id: 970, kind: 'conga', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
+    run(s, 0.1)
+    expect(s.player.congaT).toBeGreaterThan(0)
+    run(s, 0.5)
+    expect(s.conga.length).toBe(3)
+    expect(s.npcs.every((n) => n.state === 'follow')).toBe(true)
+    run(s, 3, { ...EMPTY_INPUT, mx: 1 })
+    run(s, 2, { ...EMPTY_INPUT, mx: -1 })
+    run(s, CFG.conga.time)
+    expect(s.player.congaT).toBe(0)
+    expect(s.conga.length).toBe(0)
+    expect(s.npcs.every((n) => n.state !== 'follow')).toBe(true)
+  })
+
+  it('giant formula: no damage taken, props explode on touch, grown-ups run', () => {
+    const s = createState({ seed: 8 })
+    s.features = []
+    const car = s.props.find((p) => p.kind === 'car')!
+    car.x = 3
+    car.z = 0
+    s.npcs = [{ id: 951, kind: 'adult', x: 2, z: 2, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0 }]
+    s.pickups = [{ id: 971, kind: 'giant', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1 }]
+    run(s, 0.1)
+    expect(s.player.giantT).toBeGreaterThan(0)
+    expect(s.player.r).toBeGreaterThan(s.player.baseR * 2)
+    const hp = s.player.hp
+    run(s, 1.5, { ...EMPTY_INPUT, mx: 1 })
+    expect(car.broken).toBe(true)
+    expect(s.player.hp).toBe(hp)
+    expect(s.npcs[0].state).toBe('flee')
+    run(s, CFG.giant.time)
+    expect(s.player.giantT).toBe(0)
+    expect(s.player.r).toBe(s.player.baseR)
+  })
+
+  it('find level: seven lanterns summon the boss, crates hide some', () => {
+    const s = createState({ seed: 3, levelId: 'asia' })
+    expect(s.goal.kind).toBe('find')
+    const crates = s.props.filter((p) => p.kind === 'crate')
+    const loose = s.pickups.filter((k) => k.kind === 'lantern')
+    expect(crates.length + loose.length).toBe(7)
+    expect(crates.every((c) => c.drop === 'lantern')).toBe(true)
+    s.player.hp = 1e6
+    run(s, 60, botInput)
+    expect(s.found + crates.filter((c) => c.broken).length).toBeGreaterThan(0)
+    expect(s.phase).toBe('wreck')
+    s.features = []
+    for (const k of s.pickups.filter((k) => k.kind === 'lantern')) {
+      k.x = s.player.x
+      k.z = s.player.z
+      k.y = s.player.y
+      k.age = 1
+    }
+    run(s, 0.2)
+    for (const c of crates) if (!c.broken) c.drop = null
+    s.found = 7
+    run(s, 0.1)
+    expect(s.phase).toBe('boss')
+  })
+
   it('player dies at zero hp and the game is over', () => {
     const s = createState({ seed: 1 })
     s.player.hp = 10

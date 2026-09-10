@@ -83,6 +83,8 @@ export const CFG = {
     rattleSpread: 0.35,
   },
   potato: { fuse: 1.2, radius: 3.6, damage: 150, count: 3 },
+  conga: { time: 14, radius: 6.5, spacing: 1.1, smashPerSec: 60, dizzy: 1.5 },
+  giant: { time: 8, scale: 2.4, speed: 1.2, smash: 4, scare: 7 },
   fan: { up: 13, push: 7, cd: 0.8 },
   portal: { cd: 1.5 },
   duo: {
@@ -121,7 +123,7 @@ export const CFG = {
   caps: { splats: 220, debris: 700 },
 }
 
-const GIFT_DROPS: PickupKind[] = ['clock', 'clock', 'skateboard', 'megaphone', 'pacifier', 'rattle', 'milk', 'milk', 'potato', 'wings']
+const GIFT_DROPS: PickupKind[] = ['clock', 'clock', 'skateboard', 'megaphone', 'pacifier', 'rattle', 'milk', 'milk', 'potato', 'wings', 'conga', 'giant']
 
 export interface CreateOpts {
   seed?: number
@@ -189,6 +191,9 @@ export function createState(opts: CreateOpts = {}): State {
     portalCd: 0,
     inLake: false,
     gy: 0,
+    baseR: P.r,
+    congaT: 0,
+    giantT: 0,
   }
   const s: State = {
     version: VERSION,
@@ -219,6 +224,9 @@ export function createState(opts: CreateOpts = {}): State {
     duo: { x: 0, y: 0, z: 0, vx: 0, vz: 0, facing: 0, power: 0, state: 'chase', stateT: 0, peckCd: 2, hitFlash: 0 },
     boss: null,
     bossRing: null,
+    conga: [],
+    goal: level.goal,
+    found: 0,
     wreck: 0,
     wreckPoints: 0,
     wreckGoalPoints: 1,
@@ -479,18 +487,26 @@ function populate(s: State, level: LevelDef) {
     const c = spots[i % spots.length]
     placeProp('gift', c.x, c.z, 6, 3.5)
   }
+  // find levels: about half the lanterns hide in red crates, the rest sit in hard-to-reach places
+  const lanternCount = level.goal.kind === 'find' ? level.goal.count : 0
+  const crateCount = Math.floor(lanternCount / 2)
+  for (let i = 0; i < crateCount && spots.length; i++) {
+    const c = spots[(i * 2 + 1) % spots.length]
+    placeProp('crate', c.x, c.z, 6, 3.5)
+  }
   let drops = 0
   let total = 0
   for (const pr of s.props) {
     total += pr.points
-    if (pr.kind === 'gift') pr.drop = pick(s.rng, GIFT_DROPS)
+    if (pr.kind === 'crate') pr.drop = 'lantern'
+    else if (pr.kind === 'gift') pr.drop = pick(s.rng, GIFT_DROPS)
     else if (drops < CFG.wreck.maxDrops && rand(s.rng) < CFG.wreck.dropChance) {
       const roll = rand(s.rng)
       pr.drop = roll < 0.5 ? 'milk' : roll < 0.75 ? 'pacifier' : 'rattle'
       drops++
     }
   }
-  s.wreckGoalPoints = Math.max(1, Math.round(total * level.goalPct))
+  s.wreckGoalPoints = Math.max(1, Math.round(total * (level.goal.kind === 'wreck' ? level.goal.pct : 1)))
 
   // 3. creatures
   for (const [kind, count] of Object.entries(level.npcs) as [NpcKind, number][]) {
@@ -552,7 +568,10 @@ function populate(s: State, level: LevelDef) {
       return
     }
   }
-  for (const [kind, count] of Object.entries(level.finds) as [PickupKind, number][]) {
+  const finds: [PickupKind, number][] = Object.entries(level.finds) as [PickupKind, number][]
+  const cratesPlaced = s.props.filter((p) => p.kind === 'crate').length
+  if (lanternCount - cratesPlaced > 0) finds.unshift(['lantern', lanternCount - cratesPlaced])
+  for (const [kind, count] of finds) {
     for (let i = 0; i < count; i++) {
       switch (kind) {
         case 'clock':
@@ -565,6 +584,12 @@ function populate(s: State, level: LevelDef) {
           break
         case 'fedora':
           if (!onTop(islands, kind)) farFind(kind, 1.5)
+          break
+        case 'lantern':
+          if (!onTop(i % 2 === 0 ? tallTops : lowTops, kind) && !onTop(islands, kind)) farFind(kind, 1.5)
+          break
+        case 'giant':
+          farFind(kind, 1.5)
           break
         case 'quad':
         case 'skateboard':
@@ -621,6 +646,7 @@ export function step(s: State, input: Input) {
   updateBombs(s)
   updateProps(s)
   updateNpcs(s)
+  updateConga(s)
   updateDuogringo(s)
   updateBoss(s)
   updateDebris(s)
@@ -695,9 +721,11 @@ function updatePlayer(s: State, input: Input) {
     mz /= len
   }
   const ride = p.ride ? CFG.ride[p.ride] : null
+  const giant = p.giantT > 0
+  p.r = p.baseR * (giant ? CFG.giant.scale : 1)
   p.inLake = p.y <= 0.05 && !!lakeAt(s, p.x, p.z)
   const slow = (p.screamCharging ? 0.5 : 1) * (p.inLake ? C.lakeSpeed : 1)
-  const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * slow
+  const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * (giant ? CFG.giant.speed : 1) * slow
   const accel = C.accel * (ride ? ride.accel : 1)
   if (p.hitstun > 0) {
     p.hitstun -= DT
@@ -780,6 +808,14 @@ function updatePlayer(s: State, input: Input) {
       ev(s, { t: 'powerEnd', kind: 'rattle' })
     }
   }
+  if (p.giantT > 0) {
+    p.giantT -= DT
+    if (p.giantT <= 0) {
+      p.giantT = 0
+      p.r = p.baseR
+      ev(s, { t: 'powerEnd', kind: 'giant' })
+    }
+  }
   // remember nearby finds for the minimap
   for (const k of s.pickups) {
     if (dist(k.x, k.z, p.x, p.z) < CFG.seenRadius && !s.seen.includes(k.id)) s.seen.push(k.id)
@@ -788,7 +824,7 @@ function updatePlayer(s: State, input: Input) {
 
 export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, big = 0.5) {
   const p = s.player
-  if (p.invuln > 0 || s.phase === 'over') return false
+  if (p.invuln > 0 || s.phase === 'over' || p.giantT > 0) return false
   dmg = Math.max(10, Math.round(dmg / 10) * 10)
   p.hp = Math.max(0, p.hp - dmg)
   s.stats.damageTaken += dmg
@@ -832,8 +868,8 @@ export function addWreck(s: State, pts: number, x: number, z: number, label?: st
   const gain = Math.round(pts * (1 + CFG.combo.gainPerStep * (s.combo - 1)))
   const before = s.wreckPoints
   s.wreckPoints = Math.min(s.wreckGoalPoints, s.wreckPoints + gain)
-  s.wreck = s.wreckPoints / s.wreckGoalPoints
-  const pct = (s.wreckPoints - before) / s.wreckGoalPoints
+  if (s.goal.kind === 'wreck') s.wreck = s.wreckPoints / s.wreckGoalPoints
+  const pct = s.goal.kind === 'wreck' ? (s.wreckPoints - before) / s.wreckGoalPoints : 0
   ev(s, { t: 'wreck', x, z, points: gain, pct, combo: s.combo, label, color })
   if (s.combo >= 2) ev(s, { t: 'combo', x, z, combo: s.combo })
 }
@@ -1195,6 +1231,17 @@ function collect(s: State, k: Pickup) {
     case 'potato':
       p.potatoes += CFG.potato.count
       break
+    case 'conga':
+      p.congaT = CFG.conga.time
+      break
+    case 'giant':
+      p.giantT = CFG.giant.time
+      break
+    case 'lantern':
+      s.found++
+      if (s.goal.kind === 'find') s.wreck = s.found / s.goal.count
+      ev(s, { t: 'found', x: k.x, z: k.z, points: s.found })
+      break
   }
   ev(s, { t: 'pickup', x: k.x, z: k.z, kind: k.kind })
 }
@@ -1294,11 +1341,12 @@ function updateProps(s: State) {
         pr.x += nx * overlap * (1 - heavy)
         pr.z += nz * overlap * (1 - heavy)
         if (speed > C.smashSpeed) {
-          const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (ride ? ride.push : 1)
+          const giant = p.giantT > 0
+          const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (ride ? ride.push : 1) * (giant ? 2 : 1)
           pr.vx += nx * push
           pr.vz += nz * push
           pr.angVel += range(s.rng, -6, 6)
-          damageProp(s, pr, speed * C.smashDamagePerSpeed * (ride ? ride.smash : 1) * (p.fedora ? 1.5 : 1))
+          damageProp(s, pr, speed * C.smashDamagePerSpeed * (ride ? ride.smash : 1) * (p.fedora ? 1.5 : 1) * (giant ? CFG.giant.smash : 1))
           const slow = ride ? 0.3 : 0.6
           p.vx *= 1 - heavy * slow
           p.vz *= 1 - heavy * slow
@@ -1375,6 +1423,9 @@ function updateNpcs(s: State) {
     n.stateT -= DT
     n.scaredCd = Math.max(0, n.scaredCd - DT)
     const dp = dist(n.x, n.z, p.x, p.z)
+    if (p.giantT > 0 && dp < CFG.giant.scare && (n.state === 'wander' || n.state === 'chase' || n.state === 'recoil')) {
+      scareNpc(s, n, p.x, p.z, 4, 'GIANT!')
+    }
     switch (n.state) {
       case 'wander': {
         if (n.stateT <= 0) {
@@ -1444,6 +1495,22 @@ function updateNpcs(s: State) {
         }
         break
       }
+      case 'follow': {
+        const idx = s.conga.indexOf(n.id)
+        const leader = idx <= 0 ? null : s.npcs.find((m) => m.id === s.conga[idx - 1])
+        const lx = leader ? leader.x : p.x
+        const lz = leader ? leader.z : p.z
+        const dx = n.x - lx
+        const dz = n.z - lz
+        const d = Math.hypot(dx, dz) || 1
+        const gap = CFG.conga.spacing + (leader ? leader.r : p.r) + n.r
+        if (d > gap) moveToward(n, lx + (dx / d) * gap, lz + (dz / d) * gap, st.chaseSpeed * 1.25 + 1, 9)
+        else {
+          n.vx *= 1 - 6 * DT
+          n.vz *= 1 - 6 * DT
+        }
+        break
+      }
       case 'cower': {
         const h = closestOnRing(n.x, n.z, s.arena.ring)
         const d = moveToward(n, h.x + h.nx * 1.2, h.z + h.nz * 1.2, st.fleeSpeed, 6)
@@ -1467,6 +1534,13 @@ function updateNpcs(s: State) {
       if (Math.abs(dx) > minD || Math.abs(dz) > minD) continue
       const d = Math.hypot(dx, dz)
       if (d < minD && d > 0.001) {
+        if (n.state === 'follow') {
+          // conga dancers smash what they bump into
+          damageProp(s, pr, CFG.conga.smashPerSec * DT * 10)
+          pr.vx += (-dx / d) * 2
+          pr.vz += (-dz / d) * 2
+          if (pr.broken) ev(s, { t: 'congaSmash', x: pr.x, z: pr.z, id: n.id })
+        }
         n.x += (dx / d) * (minD - d)
         n.z += (dz / d) * (minD - d)
       }
@@ -1488,6 +1562,39 @@ function updateNpcs(s: State) {
         b.z += (dz / d) * push
       }
     }
+  }
+}
+
+// ---------------------------------------------------------------- conga line
+
+function updateConga(s: State) {
+  const p = s.player
+  if (p.congaT > 0) {
+    p.congaT -= DT
+    for (const n of s.npcs) {
+      if (s.conga.includes(n.id) || n.state === 'cower') continue
+      if (dist(n.x, n.z, p.x, p.z) < CFG.conga.radius) {
+        s.conga.push(n.id)
+        n.state = 'follow'
+        n.stateT = 0
+        n.hitFlash = 0.3
+      }
+    }
+    if (p.congaT <= 0) {
+      p.congaT = 0
+      for (const id of s.conga) {
+        const n = s.npcs.find((m) => m.id === id)
+        if (!n) continue
+        n.state = 'stunned'
+        n.stateT = CFG.conga.dizzy
+        n.hitFlash = 0.4
+        addWreck(s, 40, n.x, n.z, 'DIZZY!', NPC_STATS[n.kind].color)
+      }
+      s.conga.length = 0
+      ev(s, { t: 'powerEnd', kind: 'conga' })
+    }
+  } else if (s.conga.length) {
+    s.conga.length = 0
   }
 }
 
@@ -1576,6 +1683,8 @@ function spawnBoss(s: State) {
   }
   s.boss = b
   s.bossDamage = 0
+  s.conga.length = 0
+  p.congaT = 0
   for (const n of s.npcs) {
     n.state = 'cower'
     n.stateT = 999
@@ -1862,7 +1971,8 @@ function updateDebris(s: State) {
 // ---------------------------------------------------------------- phase
 
 function updatePhase(s: State) {
-  if (s.phase === 'wreck' && s.wreckPoints >= s.wreckGoalPoints) {
+  const done = s.goal.kind === 'find' ? s.found >= s.goal.count : s.wreckPoints >= s.wreckGoalPoints
+  if (s.phase === 'wreck' && done) {
     s.wreck = 1
     s.phase = 'boss'
     s.phaseT = 0
@@ -1874,6 +1984,7 @@ function updatePhase(s: State) {
 export function skipToBoss(s: State) {
   if (s.phase === 'wreck') {
     s.wreckPoints = s.wreckGoalPoints
+    if (s.goal.kind === 'find') s.found = s.goal.count
     s.wreck = 1
   }
 }

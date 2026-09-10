@@ -327,6 +327,9 @@ function handleEvents(s: State) {
           wings: ['WINGS! Hold JUMP to glide', '#bfe6ff'],
           goggles: ['SPY GOGGLES! Map shows every find', '#4cd137'],
           potato: ['HOT POTATOES ×3', '#d9a066'],
+          conga: ['CONGA TIME! Lead them into stuff', '#ff8fab'],
+          giant: ['GIANT BABY!', '#4cd137'],
+          lantern: ['', '#ff3b3b'],
         }
         const [label, color] = labels[e.kind ?? ''] ?? ['', '#fff']
         if (label) ui.popup(label, pt.x, pt.y, color, 0.8)
@@ -343,6 +346,20 @@ function handleEvents(s: State) {
         break
       case 'rideOn':
         if (e.kind === 'quad') ui.toast('QUAD! Smash everything!', 1400, 'good')
+        break
+      case 'found': {
+        const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)
+        ui.popup(`🏮 ${e.points} / ${s.goal.kind === 'find' ? s.goal.count : '?'}`, pt.x, pt.y, '#ff3b3b', 1.2)
+        break
+      }
+      case 'congaSmash': {
+        const pt = renderer.project(e.x ?? 0, 1.4, e.z ?? 0)
+        ui.popup('CONGA SMASH!', pt.x, pt.y, '#ff8fab', 0.6)
+        break
+      }
+      case 'powerEnd':
+        if (e.kind === 'giant') ui.toast('Back to baby size', 1000)
+        if (e.kind === 'conga') ui.toast('Conga over. They are dizzy!', 1200)
         break
       case 'bossLand':
         hitstop = Math.max(hitstop, 0.25)
@@ -411,7 +428,13 @@ function playSound(e: GameEvent) {
       return
     case 'pickup':
     case 'rideOn':
-      audio.play('bossPhase', { vol: 0.5 })
+      audio.play(e.kind === 'giant' ? 'levelPhase' : e.kind === 'conga' ? 'win' : 'bossPhase', { vol: 0.5 })
+      return
+    case 'found':
+      audio.play('win', { vol: 0.45, pitch: 1.3 })
+      return
+    case 'congaSmash':
+      audio.play('smash', { big: 0.4 })
       return
     case 'timeBonus':
       audio.play('win', { vol: 0.35 })

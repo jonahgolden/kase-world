@@ -1,4 +1,4 @@
-import type { BossDef, FeatureKind, NpcKind, PickupKind, PropKind } from './types.ts'
+import type { BossDef, FeatureKind, Goal, NpcKind, PickupKind, PropKind } from './types.ts'
 
 export interface PropStat {
   r: number
@@ -21,6 +21,7 @@ export const PROP_STATS: Record<PropKind, PropStat> = {
   sign: { r: 0.25, h: 1.8, hp: 25, mass: 1, points: 60, color: 0xffd23f },
   trash: { r: 0.35, h: 0.9, hp: 15, mass: 0.8, points: 40, color: 0x556b2f },
   gift: { r: 0.5, h: 1.0, hp: 30, mass: 1.5, points: 60, color: 0xff5cad },
+  crate: { r: 0.5, h: 0.9, hp: 40, mass: 2, points: 40, color: 0xd93a3a },
 }
 
 export interface NpcStat {
@@ -54,7 +55,7 @@ export interface LevelDef {
   id: string
   name: string
   continent: string
-  goalPct: number // fraction of prop points to wreck before the boss shows up
+  goal: Goal // what summons the boss
   spots: number // clusters of wreckable stuff
   propsPerSpot: number
   singles: number // loose props between spots
@@ -97,6 +98,8 @@ const FINDS_BASIC: Partial<Record<PickupKind, number>> = {
   wings: 1,
   goggles: 1,
   potato: 1,
+  conga: 1,
+  giant: 1,
 }
 const BROS = 'the Erbalaban Bros'
 
@@ -105,7 +108,7 @@ export const LEVELS: LevelDef[] = [
     id: 'north-america',
     name: 'North America',
     continent: 'North America',
-    goalPct: 0.5,
+    goal: { kind: 'wreck', pct: 0.5 },
     spots: 4,
     propsPerSpot: 6,
     singles: 4,
@@ -120,7 +123,7 @@ export const LEVELS: LevelDef[] = [
     id: 'south-america',
     name: 'South America',
     continent: 'South America',
-    goalPct: 0.55,
+    goal: { kind: 'wreck', pct: 0.55 },
     spots: 5,
     propsPerSpot: 6,
     singles: 4,
@@ -135,7 +138,7 @@ export const LEVELS: LevelDef[] = [
     id: 'antarctica',
     name: 'Antarctica',
     continent: 'Antarctica',
-    goalPct: 0.55,
+    goal: { kind: 'wreck', pct: 0.55 },
     spots: 5,
     propsPerSpot: 6,
     singles: 4,
@@ -150,7 +153,7 @@ export const LEVELS: LevelDef[] = [
     id: 'asia',
     name: 'Asia',
     continent: 'Asia',
-    goalPct: 0.6,
+    goal: { kind: 'find', count: 7 },
     spots: 6,
     propsPerSpot: 6,
     singles: 5,
@@ -165,7 +168,7 @@ export const LEVELS: LevelDef[] = [
     id: 'africa',
     name: 'Africa',
     continent: 'Africa',
-    goalPct: 0.6,
+    goal: { kind: 'wreck', pct: 0.6 },
     spots: 6,
     propsPerSpot: 6,
     singles: 5,
@@ -180,7 +183,7 @@ export const LEVELS: LevelDef[] = [
     id: 'australia',
     name: 'Australia',
     continent: 'Australia',
-    goalPct: 0.6,
+    goal: { kind: 'wreck', pct: 0.6 },
     spots: 6,
     propsPerSpot: 6,
     singles: 5,
@@ -195,7 +198,7 @@ export const LEVELS: LevelDef[] = [
     id: 'europe',
     name: 'Europe',
     continent: 'Europe',
-    goalPct: 0.65,
+    goal: { kind: 'wreck', pct: 0.65 },
     spots: 7,
     propsPerSpot: 6,
     singles: 6,
