@@ -41,21 +41,6 @@ export function DuogringoView({ entity }: { entity: Entity }) {
 		[entity]
 	);
 
-	// Update animation when state changes
-	useEffect(() => {
-		if (!entity) return;
-
-		const updateInterval = setInterval(() => {
-			const animState = entity.get(DuogringoAnimation);
-			if (!animState) return;
-
-			if (animState.state !== currentAnimationState) {
-				setCurrentAnimationState(animState.state);
-			}
-		}, 100);
-
-		return () => clearInterval(updateInterval);
-	}, [entity, currentAnimationState]);
 
 	// Change animation when currentAnimationState changes
 	useEffect(() => {
@@ -73,24 +58,28 @@ export function DuogringoView({ entity }: { entity: Entity }) {
 		};
 	}, [actions, currentAnimationState]);
 
-	// Update animation mixer on each frame
-	useFrame((_, delta) => mixer.update(delta));
-
-	// Update scale based on power
-	useEffect(() => {
+	// Update animation mixer, animation state, and scale on each frame
+	useFrame((_, delta) => {
 		if (!entity) return;
 
-		const updateInterval = setInterval(() => {
-			const power = entity.get(DuogringoPower);
-			if (!power || !groupRef.current) return;
+		// Update animation mixer
+		mixer.update(delta);
 
+		// Check for animation state changes
+		const animState = entity.get(DuogringoAnimation);
+		if (animState && animState.state !== currentAnimationState) {
+			setCurrentAnimationState(animState.state);
+		}
+
+		// Update scale based on power
+		const power = entity.get(DuogringoPower);
+		if (power) {
 			const scale = power.baseSize * (1 + power.power * 0.5); // Scale increases with power
-			setCurrentScale(scale);
-			// groupRef.current.scale.setScalar(scale);
-		}, 100);
-
-		return () => clearInterval(updateInterval);
-	}, [entity]);
+			if (scale !== currentScale) {
+				setCurrentScale(scale);
+			}
+		}
+	});
 
 	return (
 		<group ref={setInitial}>

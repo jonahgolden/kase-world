@@ -76,21 +76,10 @@ export function ScreamEffect() {
 		setScreamRings((prev) => [...prev, ...newRings]);
 	};
 
-	// Update position and monitor scream state changes
-	useEffect(() => {
-		if (!babyEntity) return;
-
-		// Get current transform and update position/rotation refs
-		const transform = babyEntity.get(Transform);
-		if (transform) {
-			babyPositionRef.current.copy(transform.position);
-			babyDirectionRef.current.copy(transform.rotation);
-		}
-
-		// Setup query-polling to track changes
-		const trackChangesInterval = setInterval(() => {
-			if (!babyEntity) return;
-
+	// Update position, monitor scream state, and animate rings every frame
+	useFrame((_, delta) => {
+		// Update position and rotation, and check for new screams
+		if (babyEntity) {
 			// Update position and rotation
 			const transform = babyEntity.get(Transform);
 			if (transform) {
@@ -111,7 +100,7 @@ export function ScreamEffect() {
 					newScreams.forEach((newScream) => {
 						// Baby's current position
 						const startPos = babyPositionRef.current.clone();
-						startPos.y += 0.5; // Position at the level of baby's mouth (increased from 0.2)
+						startPos.y += 0.5; // Position at the level of baby's mouth
 
 						// Calculate charge ratio
 						const chargeRatio = newScream.chargeAmount / scream.maxChargeTime;
@@ -131,13 +120,9 @@ export function ScreamEffect() {
 					);
 				}
 			}
-		}, 16); // Check at approximately 60 FPS
+		}
 
-		return () => clearInterval(trackChangesInterval);
-	}, [babyEntity]); // Re-run when the entity reference changes
-
-	// Animate the rings - let them grow and move forward with wave effect
-	useFrame((_, delta) => {
+		// Animate existing rings
 		// Update existing rings
 		setScreamRings(
 			(prev) =>

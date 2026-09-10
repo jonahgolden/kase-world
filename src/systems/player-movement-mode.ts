@@ -1,18 +1,17 @@
 import { World } from 'koota';
-import { PLAYER_BASE_THRUST } from '../actions';
-import { Input, IsPlayer, Movement, MovementMode, Time } from '../traits';
+import { Input, IsPlayer, MovementMode, Time } from '../traits';
 
 /**
  * Handles the player's movement mode (crawl/walk)
  * - Toggles between crawling and walking modes
  * - Manages walk duration and cooldown timers
- * - Adjusts movement speed based on mode
+ * Movement speed is now applied by the Rapier physics component
  */
 export function playerMovementMode(world: World) {
 	const time = world.get(Time);
 	if (!time) return;
 
-	world.query(IsPlayer, Input, Movement, MovementMode).updateEach(([input, movement, movementMode]) => {
+	world.query(IsPlayer, Input, MovementMode).updateEach(([input, movementMode]) => {
 		// Update timers based on current mode
 		if (movementMode.mode === 'walk') {
 			// When walking, increase walk duration
@@ -45,9 +44,6 @@ export function playerMovementMode(world: World) {
 			movementMode.walkDuration = 0;
 		}
 
-		// Adjust movement speed based on current mode
-		const mode = movementMode.mode;
-		const speedMultiplier = movementMode.speeds[mode];
-		movement.thrust = PLAYER_BASE_THRUST * speedMultiplier; // Multiply PLAYER_BASE_THRUST by mode-specific multiplier
+		// Note: Movement speed is now applied by the Rapier physics component based on MovementMode
 	});
 }

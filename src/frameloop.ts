@@ -1,6 +1,5 @@
 import { useFrame } from '@react-three/fiber';
 import { useWorld } from 'koota/react';
-import { convertInputToMovement } from './systems/apply-input';
 import { babyScreamSystem } from './systems/baby-scream';
 import { duogringoSystem } from './systems/duogringo-system';
 import { healthSystem } from './systems/health-system';
@@ -34,8 +33,7 @@ export function GameLoop() {
 			updateTime(world);
 			inputSystem(world);
 			pollInput(world);
-			convertInputToMovement(world);
-			// Physics and collision removed - will be replaced by Rapier in Phase 4
+			// convertInputToMovement removed - player movement now handled by PlayerPhysics Rapier component
 			playerThirdPersonCamera(world);
 			cameraZoomSystem(world);
 			duogringoSystem(world);

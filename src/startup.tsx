@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Vector3 } from 'three';
 import { actions } from './actions';
 import { setupEnvironment } from './systems/environment-system';
-import { setupTestScene } from './test-scene';
+// import { setupTestScene } from './test-scene'; // Disabled - using Rapier arena now
 
 export function Startup({
 	initialCameraPosition = [0, 1.5, 4], // Position camera behind and above the baby
@@ -17,7 +17,7 @@ export function Startup({
 		// Set up the environment
 		setupEnvironment(world);
 
-		setupTestScene(world);
+		// setupTestScene(world); // Disabled - using Rapier arena now
 
 		// Spawn camera for third-person view
 		spawnCamera(initialCameraPosition);

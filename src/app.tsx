@@ -1,4 +1,5 @@
 import { Canvas } from '@react-three/fiber';
+import { Physics } from '@react-three/rapier';
 import { useEffect, useState } from 'react';
 import { CameraRenderer } from './components/camera-renderer';
 import { CollisionDebugRenderer } from './components/collision-debug-renderer';
@@ -15,6 +16,11 @@ import { ScreamUI } from './components/scream-ui';
 import { GameLoop } from './frameloop';
 import { Startup } from './startup';
 import { setGameOverCallback } from './systems/health-system';
+import { PhysicsGround } from './components/physics/ground';
+import { PlayerPhysics } from './components/physics/player-physics';
+import { DuogringoPhysics } from './components/physics/duogringo-physics';
+// import { WorldArena } from './components/physics/world-arena'; // Simple arena - disabled in favor of natural world
+import { WorldEnvironment } from './components/physics/world-environment';
 
 export function App() {
 	const [isGameOver, setIsGameOver] = useState(false);
@@ -36,16 +42,24 @@ export function App() {
 	return (
 		<>
 			<Canvas style={{ background: 'white' }} shadows={true} gl={{ alpha: false }}>
-				<SceneRenderer />
-				<Startup initialCameraPosition={[0, 2.4, 5]} />
-				<GameLoop />
+				<Physics gravity={[0, -9.8, 0]} debug={true}>
+					<SceneRenderer />
+					<Startup initialCameraPosition={[0, 2.4, 5]} />
+					<GameLoop />
 
-				<CameraRenderer />
-				<PlayerRenderer />
-				<DuogringoRenderer />
-				<ScreamEffect />
-				<CollisionObjectsRenderer />
-				<CollisionDebugRenderer />
+					{/* Rapier Physics Bodies */}
+					<PhysicsGround />
+					<WorldEnvironment />
+					<PlayerPhysics />
+					<DuogringoPhysics />
+
+					<CameraRenderer />
+					<PlayerRenderer />
+					<DuogringoRenderer />
+					<ScreamEffect />
+					<CollisionObjectsRenderer />
+					<CollisionDebugRenderer />
+				</Physics>
 			</Canvas>
 
 			{/* UI components outside Canvas */}

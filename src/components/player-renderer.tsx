@@ -39,33 +39,30 @@ export function PlayerView({ entity }: { entity: Entity }) {
 		boundingBox.getCenter(center);
 	}, [scene]);
 
-	// Update appearance and animation when movement mode changes
-	useEffect(() => {
+	// Update movement mode, idle state, and animation mixer every frame (instead of polling with setInterval)
+	useFrame((_, delta) => {
 		if (!entity) return;
 
-		const updateInterval = setInterval(() => {
-			// Update MovementMode
-			if (entity.has(MovementMode)) {
-				const mode = entity.get(MovementMode)?.mode;
+		// Update animation mixer
+		mixer.update(delta);
 
-				if (mode && mode !== currentMode) {
-					setCurrentMode(mode);
-				}
+		// Update MovementMode
+		if (entity.has(MovementMode)) {
+			const mode = entity.get(MovementMode)?.mode;
+			if (mode && mode !== currentMode) {
+				setCurrentMode(mode);
 			}
+		}
 
-			// Update idle mode
-			if (entity.has(Input)) {
-				const input = entity.get(Input);
-
-				const isIdle = input ? input.forward === 0 && input.strafe === 0 : true;
-				if (isIdle !== idleMode) {
-					setIdleMode(isIdle);
-				}
+		// Update idle mode
+		if (entity.has(Input)) {
+			const input = entity.get(Input);
+			const isIdle = input ? input.forward === 0 && input.strafe === 0 : true;
+			if (isIdle !== idleMode) {
+				setIdleMode(isIdle);
 			}
-		}, 100); // Check every 100ms
-
-		return () => clearInterval(updateInterval);
-	}, [entity, currentMode, idleMode]);
+		}
+	});
 
 	// Update animation mode based on movement mode and idle mode
 	useEffect(() => {
@@ -117,9 +114,6 @@ export function PlayerView({ entity }: { entity: Entity }) {
 		},
 		[entity]
 	);
-
-	// Update animation mixer on each frame
-	useFrame((_, delta) => mixer.update(delta));
 
 	return (
 		<group ref={setInitial}>
