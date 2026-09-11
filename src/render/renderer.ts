@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import type { Boss, Feature, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
-import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, groundY, isSky, screamRange } from '../sim/sim.ts'
+import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, groundY, isSky, isWater, screamRange } from '../sim/sim.ts'
 
 const PICKUP_COLOR: Record<string, number> = {
   milk: 0xffffff,
@@ -99,6 +99,7 @@ export class Renderer {
   private beacon: THREE.Group | null = null // flag / gate at the goal position
   private herd: THREE.Group | null = null // stampede front
   private pigeon: THREE.Group | null = null // race rival
+  private tube: THREE.Mesh | null = null // Kase's inner tube on the water level
   private debris: THREE.InstancedMesh
   private splats: THREE.InstancedMesh
   private player: THREE.Group = new THREE.Group()
@@ -114,7 +115,7 @@ export class Renderer {
   private duoCurrent = ''
   private duoBaseHeight = 1
   private duoMats: THREE.Material[] = []
-  private boss: { group: THREE.Group; card: THREE.Mesh; overlay: THREE.Mesh; ring: THREE.Mesh; def: Boss['def']; h: number; partKey: string; parts: { mesh: THREE.Mesh; idx: number; h: number; fall: number }[] } | null = null
+  private boss: { group: THREE.Group; card: THREE.Mesh; overlay: THREE.Mesh; ring: THREE.Mesh; def: Boss['def']; h: number; partKey: string; parts: { mesh: THREE.Mesh; idx: number; h: number; fall: number }[]; model: (THREE.Group & Flashable) | null } | null = null
   private bossTextures = new Map<string, THREE.Texture>()
   private particles: Particles
   private rings: { mesh: THREE.Mesh; life: number; max: number; grow: number }[] = []
@@ -360,15 +361,24 @@ export class Renderer {
     if (this.sand) this.scene.remove(this.sand)
     if (this.water) this.scene.remove(this.water)
     const sky = isSky(s)
+    const water = isWater(s)
     this.chase = false
     this.skyCam = sky
     this.camYaw = s.player.facing
-    this.ground = this.makeContinent(s.arena.ring, 1, sky ? 1.6 : 0.7, th.ground, th.ground2, !sky)
-    this.ground.position.y = sky ? -1.6 : -0.7
+    this.ground = this.makeContinent(s.arena.ring, 1, sky ? 1.6 : 0.7, th.ground, th.ground2, !sky && !water)
+    this.ground.position.y = sky ? -1.6 : water ? -0.35 : -0.7
     this.scene.add(this.ground)
-    this.sand = this.makeContinent(s.arena.ring, 1.045, 0.5, sky ? 0xffffff : 0xe8d59a, sky ? 0xf4f8ff : 0xe0c98a, false)
-    this.sand.position.y = sky ? -2.4 : -1.05
+    this.sand = this.makeContinent(s.arena.ring, 1.045, 0.5, sky ? 0xffffff : water ? 0xdff4ff : 0xe8d59a, sky ? 0xf4f8ff : water ? 0xcfeaff : 0xe0c98a, false)
+    this.sand.position.y = sky ? -2.4 : water ? -0.7 : -1.05
     this.scene.add(this.sand)
+    if (water) {
+      // the big dip: darker water around Kacone's volcano where the guardians drift
+      const dip = new THREE.Mesh(new THREE.CircleGeometry(17, 48), new THREE.MeshToonMaterial({ color: 0x143f80, gradientMap: this.gradient, transparent: true, opacity: 0.75 }))
+      dip.rotation.x = -Math.PI / 2
+      dip.position.set(0, 0.02, -11)
+      this.ground.add(dip)
+      dip.position.y -= this.ground.position.y - 0.02
+    }
     this.water = sky ? this.makeSkyFloor() : this.makeWater()
     this.scene.add(this.water)
     if (this.track) this.scene.remove(this.track)
@@ -479,6 +489,41 @@ export class Renderer {
       rim.rotation.x = -Math.PI / 2
       rim.position.y = 0.02
       g.add(water, rim)
+      obj = g
+    } else if (f.kind === 'volcano') {
+      // Poodoom: a tiered poop mound with red eyes and a green gem, by Louie
+      const g = new THREE.Group()
+      const brown = this.toon(0x6b3e1e)
+      const dark = this.toon(0x4a2a12)
+      const tiers = [
+        [1.9, 0.8, 0],
+        [1.5, 0.75, 0.75],
+        [1.1, 0.7, 1.45],
+        [0.7, 0.6, 2.1],
+      ]
+      tiers.forEach(([r, h, y], i) => {
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.75, r, h, 14), i % 2 ? dark : brown)
+        t.position.y = f.h + y + h / 2
+        t.castShadow = true
+        g.add(t)
+      })
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.6, 12), brown)
+      tip.position.y = f.h + 3.0
+      g.add(tip)
+      for (const x of [-0.32, 0.32]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }))
+        eye.position.set(x, f.h + 2.35, 0.62)
+        g.add(eye)
+      }
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), new THREE.MeshToonMaterial({ color: 0x2ecc71, gradientMap: this.gradient, emissive: 0x2ecc71, emissiveIntensity: 0.5 }))
+      gem.position.set(0, f.h + 1.1, 1.25)
+      gem.name = 'gem'
+      g.add(gem)
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(f.r + 1.2, 24), new THREE.MeshBasicMaterial({ color: 0xff7f27, transparent: true, opacity: 0.0, depthWrite: false }))
+      glow.rotation.x = -Math.PI / 2
+      glow.position.y = f.h + 0.05
+      glow.name = 'glow'
+      g.add(glow)
       obj = g
     } else if (f.kind === 'fan') {
       const g = new THREE.Group()
@@ -904,6 +949,80 @@ export class Renderer {
       this.npcViews.set(n.id, g)
       this.scene.add(g)
       return g
+    } else if (n.kind === 'jelly') {
+      // Kelly Jelly by Louie: a toothy dome with spikes and tentacles
+      const jellyMat = new THREE.MeshToonMaterial({ color: 0xff7ab8, gradientMap: this.gradient, transparent: true, opacity: 0.8 })
+      g.mats.push(jellyMat)
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), jellyMat)
+      dome.position.y = 0.35
+      dome.castShadow = true
+      const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.48, 0.18, 14), jellyMat)
+      skirt.position.y = 0.27
+      body.add(dome, skirt)
+      const spike = mat(0xffd23f)
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2
+        const sp = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 5), i % 2 ? spike : mat(0xff3b3b))
+        sp.position.set(Math.cos(a) * 0.4, 0.78, Math.sin(a) * 0.4)
+        sp.rotation.z = -Math.cos(a) * 0.6
+        sp.rotation.x = Math.sin(a) * 0.6
+        body.add(sp)
+      }
+      const tent = mat(0xff9ccb)
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.5, 5), tent)
+        t.position.set(Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3)
+        t.name = 'tentacle'
+        body.add(t)
+      }
+      const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.08), mat(0xffffff))
+      teeth.position.set(0, 0.42, 0.5)
+      body.add(teeth)
+      const eyes = new THREE.Group()
+      for (const x of [-0.16, 0.16]) {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }))
+        e.position.set(x, 0.62, 0.46)
+        eyes.add(e)
+      }
+      g.eyes = eyes
+      body.add(eyes)
+      g.body = body
+      g.add(body)
+      this.addCoverBlob(g, 0.45, 0.6)
+      this.npcViews.set(n.id, g)
+      this.scene.add(g)
+      return g
+    } else if (n.kind === 'fly' || n.kind === 'bigfly') {
+      const big = n.kind === 'bigfly'
+      const k = big ? 1.8 : 1
+      const bug = new THREE.Mesh(new THREE.SphereGeometry(0.2 * k, 8, 6), mat(0x222222))
+      bug.position.y = 1.0
+      bug.scale.set(1, 0.8, 1.3)
+      bug.castShadow = true
+      body.add(bug)
+      const wingMat = new THREE.MeshBasicMaterial({ color: 0xdfe8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+      for (const side of [-1, 1]) {
+        const w = new THREE.Mesh(new THREE.PlaneGeometry(0.3 * k, 0.16 * k), wingMat)
+        w.position.set(side * 0.2 * k, 1.1, 0)
+        w.rotation.x = -Math.PI / 2
+        w.name = side < 0 ? 'wingL' : 'wingR'
+        body.add(w)
+      }
+      const eyes = new THREE.Group()
+      for (const x of [-0.08, 0.08]) {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(0.05 * k, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }))
+        e.position.set(x * k, 1.06, 0.22 * k)
+        eyes.add(e)
+      }
+      g.eyes = eyes
+      body.add(eyes)
+      g.body = body
+      g.add(body)
+      this.addCoverBlob(g, 1.0, 0.3 * k)
+      this.npcViews.set(n.id, g)
+      this.scene.add(g)
+      return g
     } else if (n.kind === 'chicken' || n.kind === 'king') {
       const king = n.kind === 'king'
       const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), mat(king ? 0xfff2c4 : 0xffffff))
@@ -1191,8 +1310,79 @@ export class Renderer {
         ;(mesh.material as THREE.MeshBasicMaterial).needsUpdate = true
       })
     })
-    this.boss = { group, card, overlay, ring, def, h, partKey: '', parts }
+    let model: (THREE.Group & Flashable) | null = null
+    if (def.id === 'kacone') {
+      model = this.makeKacone()
+      group.add(model)
+      card.visible = false
+      overlay.visible = false
+    }
+    this.boss = { group, card, overlay, ring, def, h, partKey: '', parts, model }
     await this.setBossCard(def.id, def.drawing, undefined, h)
+  }
+
+  // Kacone by Louie: a spiky head with a big grin on striped robot legs.
+  private makeKacone(): THREE.Group & Flashable {
+    const g = new THREE.Group() as THREE.Group & Flashable
+    g.mats = []
+    const mat = (c: number) => {
+      const m = this.toon(c)
+      g.mats.push(m)
+      return m
+    }
+    const legs = new THREE.Group()
+    legs.name = 'legs'
+    for (const side of [-1, 1]) {
+      const leg = new THREE.Group()
+      for (let i = 0; i < 4; i++) {
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.32, 10), mat(i % 2 ? 0x2b2b3a : 0xd0d4dc))
+        seg.position.y = 0.16 + i * 0.32
+        seg.castShadow = true
+        leg.add(seg)
+      }
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.18, 0.8), mat(0x2b2b3a))
+      foot.position.set(0, 0.09, 0.12)
+      leg.add(foot)
+      leg.position.x = side * 0.45
+      leg.name = side < 0 ? 'legL' : 'legR'
+      legs.add(leg)
+    }
+    g.add(legs)
+    const hips = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.4, 0.8), mat(0x555566))
+    hips.position.y = 1.45
+    g.add(hips)
+    const head = new THREE.Mesh(new THREE.IcosahedronGeometry(1.05, 1), mat(0xfff1e0))
+    head.position.y = 2.6
+    head.castShadow = true
+    head.name = 'head'
+    g.add(head)
+    const spike = mat(0xff3b3b)
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2
+      const el = Math.sin(i * 1.7) * 0.5
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.55, 5), spike)
+      const dir = new THREE.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el) + 0.25, Math.sin(a) * Math.cos(el)).normalize()
+      sp.position.copy(dir).multiplyScalar(1.2)
+      sp.position.y += 2.6
+      sp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
+      g.add(sp)
+    }
+    for (const x of [-0.35, 0.35]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }))
+      eye.position.set(x, 2.85, 0.9)
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
+      pupil.position.set(x, 2.85, 1.07)
+      g.add(eye, pupil)
+    }
+    const grin = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.22, 0.2), mat(0x2b2b3a))
+    grin.position.set(0, 2.3, 0.95)
+    g.add(grin)
+    for (let i = 0; i < 4; i++) {
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.1), mat(0xffffff))
+      tooth.position.set(-0.3 + i * 0.2, 2.36, 1.06)
+      g.add(tooth)
+    }
+    return g
   }
 
   // Swap what the main card shows: the whole drawing, or one animal's crop at its own height.
@@ -1434,6 +1624,20 @@ export class Renderer {
       case 'congaSmash':
         this.particles.burst(x, 0.8, z, 10, 0xff8fab, 3, 0.12)
         break
+      case 'erupt':
+        if ((e.big ?? 0) > 0) {
+          this.addShake(0.7)
+          this.particles.burst(x, 3.2, z, 40, 0x6b3e1e, 7, 0.22)
+          this.particles.burst(x, 3.0, z, 16, 0xff7f27, 4, 0.18)
+        } else this.addShake(0.15)
+        break
+      case 'npcPop':
+        this.particles.burst(x, 0.6, z, e.kind === 'jelly' ? 28 : 10, e.kind === 'jelly' ? 0xff7ab8 : 0x333344, 4, 0.16)
+        this.particles.burst(x, 0.4, z, 10, 0xffffff, 3, 0.1)
+        break
+      case 'poopedOn':
+        this.particles.burst(x, 1.4, z, 12, 0x6b3e1e, 2.5, 0.14)
+        break
       case 'explode':
         this.addShake(0.9)
         this.particles.burst(x, 0.6, z, 40, 0xff7f27, 6, 0.2)
@@ -1554,6 +1758,29 @@ export class Renderer {
     const quad = p.ride === 'quad'
     this.player.position.set(px, py + (riding ? 0.16 : quad ? 0.55 : p.inLake ? -0.3 : 0), pz)
     this.player.rotation.y = pf
+    const afloat = isWater(s) && p.gy <= 0.05 && p.y <= 0.05
+    if (afloat && !this.tube) {
+      const tube = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.2, 10, 20), this.toon(0xffd23f))
+      tube.rotation.x = Math.PI / 2
+      tube.position.y = 0.12
+      const duck = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), this.toon(0xffd23f))
+      duck.position.set(0, 0.3, 0.62)
+      tube.add(duck)
+      this.tube = tube
+      this.player.add(tube)
+    }
+    if (this.tube) {
+      this.tube.visible = afloat
+      this.tube.rotation.z = Math.sin(this.time * 3) * 0.06
+    }
+    for (const f of s.features) {
+      if (f.kind !== 'volcano') continue
+      const view = this.featureViews.get(f.id)
+      const glow = view?.getObjectByName('glow') as THREE.Mesh | undefined
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = f.cd < 1.2 ? 0.35 + Math.sin(this.time * 25) * 0.2 : 0
+      const gem = view?.getObjectByName('gem')
+      if (gem) gem.rotation.y = this.time * 2
+    }
     // in the air the baby stays upright, leaning a little into his velocity
     const airborne = !p.grounded ? 1 : 0
     this.flyTilt += (airborne - this.flyTilt) * Math.min(1, dt * 6)
@@ -1809,6 +2036,24 @@ export class Renderer {
         if (n.cover >= 0.95) v.body.rotation.z = Math.sin(this.time * 40) * 0.04
       }
       if (n.state === 'follow') v.body.rotation.z = Math.sin(this.time * 10 + n.id) * 0.25
+      if (n.kind === 'jelly') {
+        v.body.position.y = 0.05 + Math.sin(this.time * 2.2 + n.id) * 0.12
+        v.body.rotation.x = 0
+        let ti = 0
+        for (const c of v.body.children) {
+          if (c.name !== 'tentacle') continue
+          c.rotation.x = Math.sin(this.time * 3 + ti) * 0.35
+          c.rotation.z = Math.cos(this.time * 2.5 + ti * 1.3) * 0.35
+          ti++
+        }
+      } else if (n.kind === 'fly' || n.kind === 'bigfly') {
+        v.body.position.y = Math.sin(this.time * 9 + n.id) * 0.2
+        const flap = Math.sin(this.time * 60 + n.id) * 0.8
+        const wl = v.body.getObjectByName('wingL')
+        const wr = v.body.getObjectByName('wingR')
+        if (wl) wl.rotation.y = flap
+        if (wr) wr.rotation.y = -flap
+      }
       this.flash(v.mats, 0xffffff, n.hitFlash > 0 ? 0.7 : 0)
     }
 
@@ -1959,12 +2204,25 @@ export class Renderer {
         } else if (cm.opacity < 1) {
           cm.opacity = 1
         }
+        if (bv.model) {
+          bv.model.rotation.set(-tilt * 0.6, b.facing, wob)
+          bv.model.scale.set(sx, sy, sx)
+          bv.model.position.y = b.state === 'attack' && b.attack === 'stomp' ? Math.max(0, b.stateT) * 3 : 0
+          const walking = Math.hypot(b.vx, b.vz) > 0.3
+          const legL = bv.model.getObjectByName('legL')
+          const legR = bv.model.getObjectByName('legR')
+          const step = walking ? Math.sin(this.time * 9) * 0.5 : 0
+          if (legL) legL.rotation.x = step
+          if (legR) legR.rotation.x = -step
+          this.flash(bv.model.mats, 0xffffff, b.hitFlash > 0 ? 0.7 : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : 0)
+          if (b.state === 'telegraph') bv.model.rotation.z = Math.sin(this.time * 40) * 0.05
+        }
         bv.card.rotation.z = wob
         bv.card.rotation.x = -tilt
         bv.overlay.rotation.copy(bv.card.rotation)
         bv.card.scale.set(sx, sy, 1)
         bv.overlay.scale.copy(bv.card.scale)
-        bv.card.position.y = hidden ? 0.08 : (bv.h / 2) * sy + (b.state === 'attack' && b.attack === 'stomp' && fight === 'charge' ? Math.max(0, b.stateT) * 3 : 0)
+        bv.card.position.y = hidden ? 0.08 : (bv.h / 2) * sy + (b.state === 'attack' && b.attack === 'stomp' && (fight === 'charge' || fight === 'stomper') ? Math.max(0, b.stateT) * 3 : 0)
         bv.overlay.position.y = bv.card.position.y
         const om = bv.overlay.material as THREE.MeshBasicMaterial
         om.opacity = hidden ? (b.hitFlash > 0 ? 0.5 : 0) : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : b.hitFlash > 0 ? 0.6 : b.state === 'phaseChange' ? 0.3 : 0

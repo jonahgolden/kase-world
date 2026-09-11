@@ -330,6 +330,8 @@ export class Globe {
   }
 
   private lonLat(id: string): [number, number] {
+    const lvl = LEVELS.find((l) => l.id === id)
+    if (lvl?.water) return [72, -22] // the Indian Ocean, between Africa and Australia
     return CONTINENTS[id]?.lonLat ?? [-45, 20]
   }
 
@@ -351,6 +353,11 @@ export class Globe {
       const cloud = this.textSprite('☁️', 2.2)
       cloud.position.copy(dir).multiplyScalar(1.3)
       g.add(cloud)
+    }
+    if (lvl.water) {
+      const wave = this.textSprite('🌊', 1.6)
+      wave.position.copy(dir).multiplyScalar(1.1)
+      g.add(wave)
     }
     const lock = this.textSprite('🔒', 1.1)
     lock.position.copy(dir).multiplyScalar(1.5)

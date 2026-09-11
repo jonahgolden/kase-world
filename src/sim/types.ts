@@ -58,7 +58,7 @@ export interface Prop {
   promptCd: number
 }
 
-export type NpcKind = 'adult' | 'dog' | 'chicken' | 'mini' | 'king' | 'thief'
+export type NpcKind = 'adult' | 'dog' | 'chicken' | 'mini' | 'king' | 'thief' | 'jelly' | 'fly' | 'bigfly'
 export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow' | 'raid' | 'drink'
 
 export interface Npc {
@@ -93,6 +93,7 @@ export interface Poop {
   r: number
   ox: number // where it was thrown from
   oz: number
+  hot?: boolean // volcano poop: lands on Kase too
 }
 
 export interface Splat {
@@ -128,6 +129,7 @@ export type Goal =
   | { kind: 'escape' } // reach the flag with the stampede on your heels
   | { kind: 'protect'; count: number } // chase off this many milk thieves
   | { kind: 'race'; checkpoints: number } // through the gates before the pigeon finishes its lap
+  | { kind: 'hunt'; count: number; npc: NpcKind } // pop this many of a creature (Kacone's guardians)
 
 export interface Stampede {
   dirX: number // the herd runs this way
@@ -154,7 +156,7 @@ export interface Rival {
   laps: number // laps the pigeon has finished (each one costs Kase a heart)
 }
 
-export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake'
+export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake' | 'volcano'
 
 export interface Feature {
   id: number
@@ -263,7 +265,7 @@ export interface Duogringo {
 }
 
 export type BossAttack = 'charge' | 'stomp'
-export type BossFight = 'charge' | 'poopcover' | 'runner' | 'nest' | 'horse' | 'group' | 'games' | 'remix'
+export type BossFight = 'charge' | 'poopcover' | 'runner' | 'nest' | 'horse' | 'group' | 'games' | 'remix' | 'stomper'
 // what a boss part answers to: any hit while exposed, screams (charged), poop, bombs, a wall slam first,
 // sumo shoves out of the ring, a race you must win, or a hidden thing you must find and poop
 export type Weakness = 'any' | 'scream' | 'poop' | 'bomb' | 'wall' | 'sumo' | 'race' | 'hidden'
@@ -393,6 +395,9 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'erupt'
+  | 'npcPop'
+  | 'poopedOn'
   | 'surge'
   | 'melting'
   | 'milkGone'

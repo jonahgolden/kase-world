@@ -79,3 +79,30 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   ([NYFA on Nintendo](https://www.nyfa.edu/student-resources/nintendo-can-teach-us-game-design/),
   [Doan, designing for kids](https://medium.com/black-shell-media/gamedev-thoughts-how-to-design-games-for-kids-and-younger-audiences-1e6e96fd416a))
 - Difficult, not punishing: failure costs seconds, not progress. ([Valério](https://ricardo-valerio.medium.com/make-it-difficult-not-punishing-7198334573b8))
+
+## 2026-09-10 (late) — water levels, session length, enemy roles, touch controls
+
+- Water levels are hated when controls go slow and floaty. The ones people love (DKC Tropical Freeze,
+  Odyssey's Lake Kingdom) keep speed and responsiveness, use open spaces, and add a *different*
+  propulsion idea instead of "slow walking underwater".
+  ([NeoGAF thread](https://www.neogaf.com/threads/platformers-that-do-swimming-right.907088/),
+  [ResetEra thread](https://www.resetera.com/threads/water-levels-in-platformers-are-they-ever-fun.2719/page-3),
+  [GameMaker forum](https://forum.gamemaker.io/index.php?threads%2Fideas-about-making-water-levels-fun-in-platformers.34217%2F=))
+  **→ Louie's water level: Kase floats in an inner tube at 0.95x ground speed, screams double as a
+  jet (recoil pushes you backwards), islands to hop onto, no "underwater" at all.**
+- Mobile sessions average 4–5 min; kids 6–8 are fine with longer if the game has clean chapter ends.
+  Kids' games ship 6–10 bite-size mechanics of 30–120 s each. Length matters less than a clean stop.
+  ([Udonis](https://www.blog.udonis.co/mobile-marketing/mobile-games/session-length),
+  [CAS.AI kids design](https://cas.ai/blog/make-kids-mobile-games-they-love-to-play-variety-ux-monetization/),
+  [JMH age guide](https://jmhdevelopers.com/guides/how-to-choose-age-appropriate-games/))
+  **→ Levels at 2–3 min + boss are the right size. Keep the level card / result screen as the stop.**
+- Enemies: a recognizable silhouette and a *different pattern* per enemy, not the same pattern with
+  bigger numbers. Roles: rusher, turret, grabber, "doesn't react until poked".
+  ([Seed of Life devlog](https://akela-morse.itch.io/seed-of-life/devlog/303588/making-enemies-that-are-engaging-and-fun-to-fight))
+  **→ Kelly Jelly = slow drifting turret that stings on touch; flies = fast erratic rushers; Poodoom =
+  stationary volcano hazard on a timer.**
+- Touch: the joystick should re-center to where the thumb lands (Brawl Stars), keep a button "held"
+  when the thumb drifts off it, allow direction changes without lifting, dead zone 3–5%.
+  ([ACM study on virtual joysticks](https://dl.acm.org/doi/fullHtml/10.1145/3623264.3624461),
+  [MDN mobile touch](https://developer.mozilla.org/en-US/docs/Games/Techniques/Control_mechanisms/Mobile_touch))
+  **→ verify `src/input/input.ts` floats the stick to the touch point; if fixed, change it.**

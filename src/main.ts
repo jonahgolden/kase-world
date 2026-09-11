@@ -388,8 +388,8 @@ function handleEvents(s: State) {
       case 'found': {
         const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)
         const g = s.goal
-        const total = g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' ? g.count : g.kind === 'race' ? g.checkpoints : '?'
-        const icon = e.kind === 'egg' ? '🥚' : e.kind === 'king' ? '🐔 CAUGHT' : e.kind === 'thief' ? '🍼 SAVED' : e.kind === 'gate' ? '🏁 GATE' : '🎩'
+        const total = g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' || g.kind === 'hunt' ? g.count : g.kind === 'race' ? g.checkpoints : '?'
+        const icon = e.kind === 'egg' ? '🥚' : e.kind === 'king' ? '🐔 CAUGHT' : e.kind === 'thief' ? '🍼 SAVED' : e.kind === 'gate' ? '🏁 GATE' : e.kind === 'jelly' ? '🪼 POPPED' : '🎩'
         ui.popup(`${icon} ${e.points} / ${total}`, pt.x, pt.y, e.kind === 'egg' ? '#ffd23f' : e.kind === 'gate' || e.kind === 'thief' ? '#4cd137' : '#9b6bff', 1.2)
         if (e.kind === 'king' && e.points === total) ui.toast('HE DROPPED THE PACIFIER! Grab it!', 2000, 'good')
         break
@@ -398,6 +398,20 @@ function handleEvents(s: State) {
         hitstop = Math.max(hitstop, 0.1)
         ui.toast('TRAMPLED! Keep running!', 1200, 'boss')
         break
+      case 'erupt':
+        if ((e.big ?? 0) > 0) ui.toast('POODOOM ERUPTS! 💩🌋', 1300, 'boss')
+        else ui.toast('Poodoom is rumbling...', 900)
+        break
+      case 'npcPop': {
+        const pt = renderer.project(e.x ?? 0, 1.8, e.z ?? 0)
+        ui.popup(e.kind === 'jelly' ? 'POP!' : 'SWAT!', pt.x, pt.y, e.kind === 'jelly' ? '#ff7ab8' : '#ffffff', 0.9)
+        break
+      }
+      case 'poopedOn': {
+        const pt = renderer.project(e.x ?? 0, 2.4, e.z ?? 0)
+        ui.popup('POOPED ON! EW!', pt.x, pt.y, '#d9a066', 0.9)
+        break
+      }
       case 'surge':
         if ((e.big ?? 0) > 0) ui.toast('STAMPEDE SURGE!', 1200, 'boss')
         else ui.toast('rumble rumble...', 900)

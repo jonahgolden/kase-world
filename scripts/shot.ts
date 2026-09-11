@@ -47,6 +47,8 @@ const scenes: [string, string, number[]][] = [
   ['stampede', '/?bot=1&mute=1&seed=3&level=africa', [4, 10]],
   ['milk', '/?bot=1&mute=1&seed=3&level=australia', [6, 16]],
   ['race', '/?bot=1&mute=1&seed=3&level=europe', [4, 14]],
+  ['deep', '/?bot=1&mute=1&seed=3&level=the-deep', [3, 12]],
+  ['kacone', '/?bot=1&mute=1&seed=3&level=the-deep&skip=boss', [6, 12]],
   ['khan', '/?bot=1&mute=1&seed=3&level=asia&skip=boss', [6, 12]],
   ['africa', '/?bot=1&mute=1&seed=3&level=africa&skip=boss', [6, 16]],
   ['outback', '/?bot=1&mute=1&seed=3&level=australia&skip=boss', [6, 16]],

@@ -165,6 +165,9 @@ export const CFG = {
   stampede: { speed: 3.2, surge: 6.4, surgeTime: 1.2, every: 8, warn: 1.0, behind: 14, damage: 10, shove: 10, hitCd: 1.5, flagR: 2.2 },
   protect: { wave: 5, waveMin: 3.2, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2 },
+  water: { speed: 0.95, jet: 4.5, drag: 2.5 },
+  volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, r: 1.6 },
+  pop: { jelly: 400, fly: 120, bigfly: 300 },
 }
 
 const GIFT_DROPS: PickupKind[] = ['clock', 'milk', 'potato', 'conga', 'giant', 'wings']
@@ -362,6 +365,10 @@ export function isSky(s: State): boolean {
   return !!LEVELS[s.levelIndex]?.sky
 }
 
+export function isWater(s: State): boolean {
+  return !!LEVELS[s.levelIndex]?.water
+}
+
 export function gravityFor(s: State): number {
   return CFG.gravity * (isSky(s) ? CFG.skyGravity : 1)
 }
@@ -493,7 +500,19 @@ function populate(s: State, level: LevelDef) {
   }
 
   // 1. terrain
-  if (level.sky) {
+  if (level.water) {
+    // Louie's lagoon: a volcano island in the middle, sand islands around, guardians in the big dip
+    const mid = addFeature('platform', 0, -11, 5.2, 0.8, true)
+    void mid
+    const vol = addFeature('volcano', 0, -11, CFG.volcano.r, 0.8)
+    vol.cd = CFG.volcano.every * 0.6
+    for (let i = 0; i < 8; i++) {
+      const p = farFromAll(3, 7)
+      if (!p) continue
+      if (Math.hypot(p.x, p.z) < 6) continue
+      addFeature('platform', p.x, p.z, range(s.rng, 2.2, 3.4), 0.5, true)
+    }
+  } else if (level.sky) {
     const heights = [1, 1, 2, 3, 4, 5, 3, 2, 4, 6, 1, 5, 2, 3]
     for (const h of heights) {
       const p = farFromAll(4, 7)
@@ -588,10 +607,11 @@ function populate(s: State, level: LevelDef) {
     }
     return false
   }
-  if (level.sky) {
+  if (level.sky || level.water) {
     for (const isl of s.features.filter((f) => f.kind === 'platform')) {
+      if (level.water && featureAt(s, isl.x, isl.z, ['volcano'])) continue
       spots.push({ x: isl.x, z: isl.z, y: isl.h })
-      const n = 1 + Math.floor(rand(s.rng) * 3)
+      const n = (level.water ? 2 : 1) + Math.floor(rand(s.rng) * 3)
       for (let k = 0; k < n; k++) placeProp(pick(s.rng, palette), isl.x, isl.z, isl.r, 0, isl.h, isl)
     }
   } else {
@@ -610,7 +630,7 @@ function populate(s: State, level: LevelDef) {
   }
   // find levels: about half the goal items hide in crates in the wreck spots
   const goalCount = level.goal.kind === 'find' ? level.goal.count : 0
-  const crateCount = level.sky ? 0 : Math.floor(goalCount / 2)
+  const crateCount = level.sky || level.water ? 0 : Math.floor(goalCount / 2)
   for (let i = 0; i < crateCount && spots.length; i++) {
     const c = spots[(i * 2 + 1) % spots.length]
     placeProp('crate', c.x, c.z, 6, 3.5)
@@ -630,6 +650,15 @@ function populate(s: State, level: LevelDef) {
       const scale = kind === 'chicken' ? range(s.rng, 0.8, 1.7) : kind === 'king' ? CFG.king.scale : 1
       const r = st.r * scale
       let pos: { x: number; z: number } | null = null
+      if (kind === 'jelly') {
+        const a = (i / count) * Math.PI * 2 + rand(s.rng) * 0.3
+        const d = range(s.rng, 9, 15)
+        pos = { x: Math.cos(a) * d, z: -11 + Math.sin(a) * d }
+        if (!pointInRing(pos.x, pos.z, s.arena.ring) || onFeature(pos.x, pos.z, r)) pos = randomInside(s, r + 1, 10)
+      } else if (kind === 'fly' || kind === 'bigfly') {
+        const a = rand(s.rng) * Math.PI * 2
+        pos = { x: Math.cos(a) * 4, z: -11 + Math.sin(a) * 4 }
+      }
       for (let t = 0; t < 30 && !pos; t++) {
         const p = randomInside(s, r + 1, 10)
         if (p && Math.hypot(p.x, p.z) > 7 && !onFeature(p.x, p.z, r) && free(p.x, p.z, r)) pos = p
@@ -660,7 +689,7 @@ function populate(s: State, level: LevelDef) {
   }
 
   // 3b. the evil baby: a distance-shooting target on the lake island (or far away) on every continent
-  if (!level.sky) {
+  if (!level.sky && !level.water) {
     const island = s.features.find((f) => f.kind === 'platform' && f.island)
     const st = PROP_STATS.evilbaby
     const at = island ? { x: island.x, z: island.z, y: island.h } : { ...farPoint(s, 0, 0, 3, 20), y: 0 }
@@ -729,6 +758,10 @@ function populate(s: State, level: LevelDef) {
   if (goalCount - cratesPlaced > 0 && level.goal.kind === 'find') finds.unshift([level.goal.item, goalCount - cratesPlaced])
   for (const [kind, count] of finds) {
     for (let i = 0; i < count; i++) {
+      if (level.water) {
+        if (!onTop(lowTops, kind)) nearFind(kind)
+        continue
+      }
       if (level.sky) {
         if (kind === 'wings') airFind(kind)
         else if (kind === 'egg') {
@@ -872,9 +905,34 @@ export function step(s: State, input: Input) {
   updateBoss(s)
   updateDebris(s)
   updatePickups(s)
+  updateVolcano(s)
   updateGoal(s)
   updateCombo(s)
   updatePhase(s)
+}
+
+// Poodoom: rumbles, then rains hot poop on everyone, and every eruption hatches another fly.
+function updateVolcano(s: State) {
+  const V = CFG.volcano
+  for (const f of s.features) {
+    if (f.kind !== 'volcano') continue
+    const before = f.cd
+    f.cd -= DT
+    if (before > V.warn && f.cd <= V.warn) ev(s, { t: 'erupt', x: f.x, z: f.z, big: 0 })
+    if (f.cd > 0) continue
+    f.cd = V.every
+    ev(s, { t: 'erupt', x: f.x, z: f.z, big: 1 })
+    for (let i = 0; i < V.poops; i++) {
+      const a = rand(s.rng) * Math.PI * 2
+      const out = range(s.rng, V.outV[0], V.outV[1])
+      s.poops.push({ id: newId(s), x: f.x, y: f.h + 2.2, z: f.z, vx: Math.cos(a) * out, vy: range(s.rng, V.upV[0], V.upV[1]), vz: Math.sin(a) * out, r: CFG.poop.r * 1.3, ox: f.x, oz: f.z, hot: true })
+    }
+    const flies = s.npcs.filter((n) => n.kind === 'fly' || n.kind === 'bigfly').length
+    if (flies < V.maxFlies && s.phase === 'wreck') {
+      const st = NPC_STATS.fly
+      s.npcs.push({ id: newId(s), kind: 'fly', x: f.x, z: f.z, vx: 0, vz: 0, facing: 0, r: st.r, hp: st.hp, state: 'wander', stateT: 0, targetX: f.x, targetZ: f.z, scaredCd: 0, color: st.color, hitFlash: 0, scale: 1, cover: 0 })
+    }
+  }
 }
 
 function decayFlashes(s: State) {
@@ -1066,11 +1124,12 @@ function updatePlayer(s: State, input: Input) {
   const giant = p.giantT > 0
   p.r = p.baseR * (giant ? CFG.giant.scale : 1)
   const sky = isSky(s)
-  p.inLake = !sky && p.y <= 0.05 && !!lakeAt(s, p.x, p.z)
+  const water = isWater(s)
+  p.inLake = !sky && !water && p.y <= 0.05 && !!lakeAt(s, p.x, p.z)
   const onCloud = sky && p.y <= 0.05
   p.aiming = (input.scream || input.poop) && p.grounded
   p.aimPower = input.aimPower ?? -1
-  const slow = (p.aiming ? C.aimModeSpeed : 1) * (p.inLake ? C.lakeSpeed : 1) * (onCloud ? C.cloudSpeed : 1)
+  const slow = (p.aiming ? C.aimModeSpeed : 1) * (p.inLake ? C.lakeSpeed : 1) * (onCloud ? C.cloudSpeed : 1) * (water && p.gy <= 0.05 ? CFG.water.speed : 1)
   const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * (giant ? CFG.giant.speed : 1) * slow
   const accel = C.accel * (ride ? ride.accel : 1)
   p.launchT = Math.max(0, p.launchT - DT)
@@ -1332,6 +1391,12 @@ export function fireScream(s: State, charge: number) {
   const fx = Math.sin(p.facing)
   const fz = Math.cos(p.facing)
   ev(s, { t: 'scream', x: p.x, z: p.z, big: charge, facing: p.facing, range: rangeLen })
+  if (isWater(s) && p.gy <= 0.05 && p.grounded) {
+    // in the tube a scream is a jet: you scoot backwards
+    const jet = CFG.water.jet * (0.5 + charge)
+    p.vx -= fx * jet
+    p.vz -= fz * jet
+  }
 
   for (const pr of s.props) {
     if (pr.broken) continue
@@ -1493,7 +1558,12 @@ function updatePoops(s: State, input: Input) {
     q.y += q.vy * DT
     q.z += q.vz * DT
     let hit = false
+    if (q.hot && q.vy < 0 && Math.abs(q.y - p.y - 0.6) < 0.9 && dist(q.x, q.z, p.x, p.z) < q.r + p.r + 0.15) {
+      if (hurtPlayer(s, CFG.volcano.hotDamage, q.x, q.z, 0.5)) ev(s, { t: 'poopedOn', x: p.x, z: p.z })
+      hit = true
+    }
     for (const n of s.npcs) {
+      if (hit) break
       if (Math.abs(q.y - 0.5) < 1.2 && dist(q.x, q.z, n.x, n.z) < q.r + n.r) {
         hitNpcWithProjectile(s, n, 'DIRECT HIT!', P.stun)
         hit = true
@@ -1950,10 +2020,33 @@ function moveToward(o: { x: number; z: number; vx: number; vz: number; facing: n
   return d
 }
 
+function popNpc(s: State, n: Npc) {
+  const pts = n.kind === 'jelly' ? CFG.pop.jelly : n.kind === 'bigfly' ? CFG.pop.bigfly : CFG.pop.fly
+  addWreck(s, pts, n.x, n.z, n.kind === 'jelly' ? 'JELLY POPPED!' : 'SWATTED!', NPC_STATS[n.kind].color)
+  ev(s, { t: 'npcPop', x: n.x, z: n.z, kind: n.kind, big: n.kind === 'jelly' ? 1 : 0.4 })
+  if (s.goal.kind === 'hunt' && s.goal.npc === n.kind && s.phase === 'wreck') {
+    s.found++
+    s.wreck = Math.min(1, s.found / s.goal.count)
+    ev(s, { t: 'found', x: n.x, z: n.z, points: s.found, kind: n.kind })
+  }
+}
+
 function updateNpcs(s: State) {
   const p = s.player
+  let popped = false
   for (const n of s.npcs) {
     const st = NPC_STATS[n.kind]
+    const popper = n.kind === 'jelly' || n.kind === 'fly' || n.kind === 'bigfly'
+    if (popper && (n.hp <= 0 || (n.kind === 'jelly' && n.cover >= CFG.cover.freezeAt && dist(n.x, n.z, p.x, p.z) < n.r + p.r + 0.2 && Math.hypot(p.vx, p.vz) > 1))) {
+      popNpc(s, n)
+      n.hp = -999
+      popped = true
+      continue
+    }
+    if (n.kind === 'jelly' && n.state !== 'cower' && n.cover < CFG.cover.freezeAt && p.invuln <= 0 && p.y < 0.6 && dist(n.x, n.z, p.x, p.z) < n.r + p.r) {
+      hurtPlayer(s, st.damage, n.x, n.z, 0.5)
+      ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id, kind: n.kind, big: 0 })
+    }
     if (n.cover > 0) n.cover = Math.max(0, n.cover - CFG.cover.decay * DT)
     const covered = Math.min(1, n.cover)
     const frozen = n.cover >= CFG.cover.freezeAt
@@ -1967,14 +2060,20 @@ function updateNpcs(s: State) {
     switch (n.state) {
       case 'wander': {
         if (n.stateT <= 0) {
-          const t = n.kind === 'chicken' ? { x: n.x + range(s.rng, -5, 5), z: n.z + range(s.rng, -5, 5) } : randomInside(s, 1.5, 10)
+          const vol = n.kind === 'fly' || n.kind === 'bigfly' ? s.features.find((f) => f.kind === 'volcano') : null
+          const t =
+            n.kind === 'chicken' || n.kind === 'jelly'
+              ? { x: n.x + range(s.rng, -5, 5), z: n.z + range(s.rng, -5, 5) }
+              : vol
+                ? { x: vol.x + range(s.rng, -7, 7), z: vol.z + range(s.rng, -7, 7) }
+                : randomInside(s, 1.5, 10)
           if (t) {
             n.targetX = t.x
             n.targetZ = t.z
           }
-          n.stateT = n.kind === 'chicken' ? range(s.rng, 0.6, 1.4) : range(s.rng, 2, 4.5)
+          n.stateT = n.kind === 'chicken' || n.kind === 'fly' || n.kind === 'bigfly' ? range(s.rng, 0.6, 1.4) : range(s.rng, 2, 4.5)
         }
-        const d = moveToward(n, n.targetX, n.targetZ, st.wanderSpeed * sp, 4)
+        const d = moveToward(n, n.targetX, n.targetZ, st.wanderSpeed * sp, n.kind === 'fly' ? 10 : 4)
         if (d < 0.6) {
           n.vx *= 0.8
           n.vz *= 0.8
@@ -1993,7 +2092,8 @@ function updateNpcs(s: State) {
         break
       }
       case 'chase': {
-        moveToward(n, p.x, p.z, st.chaseSpeed * sp, 6)
+        const wob = n.kind === 'fly' || n.kind === 'bigfly' ? Math.sin(s.time * 11 + n.id) * 1.6 : 0
+        moveToward(n, p.x + wob, p.z - wob, st.chaseSpeed * sp, 6)
         if (dp > st.detect + 4 || p.y > 0.9 || p.inLake) {
           n.state = 'wander'
           n.stateT = 0
@@ -2102,7 +2202,7 @@ function updateNpcs(s: State) {
     n.x += n.vx * DT
     n.z += n.vz * DT
     pushOutOfPlatforms(s, n, n.r)
-    pushOutOfLakes(s, n, n.r)
+    if (!isWater(s)) pushOutOfLakes(s, n, n.r)
     clampArena(s, n, n.r, false)
     for (const pr of s.props) {
       if (pr.broken || pr.y > 0.5) continue
@@ -2125,6 +2225,7 @@ function updateNpcs(s: State) {
       }
     }
   }
+  if (popped) s.npcs = s.npcs.filter((n) => n.hp > -900)
   for (let i = 0; i < s.npcs.length; i++) {
     for (let j = i + 1; j < s.npcs.length; j++) {
       const a = s.npcs[i]
@@ -3412,6 +3513,7 @@ function updateGames(s: State, b: Boss, ph: number) {
 }
 
 function pickAttack(s: State, b: Boss, ph: number): BossAttack {
+  if (b.def.fight === 'stomper') return 'stomp'
   const dp = dist(b.x, b.z, s.player.x, s.player.z)
   if (ph === 0) return 'charge'
   if (dp < 3.5 && rand(s.rng) < 0.7) return 'stomp'
@@ -3448,7 +3550,7 @@ function updateDebris(s: State) {
 
 function goalCount(s: State): number {
   const g = s.goal
-  return g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' ? g.count : g.kind === 'race' ? g.checkpoints : 0
+  return g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' || g.kind === 'hunt' ? g.count : g.kind === 'race' ? g.checkpoints : 0
 }
 
 // A catch: touch him, scream him, or poop him. He gets a head start after each one.
@@ -3624,6 +3726,7 @@ function goalMet(s: State): boolean {
     case 'find':
     case 'chase':
     case 'protect':
+    case 'hunt':
       return s.found >= g.count
     case 'race':
       return s.found >= g.checkpoints

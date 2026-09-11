@@ -51,6 +51,10 @@ export const NPC_STATS: Record<NpcKind, NpcStat> = {
   king: { r: 0.5, hp: 9999, wanderSpeed: 0, chaseSpeed: 0, fleeSpeed: 5.0, detect: 8, damage: 0, color: 0xffd23f, scare: 150, bonk: 250 },
   // milk thieves: walk to the bottle, drink, leave; a scream or a poop sends them packing
   thief: { r: 0.4, hp: 60, wanderSpeed: 1.4, chaseSpeed: 3.0, fleeSpeed: 4.6, detect: 6, damage: 10, color: 0x333344, scare: 120, bonk: 180 },
+  // Louie's water monsters. Kelly Jelly drifts and stings; flies dive at you from Poodoom.
+  jelly: { r: 0.55, hp: 60, wanderSpeed: 0.8, chaseSpeed: 0, fleeSpeed: 1.6, detect: 0, damage: 10, color: 0xff7ab8, scare: 80, bonk: 150 },
+  fly: { r: 0.22, hp: 10, wanderSpeed: 3.5, chaseSpeed: 5.5, fleeSpeed: 6, detect: 9, damage: 10, color: 0x222222, scare: 60, bonk: 120 },
+  bigfly: { r: 0.4, hp: 50, wanderSpeed: 3, chaseSpeed: 4.5, fleeSpeed: 5, detect: 10, damage: 10, color: 0x222222, scare: 150, bonk: 300 },
 }
 
 export interface Theme {
@@ -76,6 +80,7 @@ export interface LevelDef {
   boss: BossDef
   theme: Theme
   sky?: boolean // cloud floor, islands, flight
+  water?: boolean // one big lagoon: Kase floats in a tube, islands, Louie's monsters
 }
 
 const boss = (b: Omit<BossDef, 'hitsPerPhase' | 'phases' | 'fight' | 'hint'> & Partial<Pick<BossDef, 'hitsPerPhase' | 'phases' | 'fight' | 'hint'>>): BossDef => ({
@@ -237,6 +242,34 @@ export const LEVELS: LevelDef[] = [
       parts: AFRICA_PARTS,
     }),
     theme: { ground: 0xd9a55a, ground2: 0xc9954a, sky: 0xffc98a, fog: 0xffdcb0, accent: 0x7a3f1f },
+  },
+  {
+    id: 'the-deep',
+    name: 'The Deep',
+    continent: 'The Deep',
+    goal: { kind: 'hunt', count: 15, npc: 'jelly' },
+    spots: 0,
+    propsPerSpot: 0,
+    singles: 0,
+    props: { barrel: 2, box: 2, crate: 0, cone: 1 },
+    npcs: { jelly: 15, fly: 5, bigfly: 2, chicken: 3 },
+    finds: { milk: 3, clock: 2, potato: 1, wings: 1, giant: 1 },
+    features: {},
+    boss: boss({
+      id: 'kacone',
+      name: 'Kacone',
+      drawnBy: 'Louie',
+      drawing: 'kacone.jpg',
+      speed: 2.0,
+      chargeSpeed: 8,
+      damage: 20,
+      scale: 3.0,
+      taunt: 'Beep. Boop. These are robot legs.',
+      fight: 'stomper',
+      hint: 'Robot legs STOMP a shockwave: JUMP over it, then hit him while he reboots.',
+    }),
+    theme: { ground: 0x1f6fb8, ground2: 0x1a5f9f, sky: 0x8fd0ff, fog: 0xbfe6ff, accent: 0xff7ab8 },
+    water: true,
   },
   {
     id: 'australia',

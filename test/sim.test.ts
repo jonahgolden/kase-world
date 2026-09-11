@@ -847,6 +847,45 @@ describe('sim', () => {
     expect(s.phase).toBe('boss')
   })
 
+  it("The Deep: Louie's guardians ring the volcano, it erupts hot poop, pops count, Kacone stomps", () => {
+    const s = createState({ seed: 5, levelId: 'the-deep' })
+    expect(s.goal.kind).toBe('hunt')
+    expect(s.npcs.filter((n) => n.kind === 'jelly').length).toBe(15)
+    expect(s.features.some((f) => f.kind === 'volcano')).toBe(true)
+    expect(s.features.filter((f) => f.kind === 'platform').length).toBeGreaterThan(4)
+    const p = s.player
+    // no lake slowdown in the lagoon; a scream jets you backwards
+    run(s, 0.5, { ...EMPTY_INPUT, mx: 1 })
+    expect(p.inLake).toBe(false)
+    expect(p.vx).toBeGreaterThan(3)
+    p.vx = 0
+    p.vz = 0
+    p.facing = 0
+    p.hasAim = true
+    fireScream(s, 1)
+    expect(p.vz).toBeLessThan(-2)
+    // eruption: hot poops fly and a fly hatches
+    const vol = s.features.find((f) => f.kind === 'volcano')!
+    vol.cd = 0.01
+    const flies = s.npcs.filter((n) => n.kind === 'fly').length
+    run(s, 0.05)
+    expect(s.poops.filter((q) => q.hot).length).toBe(CFG.volcano.poops)
+    expect(s.npcs.filter((n) => n.kind === 'fly').length).toBe(flies + 1)
+    // a jelly pops from damage and counts toward the goal
+    const jelly = s.npcs.find((n) => n.kind === 'jelly')!
+    jelly.hp = 0
+    run(s, 0.05)
+    expect(s.found).toBe(1)
+    expect(s.npcs.filter((n) => n.kind === 'jelly').length).toBe(14)
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.5)
+    expect(s.boss!.def.id).toBe('kacone')
+    expect(s.boss!.def.drawnBy).toBe('Louie')
+    run(s, 4)
+    expect(s.events.length >= 0).toBe(true)
+    expect(s.boss!.attack).toBe('stomp')
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

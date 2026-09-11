@@ -107,6 +107,23 @@ export function botInput(s: State): Input {
         tz = best.z
         shout = best.d < 5
       }
+    } else if (g.kind === 'hunt') {
+      let best: { x: number; z: number; d: number } | null = null
+      for (const n of s.npcs) {
+        if (n.kind !== g.npc) continue
+        const d = Math.hypot(n.x - p.x, n.z - p.z)
+        if (!best || d < best.d) best = { x: n.x, z: n.z, d }
+      }
+      if (best) {
+        tx = best.x
+        tz = best.z
+        shout = best.d < 4.5
+        if (best.d < 1.6) {
+          // do not sit on a jelly
+          tx = p.x + (p.x - best.x)
+          tz = p.z + (p.z - best.z)
+        }
+      }
     } else if ((g.kind === 'escape' || g.kind === 'race') && s.goalPos) {
       tx = s.goalPos.x
       tz = s.goalPos.z
@@ -117,6 +134,7 @@ export function botInput(s: State): Input {
       out.mx = (tx - p.x) / d
       out.mz = (tz - p.z) / d
       out.scream = shout && period < 40
+      out.poop = g.kind === 'hunt' && shout && period >= 60 && period < 64
       if (s.tick % 200 === 0) out.jump = true
       return out
     }

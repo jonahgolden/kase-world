@@ -100,7 +100,7 @@ export class Ui {
       </div>
       <div id="help" class="screen panel" hidden>
         <h2>HOW TO PLAY</h2>
-        <p class="goal-line">Fill the <b>WRECK</b> meter by smashing stuff and scaring grown-ups. The boss shows up at 100%. Dodge its attacks, then hit it while the <b class="green">green ring</b> is on.</p>
+        <p class="goal-line">Every continent has its own goal on the meter up top: wreck it, find things, catch the Chicken King, roll a snowball, outrun a stampede, guard the milk, race the pigeon, pop the jellies. Fill the meter and the boss shows up. Each boss has one trick; the card tells you what it is.</p>
         <div class="ctls">${controls}</div>
         <p class="goal-line small">🔊 glass things only break from screams · 💩 statues only get covered by poop · Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
         <div class="row-btns">
@@ -299,7 +299,8 @@ export class Ui {
     ctx.beginPath()
     ctx.arc(W / 2, H / 2, W / 2 - 1, 0, Math.PI * 2)
     ctx.clip()
-    ctx.fillStyle = s.phase === 'boss' ? '#3d5a2a' : '#7ec850'
+    const water = currentLevel(s).water
+    ctx.fillStyle = water ? (s.phase === 'boss' ? '#123f70' : '#1f6fb8') : s.phase === 'boss' ? '#3d5a2a' : '#7ec850'
     ctx.strokeStyle = '#1b1b2f'
     ctx.lineWidth = 2
     ctx.beginPath()
@@ -310,7 +311,7 @@ export class Ui {
     for (const f of s.features) {
       ctx.beginPath()
       ctx.arc(X(f.x), Z(f.z), Math.max(2, f.r * sc), 0, Math.PI * 2)
-      ctx.fillStyle = f.kind === 'lake' ? '#3aa0e8' : f.kind === 'platform' ? (f.island ? '#e8d59a' : '#5a8a3a') : f.kind === 'portal' ? '#9b6bff' : '#bfe6ff'
+      ctx.fillStyle = f.kind === 'lake' ? '#3aa0e8' : f.kind === 'platform' ? (f.island ? '#e8d59a' : '#5a8a3a') : f.kind === 'portal' ? '#9b6bff' : f.kind === 'volcano' ? '#6b3e1e' : '#bfe6ff'
       ctx.fill()
     }
     for (const pr of s.props) {
@@ -563,6 +564,8 @@ export function goalCardText(g: Goal): string {
       return `Guard the giant milk 🍼: chase off ${g.count} thieves before they drink it`
     case 'race':
       return `Race the pigeon 🐦 through ${g.checkpoints} gates 🏁. Screams stall it!`
+    case 'hunt':
+      return `Pop Kacone's ${g.count} guardians 🪼 (by Louie). Poop freezes them, screams pop them. Watch the volcano!`
   }
 }
 
@@ -583,5 +586,7 @@ export function goalMeterText(s: State, pct: number): string {
       return `🍼 ${s.found} / ${g.count} · MILK ${Math.round(s.milk * 100)}%`
     case 'race':
       return `🏁 GATE ${s.found} / ${g.checkpoints}`
+    case 'hunt':
+      return `🪼 ${s.found} / ${g.count} GUARDIANS`
   }
 }
