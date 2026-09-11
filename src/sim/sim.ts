@@ -55,7 +55,11 @@ export const CFG = {
     cloudSpeed: 0.6,
     stepUp: 0.35,
     aimAssistAngle: 0.9,
+    airControl: 0.5,
+    launchControl: 0.05,
+    launchTime: 0.55,
   },
+  skyGravity: 0.65,
   flight: { rise: 5.5, riseAccel: 40, fuelPerWings: 3.5, maxFuel: 7 },
   ride: {
     skateboard: { speed: 1.7, accel: 0.55, smash: 1.8, push: 1.5, hp: 1 },
@@ -89,7 +93,7 @@ export const CFG = {
   potato: { fuse: 1.2, radius: 3.6, damage: 150, count: 3 },
   conga: { time: 14, radius: 6.5, spacing: 1.1, smashPerSec: 60, dizzy: 1.5 },
   giant: { time: 8, scale: 2.4, speed: 1.2, smash: 4, scare: 7, poopR: 2.2, poopDamage: 3 },
-  fan: { up: 13, push: 7, cd: 0.8 },
+  fan: { up: 14, push: 9, cd: 0.8 },
   portal: { cd: 1.5 },
   duo: {
     baseR: 0.45,
@@ -227,6 +231,7 @@ export function createState(opts: CreateOpts = {}): State {
     wingFuel: 0,
     hasAim: false,
     hats: 0,
+    launchT: 0,
   }
   const s: State = {
     version: VERSION,
@@ -309,6 +314,10 @@ export function lakeAt(s: State, x: number, z: number): Feature | null {
 
 export function isSky(s: State): boolean {
   return !!LEVELS[s.levelIndex]?.sky
+}
+
+export function gravityFor(s: State): number {
+  return CFG.gravity * (isSky(s) ? CFG.skyGravity : 1)
 }
 
 // Highest platform top under (x, z) reachable from height y. Platforms far above y are walls, not floors.
@@ -444,7 +453,7 @@ function populate(s: State, level: LevelDef) {
       const p = farFromAll(4, 7)
       if (!p) continue
       const isl = addFeature('platform', p.x, p.z, range(s.rng, 2.6, 4.2), h)
-      if (h <= 3 && rand(s.rng) < 0.7) fanFor(isl)
+      if (h <= 6 && rand(s.rng) < 0.85) fanFor(isl)
     }
     for (let i = 0; i < 3; i++) {
       const p = farFromAll(3, 4)
@@ -801,12 +810,16 @@ function updatePlayer(s: State, input: Input) {
   const slow = (p.screamCharging ? 0.5 : 1) * (p.inLake ? C.lakeSpeed : 1) * (onCloud ? C.cloudSpeed : 1)
   const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * (giant ? CFG.giant.speed : 1) * slow
   const accel = C.accel * (ride ? ride.accel : 1)
+  p.launchT = Math.max(0, p.launchT - DT)
   if (p.hitstun > 0) {
     p.hitstun -= DT
     p.vx *= 1 - 3 * DT
     p.vz *= 1 - 3 * DT
   } else {
-    const k = Math.min(1, accel * DT)
+    // in the air you steer less, so fan launches and glides keep their momentum
+    const flying = p.wingFuel > 0 && input.jump
+    const control = p.grounded || flying ? 1 : p.launchT > 0 ? C.launchControl : C.airControl
+    const k = Math.min(1, accel * control * DT)
     p.vx += (mx * speed - p.vx) * k
     p.vz += (mz * speed - p.vz) * k
   }
@@ -839,7 +852,7 @@ function updatePlayer(s: State, input: Input) {
       p.wingFuel = Math.max(0, p.wingFuel - DT)
       if (s.tick % 12 === 0) ev(s, { t: 'flap', x: p.x, y: p.y, z: p.z })
     } else {
-      p.vy -= CFG.gravity * DT
+      p.vy -= gravityFor(s) * DT
       if (p.wings && input.jump && p.vy < C.glideFall) p.vy = C.glideFall
     }
     p.y += p.vy * DT
@@ -861,9 +874,10 @@ function updatePlayer(s: State, input: Input) {
     if (fan && fan.cd <= 0) {
       fan.cd = CFG.fan.cd
       p.vy = CFG.fan.up
-      p.vx += fan.dirX * CFG.fan.push
-      p.vz += fan.dirZ * CFG.fan.push
+      p.vx = fan.dirX * CFG.fan.push
+      p.vz = fan.dirZ * CFG.fan.push
       p.grounded = false
+      p.launchT = C.launchTime
       p.y = Math.max(p.y, 0.05)
       ev(s, { t: 'fan', x: p.x, z: p.z })
     }

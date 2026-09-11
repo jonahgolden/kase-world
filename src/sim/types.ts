@@ -195,6 +195,7 @@ export interface Player {
   wingFuel: number // seconds of powered flight left
   hasAim: boolean // true when the input supplied an aim direction this tick
   hats: number // goal fedoras stacked on the head
+  launchT: number // seconds since a fan launch during which steering is weak
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt' | 'stun' | 'lay'

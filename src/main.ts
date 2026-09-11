@@ -517,6 +517,16 @@ function loop(now: number) {
         let n = 0
         while (acc >= DT && n < 4) {
           const inp = bot ? botInput(state) : input.read()
+          const yaw = renderer.inputYaw()
+          if (yaw !== 0 && !bot) {
+            // stick/keys are screen-relative; rotate them to match where the camera looks
+            const fx = Math.sin(yaw)
+            const fz = Math.cos(yaw)
+            const wx = inp.mx * -fz + -inp.mz * fx
+            const wz = inp.mx * fx + -inp.mz * fz
+            inp.mx = wx
+            inp.mz = wz
+          }
           step(state, inp)
           handleEvents(state)
           acc -= DT

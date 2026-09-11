@@ -80,5 +80,8 @@ him to stun, then poop him). Duogringo no longer roams other levels. Boss fights
 (Rump, Khan, groups, Columbus), runner (Bolt laps a track, poop makes him slip), poop-cover (Jeff:
 14 poops, screams do nothing), nest. Asia hunts fedoras (stacked on Kase's head). Giant mode throws
 giant poops. `BossDef.fight` + `hint`; `LevelDef.sky`.
+v0.6.1: sky uses an over-the-shoulder chase camera (input rotated by camera yaw in main.ts, camera
+climbs over islands); other levels follow the baby's height. Air control 0.5, fan launches keep
+momentum for 0.55 s, sky gravity 65%, fans on every island up to height 6.
 Next: family playtest; remaining: distinct fights for Khan/animal groups/Columbus, chase goal,
 Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.

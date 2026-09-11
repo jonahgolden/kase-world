@@ -108,6 +108,8 @@ export class Renderer {
   private tmpE = new THREE.Euler()
   private time = 0
   private giantScale = 1
+  private camYaw = 0
+  chase = false // over-the-shoulder camera (sky level)
   readonly lowEnd: boolean
 
   constructor(canvas: HTMLCanvasElement, touch: boolean) {
@@ -303,6 +305,8 @@ export class Renderer {
     if (this.sand) this.scene.remove(this.sand)
     if (this.water) this.scene.remove(this.water)
     const sky = isSky(s)
+    this.chase = sky
+    this.camYaw = s.player.facing
     this.ground = this.makeContinent(s.arena.ring, 1, sky ? 1.6 : 0.7, th.ground, th.ground2, !sky)
     this.ground.position.y = sky ? -1.6 : -0.7
     this.scene.add(this.ground)
@@ -1572,21 +1576,46 @@ export class Renderer {
     }
   }
 
+  // Horizontal yaw the camera looks along (0 = toward -z). Drivers rotate stick input by it.
+  inputYaw(): number {
+    return this.chase ? this.camYaw : 0
+  }
+
   private updateCamera(s: State, dt: number) {
     const p = s.player
     const portrait = this.camera.aspect < 1
-    const back = (portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3
-    const up = (portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3
-    const lookAhead = 0.35
-    let tx = p.x + p.vx * lookAhead
-    let tz = p.z + p.vz * lookAhead
-    if (s.boss && s.phase === 'boss') {
-      tx = (tx * 2 + s.boss.x) / 3
-      tz = (tz * 2 + s.boss.z) / 3
+    if (this.chase) {
+      // over the shoulder: behind Kase along his facing, following his height
+      let diff = p.facing - this.camYaw
+      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff < -Math.PI) diff += Math.PI * 2
+      this.camYaw += diff * Math.min(1, 2.5 * dt)
+      const fx = Math.sin(this.camYaw)
+      const fz = Math.cos(this.camYaw)
+      const back = portrait ? 6.5 : 6
+      const up = portrait ? 3.4 : 2.8
+      this.camTarget.lerp(this.tmpV.set(p.x + fx * 1.2, p.y + 1.0, p.z + fz * 1.2), Math.min(1, 8 * dt))
+      const want = this.tmpS.set(p.x - fx * back, p.y + up, p.z - fz * back)
+      // never sit inside an island: climb over any platform the camera would enter
+      for (const f of s.features) {
+        if (f.kind !== 'platform') continue
+        if (Math.hypot(want.x - f.x, want.z - f.z) < f.r + 0.6 && want.y < f.h + 0.6) want.y = f.h + 0.9
+      }
+      this.camPos.lerp(want, Math.min(1, 7 * dt))
+    } else {
+      const back = (portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3
+      const up = (portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3
+      const lookAhead = 0.35
+      let tx = p.x + p.vx * lookAhead
+      let tz = p.z + p.vz * lookAhead
+      if (s.boss && s.phase === 'boss') {
+        tx = (tx * 2 + s.boss.x) / 3
+        tz = (tz * 2 + s.boss.z) / 3
+      }
+      this.camTarget.lerp(this.tmpV.set(tx, 0.8 + p.y * 0.7, tz), Math.min(1, 6 * dt))
+      const want = this.tmpS.set(this.camTarget.x, up + p.y * 0.7, this.camTarget.z + back)
+      this.camPos.lerp(want, Math.min(1, 5 * dt))
     }
-    this.camTarget.lerp(this.tmpV.set(tx, 0.8, tz), Math.min(1, 6 * dt))
-    const want = this.tmpS.set(this.camTarget.x, up, this.camTarget.z + back)
-    this.camPos.lerp(want, Math.min(1, 5 * dt))
     this.shake = Math.max(0, this.shake - dt * 3.2)
     if (this.shake > 0) {
       const a = this.shake * this.shake * 0.5
