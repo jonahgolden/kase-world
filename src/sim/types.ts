@@ -329,6 +329,7 @@ export interface BossDef {
   taunt: string
   fight: BossFight
   hint: string // one line shown when the fight starts
+  beaten: string // what the boss says when he goes down: the kill-sequence payoff
   parts?: BossPartDef[] // group fights: one card per animal, fought in order
   coverPoops?: number // poopcover phases: poops for full cover (default CFG.boss.coverPoops)
 }

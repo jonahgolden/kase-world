@@ -792,7 +792,7 @@ describe('sim', () => {
     const s = createState({ seed: 5, levelId: 'australia' })
     expect(s.goal.kind).toBe('protect')
     expect(s.props.some((pr) => pr.kind === 'bigmilk')).toBe(true)
-    run(s, 3.2)
+    run(s, CFG.protect.grace + 0.2)
     const thief = s.npcs.find((n) => n.kind === 'thief')!
     expect(thief).toBeTruthy()
     expect(thief.state).toBe('raid')
@@ -973,6 +973,30 @@ describe('sim', () => {
     expect(nest.cover).toBeGreaterThanOrEqual(1)
     expect(s.duo.nestWrecked).toBe(true)
     expect(s.npcs.filter((n) => n.kind === 'mini').every((n) => n.state === 'cower')).toBe(true)
+  })
+
+  it('research pass: every boss has a last word, thieves wait out a grace period, assist adds hearts', () => {
+    for (const lvl of LEVELS) expect(lvl.boss.beaten.length).toBeGreaterThan(3)
+    const s = createState({ seed: 5, levelId: 'australia' })
+    run(s, CFG.protect.grace - 0.5)
+    expect(s.npcs.some((n) => n.kind === 'thief')).toBe(false)
+    run(s, 1)
+    expect(s.npcs.some((n) => n.kind === 'thief')).toBe(true)
+    const a = createState({ seed: 5, assist: 2 })
+    expect(a.player.maxHp).toBe(CFG.player.hp + HEART * 2)
+    expect(a.player.hp).toBe(CFG.player.hp + HEART * 2)
+    const b = createState({ seed: 5, assist: 9 })
+    expect(b.player.maxHp).toBe(CFG.player.hp + HEART * CFG.assist.maxHearts)
+    skipToBoss(a)
+    run(a, CFG.boss.enterTime + 0.5)
+    const boss = a.boss!
+    for (let i = 0; i < 9 && a.phase === 'boss'; i++) {
+      boss.state = 'exposed'
+      boss.stateT = 2
+      boss.invuln = 0
+      bossHit(a, 'poop')
+    }
+    expect(a.events.some((e) => e.t === 'bossDead' && e.kind === boss.def.beaten)).toBe(true)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

@@ -168,7 +168,8 @@ export const CFG = {
   king: { taunt: 1.2, run: 2.8, catchCd: 2.5, scale: 1.6 },
   snow: { growPerUnit: 0.022, melt: 0.25, push: 1.15, smashSpeed: 1.5 },
   stampede: { speed: 3.2, surge: 6.4, surgeTime: 1.2, every: 8, warn: 1.0, behind: 14, damage: 10, shove: 10, hitCd: 1.5, flagR: 2.2 },
-  protect: { wave: 5, waveMin: 3.2, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
+  protect: { wave: 5, waveMin: 3.2, grace: 6, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
+  assist: { maxHearts: 2 },
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
   volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, r: 1.6 },
@@ -183,6 +184,7 @@ export interface CreateOpts {
   levelId?: string
   runId?: string
   carry?: { levelsCleared: number; runTime: number; stats: State['stats']; hp: number }
+  assist?: number // extra hearts after repeated game overs on this level (quiet difficulty help)
 }
 
 function newId(s: State): number {
@@ -229,6 +231,7 @@ export function createState(opts: CreateOpts = {}): State {
   const seed = opts.seed ?? 1
   const rng = makeRng(seed * 7919 + levelIndex * 104729 + 17)
   const P = CFG.player
+  const assist = HEART * Math.max(0, Math.min(CFG.assist.maxHearts, Math.floor(opts.assist ?? 0)))
   const player: Player = {
     x: 0,
     y: 0,
@@ -238,8 +241,8 @@ export function createState(opts: CreateOpts = {}): State {
     vz: 0,
     facing: 0,
     r: P.r,
-    hp: Math.max(HEART * 2, opts.carry?.hp ?? P.hp),
-    maxHp: P.hp,
+    hp: Math.max(HEART * 2, opts.carry?.hp ?? P.hp) + assist,
+    maxHp: P.hp + assist,
     grounded: true,
     jumpCd: 0,
     invuln: 0,
@@ -817,7 +820,7 @@ function populate(s: State, level: LevelDef) {
   if (level.goal.kind === 'protect') {
     goalProp('bigmilk', 0, -4)
     s.goalPos = { x: 0, z: -4 }
-    s.waveT = 3
+    s.waveT = CFG.protect.grace
   }
   if (level.goal.kind === 'escape') {
     const flag = farPoint(s, 0, 0, 2.5, 40, (x, z) => !onFeature(x, z, 1.5))
@@ -2883,7 +2886,7 @@ function bossDefeated(s: State, b: Boss): boolean {
   s.clearTime = s.time
   s.levelsCleared++
   s.stats.bossesBeaten++
-  ev(s, { t: 'bossDead', x: b.x, z: b.z, big: 1, label: b.def.name })
+  ev(s, { t: 'bossDead', x: b.x, z: b.z, big: 1, label: b.def.name, kind: b.def.beaten })
   ev(s, { t: 'win', label: currentLevel(s).name })
   return true
 }

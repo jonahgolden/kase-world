@@ -127,3 +127,33 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   line, so Nova vs Louie vs Mom is the visible contest.**
 - Family-friendly bosses (Kirby) test without stressing: readable telegraphs, one trick, no guide
   needed. ([gamedesignskills boss design](https://gamedesignskills.com/game-design/game-boss-design/))
+
+## 2026-09-11 (timer pass 1) — kill sequence, hit-stop, wave pacing, chase beats, DDA, shake
+
+- Kill sequence: the boss must *look* beaten (wounded, out of breath) and the game must say "you did it"
+  before the results screen, or tension never releases. A short line from the boss works.
+  ([Boss Battle Design and Structure](https://www.gamedeveloper.com/design/boss-battle-design-and-structure),
+  [gamedesignskills boss design](https://gamedesignskills.com/game-design/game-boss-design/))
+  **→ applied: every `BossDef` has a `beaten` line; `bossDead` toasts it before "DEFEATED!".**
+- Hit-stop: 6 frames (100 ms) on heavy hits in Capcom beat-em-ups; heavier = longer.
+  ([Hitstop in Capcom beat 'em ups](https://shane-sicienski.com/blog/blog-post-title-one-55pmn),
+  [CritPoints on hitstop](https://critpoints.net/2017/05/17/hitstophitfreezehitlaghitpausehitshit/))
+  Ours: boss hit 90 ms, boss dead 250 ms, smash 20–80 ms. In range; left alone.
+- Tower-defense waves: a countdown/grace before wave 1, early waves slow (20–35 s to clear), staggered
+  spawns as a "drumbeat", micro-narratives of cluster → breath → next.
+  ([CraftMyGame wave system](https://craftmygame.com/features/wave-spawn),
+  [Sean Duggan, TD flow](https://medium.com/@sean.duggan/tower-defense-general-gameplay-flow-529b317a8ef9))
+  **→ applied: first thief at 6 s instead of 3, and the first two spawns toast "a thief is coming".**
+- Chase beats: let the player feel safe, then throw something that slows them so the pursuer closes in.
+  ([Outlast 2 chase design](https://www.gamedeveloper.com/audio/the-art-of-the-chase-level-design-and-player-orientation-in-i-outlast-2-i-),
+  [TV Tropes auto-scroller](https://tvtropes.org/pmwiki/pmwiki.php/Main/AutoScrollingLevel))
+  Ours: surges every 8 s with a 1 s rumble do this. Keep.
+- Dynamic difficulty for kids: after repeated failure, quietly reduce pressure (fewer enemies, more
+  checkpoints); assistance that goes unnoticed improves survival without hurting pride.
+  ([IntechOpen DDA chapter](https://www.intechopen.com/chapters/1228576),
+  [Wikipedia: dynamic difficulty](https://en.wikipedia.org/wiki/Dynamic_game_difficulty_balancing))
+  **→ applied: each game over on a level adds one extra heart on the next try (max +2), reset on a clear.**
+- Screen shake: trauma squared, nonlinear decay, 50–100 ms with a flash, small amplitudes for weak hits.
+  ([Godot recipes: screen shake](https://kidscancode.org/godot_recipes/4.x/2d/screen_shake/index.html),
+  [BetterLink game feel post](https://eastondev.com/blog/en/posts/dev/20260521-game-feedback-feel/))
+  Ours already squares the shake value and decays it; fine.

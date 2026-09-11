@@ -154,7 +154,7 @@ function launch(n: string, levelId: string) {
   if (idx > unlocked && !dev) return
   runStartIndex = idx
   const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
-  const next = createState({ seed, levelId })
+  const next = createState({ seed, levelId, assist: assistFor(levelId) })
   audio.unlock()
   audio.play('ui')
   flyInto(next, true)
@@ -193,13 +193,47 @@ function nextLevel() {
 function restartLevel() {
   if (!state) return
   const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
-  state = createState({ seed, levelId: state.levelId })
+  state = createState({ seed, levelId: state.levelId, assist: assistFor(state.levelId) })
   beginLevel(true)
 }
+
+// Quiet difficulty help: every game over on a level buys one extra heart next try (max 2), gone on a clear.
+const FAILS_KEY = 'kw.fails'
+function loadFails(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(FAILS_KEY) ?? '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+function saveFails(f: Record<string, number>) {
+  try {
+    localStorage.setItem(FAILS_KEY, JSON.stringify(f))
+  } catch {
+    /* ignore */
+  }
+}
+function assistFor(levelId: string): number {
+  return Math.min(2, loadFails()[levelId] ?? 0)
+}
+function noteFail(levelId: string) {
+  const f = loadFails()
+  f[levelId] = (f[levelId] ?? 0) + 1
+  saveFails(f)
+}
+function clearFails(levelId: string) {
+  const f = loadFails()
+  if (f[levelId]) {
+    delete f[levelId]
+    saveFails(f)
+  }
+}
+let thiefWarns = 0
 
 function beginLevel(fresh: boolean) {
   if (!state) return
   if (params.get('skip') === 'boss' && fresh) skipToBoss(state)
+  thiefWarns = 0
   acc = 0
   hitstop = 0
   endTimer = 0
@@ -280,6 +314,7 @@ function showChoice() {
 }
 
 async function onLevelCleared(s: State) {
+  clearFails(s.levelId)
   const timeMs = Math.round(s.clearTime * 1000)
   const isBest = saveLocalBest(s.levelId, timeMs)
   if (s.levelIndex + 1 > unlocked) {
@@ -450,6 +485,12 @@ function handleEvents(s: State) {
         ui.popup('MELTING! Get it out of the water!', pt.x, pt.y, '#bfe6ff', 0.6)
         break
       }
+      case 'npcScared':
+        if (e.kind === 'thief' && (e.big ?? 0) === 0 && thiefWarns < 2) {
+          thiefWarns++
+          ui.toast('🍼 A thief is coming for the milk! Scream or poop him', 2000, 'boss')
+        }
+        break
       case 'milkGone':
         hitstop = Math.max(hitstop, 0.1)
         ui.toast('THEY DRANK THE MILK! Refilled, but that cost a heart', 2200, 'boss')
@@ -536,10 +577,14 @@ function handleEvents(s: State) {
         if (e.kind === 'part' && e.label) ui.toast(e.label, 3600, 'go')
         else ui.toast(`${s.boss?.def.name.toUpperCase()} IS ANGRY!`, 1400, 'boss')
         break
-      case 'bossDead':
+      case 'bossDead': {
         hitstop = Math.max(hitstop, 0.25)
+        // the kill sequence: the boss gets a last word, then the game says it out loud
+        const pt = renderer.project(e.x ?? 0, 3.4, e.z ?? 0)
+        if (e.kind) ui.popup(`"${e.kind}"`, pt.x, pt.y, '#ffffff', 2.2)
         ui.toast(`${e.label?.toUpperCase()} DEFEATED!`, 2200, 'good')
         break
+      }
       case 'duoGrow':
         if (s.duo.power > 0.66 && s.duo.power - 0.16 <= 0.66) ui.toast('DUOGRINGO IS HUGE! SCREAM AT HIM!', 1600, 'boss')
         else if (s.duo.power > 0.33 && s.duo.power - 0.16 <= 0.33) ui.toast('Duogringo is growing...', 1200)
@@ -551,6 +596,7 @@ function handleEvents(s: State) {
       }
       case 'gameOver':
         endTimer = 1.6
+        if (!bot) noteFail(s.levelId)
         break
       case 'win':
         endTimer = 2.4
@@ -615,6 +661,7 @@ function playSound(e: GameEvent) {
       audio.play('bossPhase', { vol: 0.6 })
       return
     case 'npcScared':
+      if (e.kind === 'thief' && (e.big ?? 0) === 0) return
       audio.play(e.kind === 'chicken' ? 'chicken' : 'npcScared')
       return
     default:
