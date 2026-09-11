@@ -7,8 +7,9 @@ export interface Input {
   scream: boolean // hold to charge, release to fire
   poop: boolean // tap to throw, hold to lob further
   jump: boolean // tap; hold with wings to fly
-  aimX?: number // optional world-space aim direction (mouse). Without it the sim aim-assists.
+  aimX?: number // optional world-space aim direction (mouse or drag). Without it the sim aim-assists.
   aimZ?: number
+  aimPower?: number // optional 0..1 throw range from drag distance
 }
 
 export const EMPTY_INPUT: Input = { mx: 0, mz: 0, scream: false, poop: false, jump: false }
@@ -205,6 +206,8 @@ export interface Player {
   turnV: number // smoothed turn input -1..1
   boostFuel: number // seconds of boost left (sky wings)
   boosting: boolean
+  aimPower: number // -1 when the hold time decides the throw range
+  aiming: boolean // holding an attack: arrows turn in place instead of moving
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt' | 'stun' | 'lay'
@@ -309,6 +312,7 @@ export type EventType =
   | 'miniHatch'
   | 'tooClose'
   | 'frozen'
+  | 'screamReady'
   | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'

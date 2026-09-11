@@ -54,7 +54,9 @@ export const CFG = {
     lakeSpeed: 0.45,
     cloudSpeed: 0.6,
     stepUp: 0.35,
-    aimAssistAngle: 0.6,
+    aimAssistAngle: 1.05, // acquire within ~60 degrees
+    aimMinDist: 1.0,
+    aimModeSpeed: 0.12, // movement while holding an attack: you turn, you barely move
     airControl: 0.5,
     launchControl: 0.05,
     launchTime: 0.55,
@@ -252,6 +254,8 @@ export function createState(opts: CreateOpts = {}): State {
     turnV: 0,
     boostFuel: 0,
     boosting: false,
+    aimPower: -1,
+    aiming: false,
   }
   const s: State = {
     version: VERSION,
@@ -885,6 +889,8 @@ function updateFlight(s: State, input: Input) {
   }
   p.boosting = input.jump && p.boostFuel > 0
   if (p.boosting) p.boostFuel = Math.max(0, p.boostFuel - DT)
+  p.aiming = false
+  p.aimPower = input.aimPower ?? -1
   const speed = C.speed * (p.grounded ? 1 : F.airSpeed) * (p.boosting ? F.boostSpeed : 1) * (p.fedora ? CFG.fedora.speed : 1)
   if (p.hitstun > 0) {
     p.hitstun -= DT
@@ -955,7 +961,9 @@ function updatePlayer(s: State, input: Input) {
   const sky = isSky(s)
   p.inLake = !sky && p.y <= 0.05 && !!lakeAt(s, p.x, p.z)
   const onCloud = sky && p.y <= 0.05
-  const slow = (p.screamCharging ? 0.5 : 1) * (p.inLake ? C.lakeSpeed : 1) * (onCloud ? C.cloudSpeed : 1)
+  p.aiming = (input.scream || input.poop) && p.grounded
+  p.aimPower = input.aimPower ?? -1
+  const slow = (p.aiming ? C.aimModeSpeed : 1) * (p.inLake ? C.lakeSpeed : 1) * (onCloud ? C.cloudSpeed : 1)
   const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * (giant ? CFG.giant.speed : 1) * slow
   const accel = C.accel * (ride ? ride.accel : 1)
   p.launchT = Math.max(0, p.launchT - DT)
@@ -1121,16 +1129,16 @@ function addTimeBonus(s: State, seconds: number, x: number, z: number, label: st
 
 // ---------------------------------------------------------------- aim + scream
 
-// Without a mouse, snap the facing toward the best target roughly ahead.
-function assistAim(s: State, rangeLen: number): number | null {
+// Without a mouse, snap the facing toward the best target roughly ahead. Pure; the renderer uses it too.
+export function aimTarget(s: State, rangeLen: number): { x: number; z: number; angle: number } | null {
   const p = s.player
-  let best: number | null = null
+  let best: { x: number; z: number; angle: number } | null = null
   let bestScore = Infinity
   const consider = (x: number, z: number, r: number) => {
     const dx = x - p.x
     const dz = z - p.z
     const d = Math.hypot(dx, dz)
-    if (d > rangeLen + r || d < 0.3) return
+    if (d > rangeLen + r || d < CFG.player.aimMinDist) return
     const ang = Math.atan2(dx, dz)
     let diff = ang - p.facing
     while (diff > Math.PI) diff -= Math.PI * 2
@@ -1139,7 +1147,7 @@ function assistAim(s: State, rangeLen: number): number | null {
     const score = Math.abs(diff) * 3 + d * 0.15
     if (score < bestScore) {
       bestScore = score
-      best = ang
+      best = { x, z, angle: ang }
     }
   }
   for (const n of s.npcs) if (n.state !== 'cower') consider(n.x, n.z, n.r)
@@ -1147,6 +1155,10 @@ function assistAim(s: State, rangeLen: number): number | null {
   if (s.duo.active) consider(s.duo.x, s.duo.z, duoRadius(s.duo))
   for (const pr of s.props) if (!pr.broken && (pr.kind === 'glass' || pr.kind === 'statue' || pr.kind === 'crate' || pr.kind === 'evilbaby')) consider(pr.x, pr.z, pr.r)
   return best
+}
+
+function assistAim(s: State, rangeLen: number): number | null {
+  return aimTarget(s, rangeLen)?.angle ?? null
 }
 
 export function screamRange(p: Player, charge: number): number {
@@ -1161,7 +1173,9 @@ function updateScream(s: State, input: Input) {
   if (input.scream && p.screamCd <= 0 && !p.inLake) {
     p.screamCharging = true
     const chargeTime = C.chargeTime * (p.megaphone ? CFG.megaphone.charge : 1)
+    const before = p.screamCharge
     p.screamCharge = p.pacifierT > 0 ? 1 : Math.min(1, p.screamCharge + DT / chargeTime)
+    if (before < 1 && p.screamCharge >= 1) ev(s, { t: 'screamReady', x: p.x, z: p.z })
     if (p.screamCharge >= 1) {
       p.screamHoldFull += DT
       if (p.screamHoldFull > C.fullHoldGrace) fireScream(s, 1)
@@ -1367,7 +1381,7 @@ function updatePoops(s: State, input: Input) {
     p.poopHoldT += DT
     if (p.poopHoldT >= C.poopAutoThrow && p.poopCd <= 0) throwPoop(s, 1)
   } else if (playing && p.poopHeld && p.poopCd <= 0) {
-    throwPoop(s, Math.min(1, p.poopHoldT / C.poopHoldMax))
+    throwPoop(s, p.aimPower >= 0 ? p.aimPower : Math.min(1, p.poopHoldT / C.poopHoldMax))
   }
   p.poopHeld = playing && input.poop
 

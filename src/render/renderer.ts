@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import type { Boss, Feature, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
-import { bossPhase, currentLevel, duoRadius, isSky, screamRange } from '../sim/sim.ts'
+import { aimTarget, bossPhase, currentLevel, duoRadius, isSky, screamRange } from '../sim/sim.ts'
 
 const PICKUP_COLOR: Record<string, number> = {
   milk: 0xffffff,
@@ -136,6 +136,9 @@ export class Renderer {
   private skyCam = false
   private aimArrow: THREE.Mesh
   private arc: THREE.Line
+  private landing: THREE.Mesh
+  private targetMark: THREE.Mesh
+  private viewFacing = 0
   // previous-tick positions for render interpolation (filled by main before each sim step)
   prev: PrevSnap | null = null
   alpha = 1
@@ -192,6 +195,16 @@ export class Renderer {
     this.arc = new THREE.Line(arcGeo, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.9, depthWrite: false }))
     this.arc.visible = false
     this.scene.add(this.arc)
+    const landGeo = new THREE.RingGeometry(0.35, 0.5, 20)
+    landGeo.rotateX(-Math.PI / 2)
+    this.landing = new THREE.Mesh(landGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }))
+    this.landing.visible = false
+    this.scene.add(this.landing)
+    const tGeo = new THREE.RingGeometry(0.5, 0.65, 20)
+    tGeo.rotateX(-Math.PI / 2)
+    this.targetMark = new THREE.Mesh(tGeo, new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9, depthWrite: false }))
+    this.targetMark.visible = false
+    this.scene.add(this.targetMark)
     const coneGeo = new THREE.CircleGeometry(1, 20, -Math.PI / 2 - Math.PI / 3, (Math.PI * 2) / 3)
     coneGeo.rotateX(-Math.PI / 2)
     this.chargeCone = new THREE.Mesh(coneGeo, new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.22, depthWrite: false }))
@@ -1300,7 +1313,10 @@ export class Renderer {
     const px = pv ? pv.player.x + (p.x - pv.player.x) * a : p.x
     const py = pv ? pv.player.y + (p.y - pv.player.y) * a : p.y
     const pz = pv ? pv.player.z + (p.z - pv.player.z) * a : p.z
-    const pf = pv ? lerpAngle(pv.player.facing, p.facing, a) : p.facing
+    const pfRaw = pv ? lerpAngle(pv.player.facing, p.facing, a) : p.facing
+    // view facing lerps toward the sim facing (~0.1 s) so turns never snap
+    this.viewFacing = lerpAngle(this.viewFacing, pfRaw, Math.min(1, dt * 14))
+    const pf = this.viewFacing
     // player
     const riding = p.ride === 'skateboard'
     const quad = p.ride === 'quad'
@@ -1314,15 +1330,22 @@ export class Renderer {
       this.playerModel.rotation.x = -Math.max(-0.35, Math.min(0.35, fwd)) * this.flyTilt
       this.playerModel.rotation.z = 0
     }
-    // aim arrow while charging or holding poop, and the poop's flight arc while holding
+    // facing arrow always on (faint), bright while aiming; flight arc + landing ring while holding poop
     const aiming = p.screamCharging || p.poopHeld
-    this.aimArrow.visible = aiming
-    if (aiming) {
-      this.aimArrow.position.set(px, py + 0.06, pz)
-      this.aimArrow.rotation.y = pf
-    }
+    this.aimArrow.visible = s.phase === 'wreck' || s.phase === 'boss'
+    this.aimArrow.position.set(px, py + 0.06, pz)
+    this.aimArrow.rotation.y = pf
+    ;(this.aimArrow.material as THREE.MeshBasicMaterial).opacity = aiming ? 0.9 : 0.3
     this.arc.visible = p.poopHeld && !p.screamCharging
+    this.landing.visible = this.arc.visible
     if (this.arc.visible) this.updateArc(s, px, py, pz, pf)
+    // auto-aim target highlight while aiming without a mouse/drag
+    const tgt = aiming && !p.hasAim ? aimTarget(s, p.poopHeld ? 9 : screamRange(p, Math.max(0.25, p.screamCharge))) : null
+    this.targetMark.visible = !!tgt
+    if (tgt) {
+      this.targetMark.position.set(tgt.x, 0.05, tgt.z)
+      this.targetMark.scale.setScalar(1 + Math.sin(this.time * 8) * 0.1)
+    }
     this.board.visible = riding
     this.quad.visible = quad
     this.hat.visible = p.fedora
@@ -1716,7 +1739,7 @@ export class Renderer {
   // Predicted poop path for the current hold, same numbers as the sim.
   private updateArc(s: State, px: number, py: number, pz: number, pf: number) {
     const p = s.player
-    const power = p.fedora ? 1 : Math.min(1, p.poopHoldT / 0.5)
+    const power = p.fedora ? 1 : p.aimPower >= 0 ? p.aimPower : Math.min(1, p.poopHoldT / 0.5)
     const speed = 10 + 7 * power
     let x = px + Math.sin(pf) * 0.5
     let y = py + 0.8
@@ -1738,8 +1761,10 @@ export class Renderer {
       }
       if (y < 0) {
         for (let j = i + 1; j < pos.count; j++) pos.setXYZ(j, last.x, 0.03, last.z)
+        this.landing.position.set(last.x, 0.04, last.z)
         break
       }
+      if (i === pos.count - 1) this.landing.position.set(x, Math.max(0.04, y), z)
     }
     pos.needsUpdate = true
     this.arc.computeLineDistances()

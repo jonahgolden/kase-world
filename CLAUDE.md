@@ -96,5 +96,9 @@ the ground, wings = boost fuel, land on islands; upright model; fixed-yaw follow
 height; soft flap + procedural lullaby (`audio.music`). Touch attack buttons drag-to-aim (Brawl Stars
 style), tap = auto-aim; aim arrow + dashed poop arc shown while holding. Evil baby target on every
 continent's lake island: poop only, only from ≥7 units away, 5 hits, drops a clock.
-Next: apply the controls memo (pending), distinct fights for Khan/animal groups/Columbus, chase goal,
+v0.7.1: controls memo applied: holding SCREAM/POOP enters aim mode (arrows turn Kase in place, ~12%
+movement), view facing lerps (~0.07 s), facing arrow always visible, auto-aim acquires within 60° and
+ignores targets under 1 unit with a gold ring on the chosen target, dashed arc + landing ring while
+holding poop, touch drag distance sets range, "ready" ding at full charge.
+Next: distinct fights for Khan/animal groups/Columbus, chase goal,
 Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.

@@ -290,6 +290,10 @@ export class AudioDriver {
       case 'flap':
         this.burst(0.12, 0.05 * v, 'lowpass', 500)
         break
+      case 'screamReady':
+        this.tone('sine', 880, 1320, 0.12, 0.14 * v)
+        this.tone('sine', 1320, 1320, 0.16, 0.1 * v, 0.1, 'lin')
+        break
       case 'explode':
         this.tone('sine', 90, 30, 0.5, 0.8 * v)
         this.burst(0.45, 0.6 * v, 'lowpass', 700)

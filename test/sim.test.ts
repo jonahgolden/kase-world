@@ -589,6 +589,20 @@ describe('sim', () => {
     expect(s.pickups.some((k) => k.kind === 'clock')).toBe(true)
   })
 
+  it('aim mode: holding an attack turns Kase in place instead of moving him', () => {
+    const s = createState({ seed: 9 })
+    s.features = []
+    s.npcs = []
+    s.props = []
+    s.duo.active = false
+    const x0 = s.player.x
+    run(s, 0.5, { ...EMPTY_INPUT, mx: 1, scream: true })
+    expect(Math.abs(s.player.facing - Math.PI / 2)).toBeLessThan(0.01)
+    expect(Math.abs(s.player.x - x0)).toBeLessThan(0.6)
+    run(s, 0.5, { ...EMPTY_INPUT, mx: 1 })
+    expect(s.player.x - x0).toBeGreaterThan(1.2)
+  })
+
   it('player dies at zero hp and the game is over', () => {
     const s = createState({ seed: 1 })
     s.player.hp = 10

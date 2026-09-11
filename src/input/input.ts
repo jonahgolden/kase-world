@@ -9,7 +9,7 @@ export class InputDriver {
   private joy = { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 }
   private held = { scream: false, poop: false, jump: false }
   private mouse = { poop: false, scream: false, x: 0, y: 0, movedAt: -1e9 }
-  private drag = { x: 0, y: 0, active: false }
+  private drag = { x: 0, y: 0, active: false, power: -1 }
   aimProvider: ((sx: number, sy: number) => { x: number; z: number } | null) | null = null
   private joyEl: HTMLElement
   private knobEl: HTMLElement
@@ -63,6 +63,8 @@ export class InputDriver {
     this.held = { scream: false, poop: false, jump: false }
     this.mouse.poop = false
     this.mouse.scream = false
+    this.drag.active = false
+    this.drag.power = -1
   }
 
   private bindJoystick() {
@@ -138,6 +140,7 @@ export class InputDriver {
       if (d > 28) {
         this.drag.x = dx / d
         this.drag.y = dy / d
+        this.drag.power = Math.min(1, (d - 28) / 110)
       }
     }
     const up = () => {
@@ -147,6 +150,7 @@ export class InputDriver {
         this.drag.active = false
         this.drag.x = 0
         this.drag.y = 0
+        this.drag.power = -1
       }
     }
     el.addEventListener('pointerdown', down)
@@ -196,6 +200,7 @@ export class InputDriver {
     if (this.drag.active && (this.drag.x !== 0 || this.drag.y !== 0)) {
       out.aimX = this.drag.x
       out.aimZ = this.drag.y
+      if (this.drag.power >= 0) out.aimPower = this.drag.power
     }
     return out
   }

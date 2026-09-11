@@ -53,8 +53,8 @@ export class Ui {
          <div class="ctl"><b>JUMP</b><span>tap. Jump over the boss stomp</span></div>`
       : `<div class="ctl"><b>MOVE</b><span>WASD or arrow keys</span></div>
          <div class="ctl"><b>AIM</b><span>Kase faces the mouse. Screams and poop go where you point</span></div>
-         <div class="ctl"><b>SCREAM</b><span>hold SPACE (or right mouse). Longer hold = bigger scream</span></div>
-         <div class="ctl"><b>POOP</b><span>click, or E. Hold to throw further</span></div>
+         <div class="ctl"><b>SCREAM</b><span>hold SPACE (or right mouse). While holding, arrows turn Kase in place. Longer hold = bigger scream</span></div>
+         <div class="ctl"><b>POOP</b><span>click, or E. While holding, arrows aim and a dotted arc shows where it lands. Hold longer to throw further</span></div>
          <div class="ctl"><b>JUMP</b><span>SHIFT. Jump over the boss stomp</span></div>
          <div class="ctl"><b>PAUSE</b><span>ESC or P</span></div>`
     root.innerHTML = `

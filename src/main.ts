@@ -504,6 +504,9 @@ function playSound(e: GameEvent) {
     case 'frozen':
       audio.play('splat', { vol: 0.8, pitch: 0.7 })
       return
+    case 'screamReady':
+      audio.play('screamReady')
+      return
     case 'flap':
       audio.play('flap', { vol: e.big ?? 0.3 })
       return
