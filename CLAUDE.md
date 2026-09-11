@@ -34,7 +34,10 @@ goes in `sim/` with a test; new visuals go in `render/renderer.ts`, and primitiv
 ## URL params (dev)
 
 `?dev=1` level select on title (or tap the logo 5×) · `?level=<id>` · `?seed=N` · `?bot=1` scripted
-player · `?auto=1` skip title · `?skip=boss` boss in 2 s · `?mute=1` · `?name=X`
+player · `?auto=1` skip title · `?skip=boss` boss in 2 s · `?mute=1` · `?name=X` · `?ghost=demo` synthetic PB ghost ·
+`?admin=<token>` once per device: ADMIN button on the title (jump anywhere, skip-to-boss on start, reset local progress,
+wipe leaderboards) and SKIP TO BOSS / BEAT BOSS in the pause menu. The token is the Worker secret `ADMIN_TOKEN`
+(`wrangler secret put ADMIN_TOKEN`); the worker's `DELETE /api/times?board=<id|world|all>` needs it as a Bearer.
 
 ## Swapping art and sound
 

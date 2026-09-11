@@ -8,6 +8,7 @@ export interface Env {
   DB: D1Database
   ASSETS: Fetcher
   SUBMIT_LIMIT: RateLimit
+  ADMIN_TOKEN?: string // wrangler secret; unlocks DELETE /api/times and GET /api/admin
 }
 
 const MAX_NAME = 12
@@ -29,6 +30,8 @@ export default {
       if (url.pathname === '/api/health') return json({ ok: true })
       if (url.pathname === '/api/times' && req.method === 'GET') return getTimes(url, env)
       if (url.pathname === '/api/times' && req.method === 'POST') return postTime(req, env)
+      if (url.pathname === '/api/admin' && req.method === 'GET') return isAdmin(req, env) ? json({ ok: true }) : json({ error: 'no' }, 401)
+      if (url.pathname === '/api/times' && req.method === 'DELETE') return deleteTimes(req, url, env)
       return json({ error: 'not found' }, 404)
     } catch (e) {
       return json({ error: 'server error', detail: String(e) }, 500)
@@ -104,6 +107,27 @@ async function postTime(req: Request, env: Env): Promise<Response> {
     .first<{ faster: number }>()
   const rank = (rankRow?.faster ?? 0) + 1
   return json({ ok: true, id: ins.meta.last_row_id, rank })
+}
+
+function isAdmin(req: Request, env: Env): boolean {
+  const token = env.ADMIN_TOKEN
+  if (!token) return false
+  const auth = req.headers.get('authorization') ?? ''
+  return auth === `Bearer ${token}`
+}
+
+// Admin: wipe one board (?board=<level>|world) or everything (?board=all).
+async function deleteTimes(req: Request, url: URL, env: Env): Promise<Response> {
+  if (!isAdmin(req, env)) return json({ error: 'no' }, 401)
+  const board = url.searchParams.get('board') ?? ''
+  let res
+  if (board === 'all') res = await env.DB.prepare('DELETE FROM times').run()
+  else {
+    const parsed = parseBoard(url)
+    if (!parsed) return json({ error: 'bad board' }, 400)
+    res = await env.DB.prepare('DELETE FROM times WHERE kind = ? AND level = ?').bind(parsed.kind, parsed.level).run()
+  }
+  return json({ ok: true, deleted: res.meta.changes ?? 0 })
 }
 
 async function sha256(text: string): Promise<string> {

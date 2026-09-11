@@ -18,6 +18,14 @@ export interface UiCallbacks {
   onChoose: () => void
   onChooseMove: (dir: -1 | 1) => void
   onGo: () => void
+  onAdminOpen: () => void
+  onAdminLevel: (levelId: string) => void
+  onAdminSkipToggle: () => boolean
+  onAdminSkipNow: () => void
+  onAdminBeatBoss: () => void
+  onAdminResetLocal: () => void
+  onAdminClearBoard: (board: string) => Promise<number>
+  onAdminLogout: () => void
 }
 
 const fmtClock = (t: number) => {
@@ -102,14 +110,18 @@ export class Ui {
       </div>
       <div id="help" class="screen panel" hidden>
         <h2>HOW TO PLAY</h2>
-        <p class="goal-line">Every continent has its own goal on the meter up top: wreck it, find things, catch the Chicken King, roll a snowball, outrun a stampede, guard the milk, race the pigeon, pop the jellies. Fill the meter and the boss shows up. Each boss has one trick; the card tells you what it is.</p>
+        <p class="goal-line">Fill the meter at the top. The boss shows up. Beat him with the one trick on his card.</p>
         <div class="ctls">${controls}</div>
-        <p class="goal-line small">🔊 glass things only break from screams · 💩 statues only get covered by poop · Finds glow with a light pillar. 💤 nap bombs put grown-ups to sleep · 🪃 boomerang binky bonks things out and back · 🦒 giraffe ride = tall and fast · 🍼 decoy baby = grown-ups chase it instead of you · ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
+        <p class="goal-line small">🔊 SCREAM scares things and breaks glass · 💩 POOP covers and freezes things · ⭐ glowing stuff is worth a detour · ⏱ faster is better</p>
         <div class="row-btns">
           <button id="help-resume" class="cta">RESUME</button>
           <button id="help-restart" class="ghost">RESTART LEVEL</button>
           <button id="help-sound" class="ghost">SOUND: ON</button>
           <button id="help-title" class="ghost">QUIT TO TITLE</button>
+        </div>
+        <div class="row-btns admin-only" hidden>
+          <button id="help-skip" class="ghost">⚙️ SKIP TO BOSS</button>
+          <button id="help-beat" class="ghost">⚙️ BEAT BOSS</button>
         </div>
       </div>
       <div id="title" class="screen panel">
@@ -117,7 +129,7 @@ export class Ui {
         <p class="sub">a game by <b>Nova & Louie</b></p>
         <input id="name" maxlength="12" placeholder="YOUR NAME" autocomplete="off" spellcheck="false">
         <button id="play" class="cta">PLAY</button>
-        <div class="row-btns"><button id="choose-btn" class="ghost">🌍 CHOOSE CONTINENT</button><button id="board-btn" class="ghost">BEST TIMES</button><button id="how-btn" class="ghost">HOW TO PLAY</button></div>
+        <div class="row-btns"><button id="board-btn" class="ghost">🏆 LEADERBOARD</button><button id="how-btn" class="ghost">HOW TO PLAY</button><button id="admin-btn" class="ghost admin-only" hidden>⚙️ ADMIN</button></div>
         <div id="levels" ${dev ? '' : 'hidden'}></div>
       </div>
       <div id="won" class="screen panel" hidden>
@@ -138,25 +150,77 @@ export class Ui {
           <div class="row-btns"><button id="go" class="cta">GO</button><button id="choose-back" class="ghost">BACK</button></div>
         </div>
       </div>
+      <div id="admin" class="screen panel" hidden>
+        <h2>⚙️ ADMIN</h2>
+        <div class="lv-title">JUMP TO ANY CONTINENT</div>
+        <div id="admin-levels"></div>
+        <div class="row-btns">
+          <button id="admin-skip" class="ghost">SKIP TO BOSS ON START: OFF</button>
+          <button id="admin-reset" class="ghost">RESET MY PROGRESS</button>
+        </div>
+        <div class="lv-title">WIPE A LEADERBOARD (tap twice)</div>
+        <div id="admin-boards"></div>
+        <p id="admin-msg" class="goal-line small"></p>
+        <div class="row-btns"><button id="admin-back" class="cta">BACK</button><button id="admin-logout" class="ghost">LOG OUT ADMIN</button></div>
+      </div>
       <div id="board" class="screen panel" hidden>
-        <h2>BEST TIMES</h2>
+        <h2>🏆 LEADERBOARD</h2>
         <div class="tabs" id="board-tabs"></div>
         <div id="board-list" class="board"></div>
         <button id="back" class="ghost">BACK</button>
       </div>
       <div id="fade"></div>
     `
-    for (const id of ['hud', 'card', 'bosscard', 'help', 'title', 'won', 'over', 'board', 'choose']) this.screens[id] = root.querySelector(`#${id}`)!
+    for (const id of ['hud', 'card', 'bosscard', 'help', 'title', 'won', 'over', 'board', 'choose', 'admin']) this.screens[id] = root.querySelector(`#${id}`)!
     this.popups = root.querySelector('#popups')!
     for (const el of root.querySelectorAll<HTMLElement>('[id]')) this.el.set(el.id, el)
     const nameEl = this.get('name') as HTMLInputElement
-    const play = () => this.cb.onPlay(nameEl.value.trim(), null)
+    // PLAY opens the continent chooser on the highest unlocked level; GO starts it
+    const play = () => this.cb.onChoose()
     this.get('play').addEventListener('click', play)
     nameEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') play()
     })
     this.get('board-btn').addEventListener('click', () => this.cb.onBoard('north-america'))
-    this.get('choose-btn').addEventListener('click', () => this.cb.onChoose())
+    this.get('admin-btn').addEventListener('click', () => this.cb.onAdminOpen())
+    this.get('admin-back').addEventListener('click', () => this.cb.onTitle())
+    this.get('admin-logout').addEventListener('click', () => this.cb.onAdminLogout())
+    this.get('admin-reset').addEventListener('click', () => {
+      this.cb.onAdminResetLocal()
+      this.adminMsg('Progress, bests, ghosts and assist counters on this device are reset.')
+    })
+    this.get('admin-skip').addEventListener('click', () => {
+      const on = this.cb.onAdminSkipToggle()
+      this.get('admin-skip').textContent = `SKIP TO BOSS ON START: ${on ? 'ON' : 'OFF'}`
+    })
+    this.get('help-skip').addEventListener('click', () => this.cb.onAdminSkipNow())
+    this.get('help-beat').addEventListener('click', () => this.cb.onAdminBeatBoss())
+    const adminLevels = this.get('admin-levels')
+    for (const l of LEVELS) {
+      const b = document.createElement('button')
+      b.className = 'lv'
+      b.textContent = l.name
+      b.addEventListener('click', () => this.cb.onAdminLevel(l.id))
+      adminLevels.appendChild(b)
+    }
+    const adminBoards = this.get('admin-boards')
+    let armed = ''
+    for (const l of [...LEVELS.map((x) => ({ id: x.id, name: x.name })), { id: 'world', name: '🌍 WORLD' }, { id: 'all', name: '💥 ALL BOARDS' }]) {
+      const b = document.createElement('button')
+      b.className = 'lv'
+      b.textContent = l.name
+      b.addEventListener('click', () => {
+        if (armed !== l.id) {
+          armed = l.id
+          this.adminMsg(`Tap ${l.name} again to wipe it.`)
+          return
+        }
+        armed = ''
+        this.adminMsg('Wiping...')
+        void this.cb.onAdminClearBoard(l.id).then((n) => this.adminMsg(n < 0 ? 'Failed: token rejected or offline.' : `Wiped ${n} time${n === 1 ? '' : 's'} from ${l.name}.`))
+      })
+      adminBoards.appendChild(b)
+    }
     this.get('prev').addEventListener('click', () => this.cb.onChooseMove(-1))
     this.get('nextc').addEventListener('click', () => this.cb.onChooseMove(1))
     this.get('go').addEventListener('click', () => this.cb.onGo())
@@ -206,7 +270,17 @@ export class Ui {
     ;(this.get('name') as HTMLInputElement).value = name
   }
 
-  show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help' | 'choose') {
+  setAdmin(on: boolean, skipOnStart: boolean) {
+    for (const el of this.root.querySelectorAll<HTMLElement>('.admin-only')) el.hidden = !on
+    this.get('admin-skip').textContent = `SKIP TO BOSS ON START: ${skipOnStart ? 'ON' : 'OFF'}`
+    if (on) this.get('levels').hidden = false
+  }
+
+  adminMsg(text: string) {
+    this.get('admin-msg').textContent = text
+  }
+
+  show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help' | 'choose' | 'admin') {
     const hudVisible = id === 'hud' || id === 'won' || id === 'over' || id === 'help'
     for (const [k, el] of Object.entries(this.screens)) {
       if (k === 'card' || k === 'bosscard') continue

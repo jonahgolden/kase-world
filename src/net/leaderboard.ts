@@ -73,6 +73,51 @@ export function saveLocalBest(board: string, timeMs: number): boolean {
   return true
 }
 
+const ADMIN_KEY = 'kw.admin'
+
+export const adminToken = {
+  get(): string {
+    try {
+      return localStorage.getItem(ADMIN_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  },
+  set(v: string) {
+    try {
+      if (v) localStorage.setItem(ADMIN_KEY, v)
+      else localStorage.removeItem(ADMIN_KEY)
+    } catch {
+      /* ignore */
+    }
+  },
+}
+
+export async function adminCheck(): Promise<boolean> {
+  const t = adminToken.get()
+  if (!t) return false
+  try {
+    const res = await fetch('/api/admin', { headers: { authorization: `Bearer ${t}` }, cache: 'no-store' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+// Wipe a leaderboard: a level id, 'world', or 'all'. Returns the number of rows removed, or -1 on failure.
+export async function adminClearBoard(board: string): Promise<number> {
+  const t = adminToken.get()
+  if (!t) return -1
+  try {
+    const res = await fetch(`/api/times?board=${encodeURIComponent(board)}`, { method: 'DELETE', headers: { authorization: `Bearer ${t}` } })
+    if (!res.ok) return -1
+    const data = (await res.json()) as { deleted?: number }
+    return data.deleted ?? 0
+  } catch {
+    return -1
+  }
+}
+
 export async function fetchBoard(board: string, limit = 20): Promise<TimeRow[] | null> {
   try {
     const res = await fetch(`/api/times?board=${encodeURIComponent(board)}&limit=${limit}`, { cache: 'no-store' })

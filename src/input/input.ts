@@ -6,7 +6,7 @@ const JOY_RADIUS = 52
 export class InputDriver {
   readonly touch: boolean
   private keys = new Set<string>()
-  private joy = { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 }
+  private joy = { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, movedAt: 0 }
   private held = { scream: false, poop: false, jump: false }
   private mouse = { poop: false, scream: false, x: 0, y: 0, movedAt: -1e9 }
   private drag = { x: 0, y: 0, active: false, power: -1 }
@@ -60,6 +60,10 @@ export class InputDriver {
 
   clear() {
     this.keys.clear()
+    this.joy.active = false
+    this.joy.x = 0
+    this.joy.y = 0
+    this.joyEl.classList.remove('on')
     this.held = { scream: false, poop: false, jump: false }
     this.mouse.poop = false
     this.mouse.scream = false
@@ -70,8 +74,11 @@ export class InputDriver {
   private bindJoystick() {
     const z = this.zoneEl
     z.addEventListener('pointerdown', (e) => {
-      if (this.joy.active) return
+      // a stale pointer (missed pointerup on iOS) must never lock the stick: a new finger takes over
+      if (this.joy.active && e.pointerId === this.joy.id) return
+      if (this.joy.active && performance.now() - this.joy.movedAt < 400) return
       this.joy.active = true
+      this.joy.movedAt = performance.now()
       this.joy.id = e.pointerId
       this.joy.ox = e.clientX
       this.joy.oy = e.clientY
@@ -101,6 +108,7 @@ export class InputDriver {
       const ny = mag > 0 ? dy / (mag * JOY_RADIUS) : 0
       this.joy.x = nx * m
       this.joy.y = ny * m
+      this.joy.movedAt = performance.now()
       this.knobEl.style.transform = `translate(${dx}px, ${dy}px)`
     })
     const end = (e: PointerEvent) => {
@@ -112,6 +120,7 @@ export class InputDriver {
     }
     z.addEventListener('pointerup', end)
     z.addEventListener('pointercancel', end)
+    z.addEventListener('lostpointercapture', end)
   }
 
   // Attack buttons work like Brawl Stars: tap = auto-aim, drag off the button to aim, release to fire.

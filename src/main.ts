@@ -1,5 +1,5 @@
 import './ui/styles.css'
-import { DT, VERSION, createState, currentLevel, nextLevelState, skipToBoss, step, fightOf } from './sim/sim.ts'
+import { DT, VERSION, createState, currentLevel, devBeatBoss, nextLevelState, skipToBoss, step, fightOf } from './sim/sim.ts'
 import { botInput } from './sim/bot.ts'
 import { LEVELS } from './sim/levels.ts'
 import type { GameEvent, State } from './sim/types.ts'
@@ -9,21 +9,25 @@ import { Globe } from './render/globe.ts'
 import { InputDriver } from './input/input.ts'
 import { AudioDriver } from './audio/audio.ts'
 import { Ui, medalFor } from './ui/ui.ts'
-import { fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
+import { adminCheck, adminClearBoard, adminToken, fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
 import type { TimeRow } from './net/leaderboard.ts'
 import { GHOST_DT, GHOST_MAX, loadGhost, packGhost, saveGhost } from './ghost.ts'
 import type { GhostPoint } from './ghost.ts'
 
 const params = new URLSearchParams(location.search)
-const dev = params.has('dev')
+// ?admin=<token> once on a device keeps admin on; admin implies dev (every level open)
+if (params.get('admin')) adminToken.set(params.get('admin')!)
+let admin = !!adminToken.get()
+const dev = params.has('dev') || admin
+let adminSkipOnStart = false
 const bot = params.has('bot')
 const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
 
 const canvas = document.getElementById('c') as HTMLCanvasElement
 const uiRoot = document.getElementById('ui') as HTMLElement
 
-type Mode = 'title' | 'choose' | 'fly' | 'play' | 'paused' | 'won' | 'over' | 'board' | 'help'
-const GLOBE_MODES: Mode[] = ['title', 'choose', 'fly', 'board', 'help']
+type Mode = 'title' | 'choose' | 'fly' | 'play' | 'paused' | 'won' | 'over' | 'board' | 'help' | 'admin'
+const GLOBE_MODES: Mode[] = ['title', 'choose', 'fly', 'board', 'help', 'admin']
 let mode: Mode = 'title'
 let state: State | null = null
 let acc = 0
@@ -91,9 +95,45 @@ const ui = new Ui(
       return !audio.muted
     },
     onBoard: (b) => void showBoard(b),
-    onChoose: () => openChooser(),
+    onChoose: () => openChooser(true),
     onChooseMove: (dir) => moveChoice(dir),
     onGo: () => launch((uiRoot.querySelector('#name') as HTMLInputElement).value.trim(), LEVELS[chosen].id),
+    onAdminOpen: () => {
+      audio.play('ui')
+      mode = 'admin'
+      ui.show('admin')
+    },
+    onAdminLevel: (id) => launch((uiRoot.querySelector('#name') as HTMLInputElement).value.trim() || 'admin', id),
+    onAdminSkipToggle: () => (adminSkipOnStart = !adminSkipOnStart),
+    onAdminSkipNow: () => {
+      if (state && mode === 'paused') {
+        skipToBoss(state)
+        resume()
+      }
+    },
+    onAdminBeatBoss: () => {
+      if (state && mode === 'paused') {
+        if (!devBeatBoss(state)) skipToBoss(state)
+        resume()
+      }
+    },
+    onAdminResetLocal: () => {
+      try {
+        for (const k of Object.keys(localStorage)) if (k.startsWith('kw.') && k !== 'kw.admin' && k !== 'kw.name') localStorage.removeItem(k)
+      } catch {
+        /* ignore */
+      }
+      unlocked = dev ? LEVELS.length - 1 : 0
+      globe.setProgress({ unlocked, bests: localBests() }, null)
+    },
+    onAdminClearBoard: (b) => adminClearBoard(b),
+    onAdminLogout: () => {
+      adminToken.set('')
+      admin = false
+      adminSkipOnStart = false
+      ui.setAdmin(false, false)
+      goTitle()
+    },
   },
   touch,
   dev,
@@ -114,6 +154,12 @@ const globe = new Globe()
 
 ui.setName(params.get('name') ?? playerName.get())
 ui.show('title')
+if (admin) {
+  ui.setAdmin(true, adminSkipOnStart)
+  void adminCheck().then((ok) => {
+    if (!ok) ui.adminMsg('Admin token not accepted by the server (offline, or the secret changed).')
+  })
+}
 
 function unlockAudio() {
   audio.unlock()
@@ -128,7 +174,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' || e.code === 'KeyP') {
     if (mode === 'play') pause()
     else if (mode === 'paused') resume()
-    else if (mode === 'help' || mode === 'board' || mode === 'choose') goTitle()
+    else if (mode === 'help' || mode === 'board' || mode === 'choose' || mode === 'admin') goTitle()
   }
   if (mode === 'choose') {
     if (e.code === 'ArrowLeft') moveChoice(-1)
@@ -237,7 +283,7 @@ let ghostNextT = 0
 
 function beginLevel(fresh: boolean) {
   if (!state) return
-  if (params.get('skip') === 'boss' && fresh) skipToBoss(state)
+  if ((params.get('skip') === 'boss' || adminSkipOnStart) && fresh) skipToBoss(state)
   thiefWarns = 0
   acc = 0
   hitstop = 0
@@ -297,10 +343,10 @@ function goTitle() {
   globe.spin()
 }
 
-function openChooser() {
+function openChooser(fromPlay = false) {
   audio.play('ui')
   mode = 'choose'
-  chosen = Math.min(unlocked, chosen)
+  chosen = fromPlay ? unlocked : Math.min(unlocked, chosen)
   ui.show('choose')
   showChoice()
 }

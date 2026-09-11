@@ -4,7 +4,7 @@ import { makeRng, rand, range, pick } from './rng.ts'
 import { LEVELS, NPC_STATS, PROP_STATS, levelById } from './levels.ts'
 import type { LevelDef } from './levels.ts'
 import { activePart, bossHit, bossPhase, bossRound, bossVulnerable, fightOf, spawnBoss, updateBoss } from './boss.ts'
-export { activePart, bossHit, bossPhase, bossRound, bossVulnerable, fightOf } from './boss.ts'
+export { activePart, bossHit, bossPhase, bossRound, bossVulnerable, devBeatBoss, fightOf } from './boss.ts'
 import { goalCount, goalMet, kingCaught, screamRival, thiefRepelled, updateGoal } from './goals.ts'
 import { CONTINENTS } from './continents.ts'
 import { closestOnRing, pointInRing } from './geom.ts'
@@ -65,6 +65,7 @@ export const CFG = {
     aimModeSpeed: 0.12, // movement while holding an attack: you turn, you barely move
     airControl: 0.5,
     launchControl: 0.05,
+    flightLaunchControl: 0.25, // steer through a launch at a quarter strength: momentum lasts, the stick never dies
     launchTime: 0.55,
   },
   skyGravity: 0.65,
@@ -120,7 +121,7 @@ export const CFG = {
   potato: { fuse: 1.2, radius: 3.6, damage: 150, count: 3 },
   conga: { time: 14, radius: 6.5, spacing: 1.1, smashPerSec: 60, dizzy: 1.5 },
   giant: { time: 8, scale: 2.4, speed: 1.2, smash: 4, scare: 7, poopR: 2.2, poopDamage: 3 },
-  fan: { up: 14, push: 9, cd: 0.8 },
+  fan: { up: 14, push: 9, cd: 0.8, skyCdMult: 2.5 }, // hovering low over a sky fan must not relaunch you every second
   portal: { cd: 1.5 },
   duo: {
     baseR: 0.45,
@@ -1065,7 +1066,8 @@ function updateFlight(s: State, input: Input) {
     p.vx *= 1 - 3 * DT
     p.vz *= 1 - 3 * DT
   } else {
-    const control = p.launchT > 0 ? C.launchControl : p.grounded ? 1 : 0.6
+    // a fan launch keeps its momentum but never takes the stick away (the family: "left and right stopped working")
+    const control = p.launchT > 0 ? C.flightLaunchControl : p.grounded ? 1 : 0.6
     const k = Math.min(1, C.accel * control * DT)
     p.vx += (mx * speed - p.vx) * k
     p.vz += (mz * speed - p.vz) * k
@@ -1123,7 +1125,7 @@ function fanLaunch(s: State) {
   if (p.y - p.gy >= 1.2) return
   const fan = featureAt(s, p.x, p.z, ['fan'])
   if (!fan || fan.cd > 0) return
-  fan.cd = CFG.fan.cd
+  fan.cd = CFG.fan.cd * (isSky(s) ? CFG.fan.skyCdMult : 1)
   p.vy = CFG.fan.up
   p.vx = fan.dirX * CFG.fan.push
   p.vz = fan.dirZ * CFG.fan.push

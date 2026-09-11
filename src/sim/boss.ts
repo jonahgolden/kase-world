@@ -359,6 +359,17 @@ function rockfishHide(s: State, b: Boss) {
   ev(s, { t: 'bossTelegraph', x: b.x, z: b.z, label: 'hide' })
 }
 
+// Admin/testing: end the current boss fight as a win. With no boss yet, the goal is skipped so he lands next.
+export function devBeatBoss(s: State): boolean {
+  const b = s.boss
+  if (b && b.state !== 'dead' && b.state !== 'enter') {
+    b.hits = b.totalHits
+    b.cover = 1
+    return bossDefeated(s, b)
+  }
+  return false
+}
+
 function bossDefeated(s: State, b: Boss): boolean {
   b.state = 'dead'
   b.stateT = 0

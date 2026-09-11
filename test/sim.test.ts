@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, fightOf, fireScream, groundY, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
+import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, devBeatBoss, fightOf, fireScream, groundY, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
 import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
@@ -1112,6 +1112,28 @@ describe('sim', () => {
     expect(ghostAt(track, GHOST_DT * 0.5)!.x).toBeCloseTo(0.5, 5)
     expect(ghostAt(track, GHOST_DT * 1.5)!.y).toBeCloseTo(0.5, 5)
     expect(ghostAt(track, GHOST_DT * 9)).toBeNull()
+  })
+
+  it('sky: the stick still steers right after a fan launch, and sky fans re-arm slowly', () => {
+    const s = createState({ seed: 5, levelId: 'sky' })
+    s.npcs = []
+    s.features = [{ id: 992, kind: 'fan', x: 0, z: 0, r: 1.2, h: 0, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false }]
+    s.player.x = 0
+    s.player.z = 0
+    run(s, 0.05)
+    expect(s.player.launchT).toBeGreaterThan(0)
+    expect(s.features[0].cd).toBeGreaterThan(CFG.fan.cd * 1.5)
+    run(s, 0.25, { ...EMPTY_INPUT, mx: -1 })
+    expect(s.player.vx).toBeLessThan(-1)
+  })
+
+  it('admin: devBeatBoss ends the fight as a win', () => {
+    const s = createState({ seed: 5, levelId: 'south-america' })
+    expect(devBeatBoss(s)).toBe(false)
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.3)
+    expect(devBeatBoss(s)).toBe(true)
+    expect(s.phase).toBe('won')
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
