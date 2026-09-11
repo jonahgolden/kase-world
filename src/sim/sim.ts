@@ -4,7 +4,8 @@ import { makeRng, rand, range, pick } from './rng.ts'
 import { LEVELS, NPC_STATS, PROP_STATS, levelById } from './levels.ts'
 import type { LevelDef } from './levels.ts'
 import { activePart, bossHit, bossPhase, bossRound, bossVulnerable, fightOf, spawnBoss, updateBoss } from './boss.ts'
-export { activePart, bossHit, bossPhase, bossRound, bossVulnerable, devBeatBoss, fightOf } from './boss.ts'
+export { activePart, bossHit, bossPhase, bossRound, bossVulnerable, devBeatBoss, fightOf, telegraphShape } from './boss.ts'
+export type { TelegraphShape } from './boss.ts'
 import { goalCount, goalMet, kingCaught, screamRival, thiefRepelled, updateGoal } from './goals.ts'
 import { CONTINENTS } from './continents.ts'
 import { closestOnRing, pointInRing } from './geom.ts'
@@ -1240,7 +1241,7 @@ function updatePlayer(s: State, input: Input) {
   playerTimers(s, input)
 }
 
-export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, big = 0.5) {
+export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, big = 0.5, why = 'OUCH!') {
   const p = s.player
   if (p.invuln > 0 || s.phase === 'over' || p.giantT > 0) return false
   dmg = Math.max(10, Math.round(dmg / 10) * 10)
@@ -1268,7 +1269,7 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
       ev(s, { t: 'rideOff', x: p.x, z: p.z, kind })
     }
   }
-  ev(s, { t: 'playerHurt', x: p.x, z: p.z, big, points: dmg })
+  ev(s, { t: 'playerHurt', x: p.x, z: p.z, big, points: dmg, label: why })
   if (p.hp <= 0) {
     s.phase = 'over'
     s.phaseT = 0
@@ -1605,7 +1606,7 @@ function updatePoops(s: State, input: Input) {
     q.z += q.vz * DT
     let hit = false
     if (q.hot && q.vy < 0 && Math.abs(q.y - p.y - 0.6) < 0.9 && dist(q.x, q.z, p.x, p.z) < q.r + p.r + 0.15) {
-      if (hurtPlayer(s, CFG.volcano.hotDamage, q.x, q.z, 0.5)) ev(s, { t: 'poopedOn', x: p.x, z: p.z })
+      if (hurtPlayer(s, CFG.volcano.hotDamage, q.x, q.z, 0.5, 'POOPED ON!')) ev(s, { t: 'poopedOn', x: p.x, z: p.z })
       hit = true
     }
     for (const n of s.npcs) {
@@ -2202,7 +2203,7 @@ function updateNpcs(s: State) {
       continue
     }
     if (n.kind === 'jelly' && n.state !== 'cower' && n.cover < CFG.cover.freezeAt && p.invuln <= 0 && p.y < 0.6 && dist(n.x, n.z, p.x, p.z) < n.r + p.r) {
-      hurtPlayer(s, st.damage, n.x, n.z, 0.5)
+      hurtPlayer(s, st.damage, n.x, n.z, 0.5, 'STUNG!')
       ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id, kind: n.kind, big: 0 })
     }
     if (n.cover > 0) n.cover = Math.max(0, n.cover - CFG.cover.decay * DT)
@@ -2270,7 +2271,7 @@ function updateNpcs(s: State) {
             n.stateT = 1.2
             n.vx = -(cx - n.x) * 2
             n.vz = -(cz - n.z) * 2
-          } else if (hurtPlayer(s, st.damage, n.x, n.z, 0.4)) {
+          } else if (hurtPlayer(s, st.damage, n.x, n.z, 0.4, n.kind === 'dog' ? 'BITTEN!' : n.kind === 'fly' || n.kind === 'bigfly' ? 'BUZZED!' : 'GRABBED!')) {
             n.state = 'recoil'
             n.stateT = 0.7
             n.vx = -(p.x - n.x) * 2
@@ -2331,7 +2332,7 @@ function updateNpcs(s: State) {
         s.milk = Math.max(0, s.milk - (CFG.protect.sip / CFG.protect.drink) * DT)
         if (s.milk <= 0) {
           s.milk = 1
-          hurtPlayer(s, CFG.protect.penalty, n.x, n.z, 0.6)
+          hurtPlayer(s, CFG.protect.penalty, n.x, n.z, 0.6, 'MILK GONE!')
           ev(s, { t: 'milkGone', x: p.x, z: p.z, big: 1 })
         }
         if (n.stateT <= 0) {
@@ -2498,7 +2499,7 @@ function updateDuogringo(s: State) {
       d.vx *= 1 - 5 * DT
       d.vz *= 1 - 5 * DT
       if (d.stateT <= 0) {
-        if (dp < r + p.r + 0.6) hurtPlayer(s, 10 + Math.round(d.power * 2) * 10, d.x, d.z, 0.3 + d.power * 0.5)
+        if (dp < r + p.r + 0.6) hurtPlayer(s, 10 + Math.round(d.power * 2) * 10, d.x, d.z, 0.3 + d.power * 0.5, 'PECKED!')
         d.peckCd = D.peckCd
         d.state = 'chase'
       }

@@ -271,3 +271,22 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
 | Sawtooth pacing | Level order NA, Sky, S. America, Antarctica, Africa, The Deep, Asia, Australia, Europe. |
 | Coverage visible | Poop-cover bosses (wash on the card), statues, nest, creature cover blobs. |
 | PB ghost, household board, per-level medals | Every level. |
+
+## 2026-09-11 (timer pass 6) — attack decals, damage attribution, haptics, boss camera
+
+- Ground indicators for incoming attacks (rings for area hits, lines for charges) turn a hit into a readable
+  mistake; clarity + timing is the whole job. ([Bugnet: enemy attack telegraphs](https://bugnet.io/blog/how-to-design-enemy-attack-telegraphs),
+  [Crate forum: telegraphs in ARPGs](https://forums.crateentertainment.com/t/whats-your-take-on-telegraphs-in-arpgs-good-or-bad/96204))
+  **→ applied: every boss telegraph now draws a pulsing red decal: a ring where a stomp, kick, pounce or hop will
+  land, a strip along a charge's path (`telegraphShape()` in boss.ts, pure and tested; renderer draws it).**
+- "If players don't understand why they failed, they can't learn from it": name the source of damage.
+  ([JoyPlayX: designing death and retry](https://www.joyplayx.com/article/how-to-handle-failure-in-games-designing-death-and-retry-loops),
+  [Acagamic: juicy damage feedback](https://acagamic.com/newsletter/2022/03/08/show-juicy-feedback-to-indicate-player-damage-in-video-games/))
+  **→ applied: `hurtPlayer` carries a reason; every hit pops "OUCH! RAN OVER / STOMPED / PECKED / STUNG / GRABBED /
+  BITTEN / PUNCHED / EMU KICK" over Kase.**
+- Haptics on the web: `navigator.vibrate` works on Android, iOS Safari has no standard path (the checkbox trick died
+  in iOS 26.5). Additive only, tie to events, never rapid-fire. ([Skill Stuff: Vibration API](https://skillstuff.com/make-your-web-app-vibrate-with-the-vibration-api/),
+  [asuma: haptics in iOS Safari](https://medium.com/@posaune0423/i-open-sourced-an-oss-library-for-arbitrary-haptic-feedback-in-ios-safari-5b8ca74a5f05))
+  **→ applied: short buzzes on Kase hurt (30 ms), boss hit (15), boss down (60), guarded and rate-limited.**
+- Boss camera: keep both fighters framed; top-down helps track fast movers. Ours already blends the target
+  two-thirds Kase, one-third boss and pulls back in boss mode. Left alone. ([Game Developer: art of boss design](https://www.gamedeveloper.com/design/tips-from-a-combat-designer-the-art-of-boss-design))

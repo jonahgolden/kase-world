@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import type { Boss, Feature, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
-import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, groundY, isSky, isWater, screamRange } from '../sim/sim.ts'
+import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, groundY, isSky, isWater, screamRange, telegraphShape } from '../sim/sim.ts'
 
 const PICKUP_COLOR: Record<string, number> = {
   milk: 0xffffff,
@@ -112,6 +112,8 @@ export class Renderer {
   private pigeon: THREE.Group | null = null // race rival
   private tube: THREE.Mesh | null = null // Kase's inner tube on the water level
   private ghost: THREE.Group | null = null // translucent Kase replaying the personal best
+  private decalRing: THREE.Mesh | null = null // where the telegraphed stomp/hop/pounce lands
+  private decalLine: THREE.Mesh | null = null // the path of a telegraphed charge
   private ghostTrack: number[] | null = null
   private giraffe!: THREE.Group
   private binky: THREE.Group | null = null // the boomerang binky in flight
@@ -990,6 +992,37 @@ export class Renderer {
     this.ghost.visible = true
   }
 
+  // Red ground decal under a boss wind-up: a ring where the hit lands, a strip along a charge.
+  private syncTelegraph(s: State) {
+    const shape = s.boss && s.phase === 'boss' ? telegraphShape(s, s.boss) : null
+    if (!this.decalRing) {
+      this.decalRing = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 40), new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }))
+      this.decalRing.rotation.x = -Math.PI / 2
+      this.decalRing.visible = false
+      this.scene.add(this.decalRing)
+      this.decalLine = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }))
+      this.decalLine.rotation.x = -Math.PI / 2
+      this.decalLine.visible = false
+      this.scene.add(this.decalLine)
+    }
+    const ring = this.decalRing
+    const line = this.decalLine!
+    const pulse = 0.35 + Math.sin(this.time * 18) * 0.2
+    ring.visible = shape?.kind === 'ring'
+    line.visible = shape?.kind === 'line'
+    if (shape?.kind === 'ring') {
+      ring.position.set(shape.x, groundY(s, shape.x, shape.z, 2) + 0.06, shape.z)
+      ring.scale.setScalar(shape.r)
+      ;(ring.material as THREE.MeshBasicMaterial).opacity = pulse
+    } else if (shape?.kind === 'line') {
+      const w = (s.boss?.r ?? 1) * 1.6
+      line.scale.set(w, shape.len, 1)
+      line.position.set(shape.x + shape.dirX * shape.len * 0.5, 0.05, shape.z + shape.dirZ * shape.len * 0.5)
+      line.rotation.set(-Math.PI / 2, 0, -Math.atan2(shape.dirX, shape.dirZ))
+      ;(line.material as THREE.MeshBasicMaterial).opacity = pulse * 0.8
+    }
+  }
+
   // ------------------------------------------------------------ level goals
 
   private removeGoalViews() {
@@ -1848,6 +1881,7 @@ export class Renderer {
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true
 
     this.syncGoalViews(s, dt)
+    this.syncTelegraph(s)
 
     // boss
     if (s.boss && s.boss.def.fight !== 'nest') {

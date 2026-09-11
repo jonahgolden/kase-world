@@ -359,6 +359,49 @@ function rockfishHide(s: State, b: Boss) {
   ev(s, { t: 'bossTelegraph', x: b.x, z: b.z, label: 'hide' })
 }
 
+// Where the telegraphed attack will land, for the ground decal: a ring (stomp, kick, pounce, hop) or a strip
+// along a charge. Null when nothing is being wound up.
+export type TelegraphShape = { kind: 'ring'; x: number; z: number; r: number } | { kind: 'line'; x: number; z: number; dirX: number; dirZ: number; len: number }
+export function telegraphShape(s: State, b: Boss): TelegraphShape | null {
+  if (b.state !== 'telegraph') return null
+  const fight = fightOf(b)
+  const p = s.player
+  const dp = dist(b.x, b.z, p.x, p.z)
+  const len = (s.bossRing?.r ?? CFG.boss.ringR) * 2
+  const stompR = CFG.boss.stompRadius * (0.8 + b.def.scale * 0.1)
+  if (fight === 'horse') return { kind: 'line', x: b.x, z: b.z, dirX: b.dirX, dirZ: b.dirZ, len }
+  if (fight === 'stomper') return { kind: 'ring', x: b.x, z: b.z, r: stompR }
+  if (fight === 'poopcover') return { kind: 'line', x: b.x, z: b.z, dirX: b.dirX, dirZ: b.dirZ, len: len * 0.6 }
+  if (fight === 'group' || fight === 'games') {
+    const part = activePart(b)
+    const G = CFG.boss.group
+    switch (part?.def.kind) {
+      case 'lion': {
+        const d = Math.min(dp, G.pounceMax)
+        return { kind: 'ring', x: b.x + b.dirX * d, z: b.z + b.dirZ * d, r: G.pounceR }
+      }
+      case 'giraffe':
+        return { kind: 'ring', x: b.x, z: b.z, r: G.kickR }
+      case 'elephant':
+        return { kind: 'ring', x: b.x, z: b.z, r: G.stompR }
+      case 'rhino':
+        return { kind: 'line', x: b.x, z: b.z, dirX: b.dirX, dirZ: b.dirZ, len }
+      case 'kangaroo': {
+        const S = CFG.boss.sumo
+        const d = Math.min(dp, S.hopDist)
+        return { kind: 'ring', x: b.x + b.dirX * d, z: b.z + b.dirZ * d, r: S.punchR }
+      }
+      default:
+        return null
+    }
+  }
+  if (fight === 'charge') {
+    if (b.attack === 'stomp') return { kind: 'ring', x: b.x, z: b.z, r: stompR }
+    return { kind: 'line', x: b.x, z: b.z, dirX: b.dirX, dirZ: b.dirZ, len }
+  }
+  return null
+}
+
 // Admin/testing: end the current boss fight as a win. With no boss yet, the goal is skipped so he lands next.
 export function devBeatBoss(s: State): boolean {
   const b = s.boss
@@ -467,7 +510,7 @@ export function updateBoss(s: State) {
         const sp = b.def.chargeSpeed * B.chargeMult[ph]
         b.vx = b.dirX * sp
         b.vz = b.dirZ * sp
-        if (dp < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+        if (dp < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'RAN OVER!')
         for (const pr of s.props) {
           if (pr.broken) continue
           if (dist(b.x, b.z, pr.x, pr.z) < b.r + pr.r) {
@@ -481,7 +524,7 @@ export function updateBoss(s: State) {
         b.vz *= 1 - 8 * DT
         if (b.stateT <= 0) {
           const R = B.stompRadius * (0.8 + b.def.scale * 0.1)
-          if (dp < R + p.r && p.grounded) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+          if (dp < R + p.r && p.grounded) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'STOMPED! JUMP IT!')
           for (const pr of s.props) {
             if (pr.broken) continue
             const d = dist(b.x, b.z, pr.x, pr.z)
@@ -567,7 +610,7 @@ function updateRunner(s: State, b: Boss, ph: number) {
     b.x = nx
     b.z = nz
     b.facing = Math.atan2(b.vx, b.vz)
-    if (dist(b.x, b.z, p.x, p.z) < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+    if (dist(b.x, b.z, p.x, p.z) < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'RAN OVER!')
     for (let i = s.splats.length - 1; i >= 0; i--) {
       const sp2 = s.splats[i]
       if (dist(b.x, b.z, sp2.x, sp2.z) < b.r * 0.6 + sp2.r) {
@@ -623,7 +666,7 @@ function updatePoopcover(s: State, b: Boss, ph: number) {
       const sp = b.def.chargeSpeed * (0.8 + ph * 0.2)
       b.vx = b.dirX * sp
       b.vz = b.dirZ * sp
-      if (dp < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+      if (dp < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'SLID INTO!')
       if (b.stateT <= 0) {
         b.state = 'idle'
         b.stateT = B.idle[ph] + 0.8
@@ -665,7 +708,7 @@ function facePlayer(s: State, b: Boss) {
 
 function chargeSmash(s: State, b: Boss, dmg: number) {
   const p = s.player
-  if (dist(b.x, b.z, p.x, p.z) < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+  if (dist(b.x, b.z, p.x, p.z) < b.r + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'RAN OVER!')
   for (const pr of s.props) {
     if (pr.broken) continue
     if (dist(b.x, b.z, pr.x, pr.z) < b.r + pr.r) {
@@ -678,7 +721,7 @@ function chargeSmash(s: State, b: Boss, dmg: number) {
 
 function stomp(s: State, b: Boss, R: number, dmg: number) {
   const p = s.player
-  if (dist(b.x, b.z, p.x, p.z) < R + p.r && p.grounded) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+  if (dist(b.x, b.z, p.x, p.z) < R + p.r && p.grounded) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'STOMPED! JUMP IT!')
   for (const pr of s.props) {
     if (pr.broken) continue
     const d = dist(b.x, b.z, pr.x, pr.z)
@@ -835,7 +878,7 @@ function updateGroup(s: State, b: Boss, ph: number) {
         if (b.stateT <= 0) {
           b.y = 0
           b.vx = b.vz = 0
-          if (dp < G.pounceR + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8)
+          if (dp < G.pounceR + p.r && p.y < 1.2) hurtPlayer(s, dmg, b.x, b.z, 0.8, 'POUNCED!')
           ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: 0.6, range: G.pounceR })
           b.state = 'exposed' // panting, but poop works any time
           b.stateT = 1.2
@@ -1047,7 +1090,7 @@ function updateGames(s: State, b: Boss, ph: number) {
           b.y = 0
           b.vx *= 0.2
           b.vz *= 0.2
-          if (dp < S.punchR + p.r && p.y < 1.2 && hurtPlayer(s, S.punch, b.x, b.z, 0.6)) {
+          if (dp < S.punchR + p.r && p.y < 1.2 && hurtPlayer(s, S.punch, b.x, b.z, 0.6, 'PUNCHED!')) {
             // a little bounce-back keeps the bout fluid instead of a dead stop
             b.vx = -b.dirX * 3
             b.vz = -b.dirZ * 3
@@ -1142,7 +1185,7 @@ function updateGames(s: State, b: Boss, ph: number) {
       landHit(s, b, 'YOU WIN THE LAP!')
       if (bossLive(b)) raceCountdown(s, b)
     } else if (emu >= 1) {
-      hurtPlayer(s, R.kick, b.x, b.z, 0.5)
+      hurtPlayer(s, R.kick, b.x, b.z, 0.5, 'EMU WON THE LAP!')
       ev(s, { t: 'bossStomp', x: p.x, z: p.z, big: 0.6, label: 'emu' })
       raceCountdown(s, b)
     }
@@ -1164,7 +1207,7 @@ function updateGames(s: State, b: Boss, ph: number) {
     ev(s, { t: 'rockHint', x: p.x, z: p.z, big: near })
   }
   if (p.y < 0.5 && p.invuln <= 0 && dist(b.x, b.z, p.x, p.z) < b.r + p.r) {
-    hurtPlayer(s, K.spike, b.x, b.z, 0.6)
+    hurtPlayer(s, K.spike, b.x, b.z, 0.6, 'SPIKES!')
     b.hitFlash = K.reveal
     ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: 0.5, label: 'spike' })
   }

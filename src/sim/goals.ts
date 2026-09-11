@@ -119,7 +119,7 @@ export function updateGoal(s: State) {
     }
     if (pp < st.front && p.y < 0.9 && p.ride !== 'giraffe' && st.hitCd <= 0) {
       st.hitCd = S.hitCd
-      hurtPlayer(s, S.damage, p.x - st.dirX * 2, p.z - st.dirZ * 2, 0.9)
+      hurtPlayer(s, S.damage, p.x - st.dirX * 2, p.z - st.dirZ * 2, 0.9, 'TRAMPLED!')
       p.vx += st.dirX * S.shove
       p.vz += st.dirZ * S.shove
       p.vy = Math.max(p.vy, 4)
@@ -163,7 +163,7 @@ export function updateGoal(s: State) {
         rv.laps++
         rv.x = 0
         rv.z = 0
-        hurtPlayer(s, R.penalty, p.x + 1, p.z, 0.6)
+        hurtPlayer(s, R.penalty, p.x + 1, p.z, 0.6, 'PIGEON LAPPED YOU!')
         ev(s, { t: 'rivalWin', x: p.x, z: p.z, big: 1 })
       }
     }

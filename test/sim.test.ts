@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, devBeatBoss, fightOf, fireScream, groundY, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
+import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, devBeatBoss, fightOf, fireScream, groundY, hurtPlayer, nextLevelState, skipToBoss, step, telegraphShape } from '../src/sim/sim.ts'
 import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
@@ -1194,6 +1194,38 @@ describe('sim', () => {
     s.player.invuln = 99
     run(s, 0.5)
     expect(chasers.filter((n) => n.state === 'chase').length).toBeLessThanOrEqual(CFG.crowd.maxChasing)
+  })
+
+  it('research pass 6: telegraph decals know where attacks land, hurts say why', () => {
+    const s = createState({ seed: 5 })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.3)
+    const b = s.boss!
+    expect(telegraphShape(s, b)).toBeNull()
+    b.state = 'telegraph'
+    b.attack = 'charge'
+    b.dirX = 1
+    b.dirZ = 0
+    expect(telegraphShape(s, b)!.kind).toBe('line')
+    b.attack = 'stomp'
+    const ring = telegraphShape(s, b)!
+    expect(ring.kind).toBe('ring')
+    if (ring.kind === 'ring') expect(ring.r).toBeGreaterThan(2)
+    const g = createState({ seed: 5, levelId: 'africa' })
+    skipToBoss(g)
+    run(g, CFG.boss.enterTime + CFG.boss.phaseChangeTime + 0.5)
+    const gb = g.boss!
+    gb.state = 'telegraph'
+    gb.dirX = 0
+    gb.dirZ = 1
+    g.player.x = gb.x
+    g.player.z = gb.z + 4
+    const pounce = telegraphShape(g, gb)!
+    expect(pounce.kind).toBe('ring')
+    if (pounce.kind === 'ring') expect(pounce.z).toBeCloseTo(gb.z + 4, 1)
+    s.player.invuln = 0
+    hurtPlayer(s, 10, s.player.x + 1, s.player.z, 0.5, 'TESTED!')
+    expect(s.events.some((e) => e.t === 'playerHurt' && e.label === 'TESTED!')).toBe(true)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

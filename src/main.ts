@@ -465,9 +465,13 @@ function handleEvents(s: State) {
       case 'smash':
         hitstop = Math.max(hitstop, 0.02 + (e.big ?? 0) * 0.06)
         break
-      case 'playerHurt':
+      case 'playerHurt': {
         hitstop = Math.max(hitstop, 0.06)
+        buzz(30)
+        const pt = renderer.project(e.x ?? 0, 2.6, e.z ?? 0)
+        ui.popup(e.label ?? 'OUCH!', pt.x, pt.y, '#ff5c5c', 0.9)
         break
+      }
       case 'pickup': {
         const pt = renderer.project(e.x ?? 0, 1.6, e.z ?? 0)
         const labels: Record<string, [string, string]> = {
@@ -654,6 +658,7 @@ function handleEvents(s: State) {
         break
       case 'bossHurt':
         hitstop = Math.max(hitstop, 0.09)
+        buzz(15)
         if (e.label) {
           const pt = renderer.project(e.x ?? 0, 3, e.z ?? 0)
           ui.popup(e.label, pt.x, pt.y, '#ff5c5c', 1)
@@ -666,6 +671,7 @@ function handleEvents(s: State) {
         break
       case 'bossDead': {
         hitstop = Math.max(hitstop, 0.25)
+        buzz(60)
         // the kill sequence: the boss gets a last word, then the game says it out loud
         const pt = renderer.project(e.x ?? 0, 3.4, e.z ?? 0)
         if (e.kind) ui.popup(`"${e.kind}"`, pt.x, pt.y, '#ffffff', 2.2)
@@ -773,6 +779,20 @@ function playSound(e: GameEvent) {
 // ±6% on every repeated cue so a hundred smashes never sound like one sample on loop
 function vary(): number {
   return 0.94 + Math.random() * 0.12
+}
+
+// Haptics are additive: Android phones buzz, iOS silently ignores, and never more than a few times a second.
+let buzzAt = 0
+function buzz(ms: number) {
+  if (!touch || typeof navigator.vibrate !== 'function') return
+  const now = performance.now()
+  if (now - buzzAt < 120) return
+  buzzAt = now
+  try {
+    navigator.vibrate(ms)
+  } catch {
+    /* ignore */
+  }
 }
 
 function loop(now: number) {
