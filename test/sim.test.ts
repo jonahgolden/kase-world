@@ -1035,15 +1035,18 @@ describe('sim', () => {
     const b = s.boss!
     const p = s.player
     p.invuln = 99
+    const ring = s.bossRing!
+    p.x = ring.x
+    p.z = ring.z - 4
     b.state = 'attack'
     b.stateT = 1.5
-    b.x = p.x
-    b.z = p.z + 8
+    b.x = ring.x
+    b.z = ring.z + 4
     b.dirX = 0
     b.dirZ = -1
     p.facing = 0
     p.hasAim = true
-    fireScream(s, 0.3) // range ~4.6: he is out of reach, no direct hit
+    fireScream(s, 0.3) // range ~4.6: he is 8 away, no direct hit
     expect(b.hits).toBe(0)
     expect(b.roundT).toBeGreaterThan(0)
     run(s, 0.4)
