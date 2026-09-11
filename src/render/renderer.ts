@@ -62,10 +62,6 @@ export interface PrevSnap {
   poops: Map<number, { x: number; y: number; z: number }>
 }
 
-function speedLinesDue(time: number, dt: number): boolean {
-  return time % 0.08 < dt
-}
-
 function lerpAngle(a: number, b: number, t: number): number {
   let d = b - a
   while (d > Math.PI) d -= Math.PI * 2
@@ -151,11 +147,8 @@ export class Renderer {
   private tmpE = new THREE.Euler()
   private time = 0
   private giantScale = 1
-  private camYaw = 0
   private walkTS = 1
   private flyTilt = 0
-  private fovKick = 0
-  chase = false // over-the-shoulder camera (unused for now; steering stays screen-relative)
   private skyCam = false
   private aimArrow: THREE.Mesh
   private arc: THREE.Line
@@ -384,9 +377,7 @@ export class Renderer {
     if (this.water) this.scene.remove(this.water)
     const sky = isSky(s)
     const water = isWater(s)
-    this.chase = false
     this.skyCam = sky
-    this.camYaw = s.player.facing
     this.ground = this.makeContinent(s.arena.ring, 1, sky ? 1.6 : 0.7, th.ground, th.ground2, !sky && !water)
     this.ground.position.y = sky ? -1.6 : water ? -0.35 : -0.7
     this.scene.add(this.ground)
@@ -1500,7 +1491,7 @@ export class Renderer {
 
   addShake(v: number) {
     // shake fights aiming; keep it tiny while flying
-    this.shake = Math.min(1.4, this.shake + v * (this.chase ? 0.25 : 1))
+    this.shake = Math.min(1.4, this.shake + v)
   }
 
   // Torches, a glowing ring and a spotlight: the boss fight gets its own stage.
@@ -2239,11 +2230,6 @@ export class Renderer {
     }
   }
 
-  // Horizontal yaw the camera looks along (0 = toward -z). Drivers rotate stick input by it.
-  inputYaw(): number {
-    return 0
-  }
-
   // Predicted poop path for the current hold, same numbers as the sim.
   private updateArc(s: State, px: number, py: number, pz: number, pf: number) {
     const p = s.player
@@ -2281,46 +2267,20 @@ export class Renderer {
   private updateCamera(s: State, dt: number) {
     const p = s.player
     const portrait = this.camera.aspect < 1
-    if (this.chase) {
-      // behind Kase along his heading, following his height, looking a little ahead of him
-      let diff = p.facing - this.camYaw
-      while (diff > Math.PI) diff -= Math.PI * 2
-      while (diff < -Math.PI) diff += Math.PI * 2
-      this.camYaw += diff * Math.min(1, 3 * dt)
-      const fx = Math.sin(this.camYaw)
-      const fz = Math.cos(this.camYaw)
-      const boost = p.boosting ? 1 : 0
-      this.fovKick += (boost - this.fovKick) * Math.min(1, dt * (boost ? 5 : 2))
-      if (p.boosting && speedLinesDue(this.time, dt)) this.particles.burst(p.x - Math.sin(p.facing) * 0.6, p.y + 0.2, p.z - Math.cos(p.facing) * 0.6, 2, 0xffffff, 1.5, 0.07)
-      const back = (portrait ? 7 : 6.5) + this.fovKick * 1.2
-      const up = (portrait ? 3.2 : 2.6) - p.pitch * 1.2
-      this.camTarget.lerp(this.tmpV.set(p.x + fx * 3, p.y + 0.8 + p.pitch * 2, p.z + fz * 3), Math.min(1, 8 * dt))
-      const want = this.tmpS.set(p.x - fx * back, p.y + up, p.z - fz * back)
-      const fovBase = portrait ? 70 : 62
-      this.camera.fov = fovBase + this.fovKick * 15
-      this.camera.updateProjectionMatrix()
-      // never sit inside an island: climb over any platform the camera would enter
-      for (const f of s.features) {
-        if (f.kind !== 'platform') continue
-        if (Math.hypot(want.x - f.x, want.z - f.z) < f.r + 0.6 && want.y < f.h + 0.6) want.y = f.h + 0.9
-      }
-      this.camPos.lerp(want, Math.min(1, 7 * dt))
-    } else {
-      const skyClose = this.skyCam ? 0.8 : 1
-      const back = ((portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3) * skyClose
-      const up = ((portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3) * (this.skyCam ? 0.7 : 1)
-      const lookAhead = 0.35
-      let tx = p.x + p.vx * lookAhead
-      let tz = p.z + p.vz * lookAhead
-      if (s.boss && s.phase === 'boss') {
-        tx = (tx * 2 + s.boss.x) / 3
-        tz = (tz * 2 + s.boss.z) / 3
-      }
-      const yf = this.skyCam ? 1 : 0.7
-      this.camTarget.lerp(this.tmpV.set(tx, 0.8 + p.y * yf, tz), Math.min(1, 6 * dt))
-      const want = this.tmpS.set(this.camTarget.x, up + p.y * yf, this.camTarget.z + back)
-      this.camPos.lerp(want, Math.min(1, 5 * dt))
+    const skyClose = this.skyCam ? 0.8 : 1
+    const back = ((portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3) * skyClose
+    const up = ((portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3) * (this.skyCam ? 0.7 : 1)
+    const lookAhead = 0.35
+    let tx = p.x + p.vx * lookAhead
+    let tz = p.z + p.vz * lookAhead
+    if (s.boss && s.phase === 'boss') {
+      tx = (tx * 2 + s.boss.x) / 3
+      tz = (tz * 2 + s.boss.z) / 3
     }
+    const yf = this.skyCam ? 1 : 0.7
+    this.camTarget.lerp(this.tmpV.set(tx, 0.8 + p.y * yf, tz), Math.min(1, 6 * dt))
+    const want = this.tmpS.set(this.camTarget.x, up + p.y * yf, this.camTarget.z + back)
+    this.camPos.lerp(want, Math.min(1, 5 * dt))
     this.shake = Math.max(0, this.shake - dt * 3.2)
     if (this.shake > 0) {
       const a = this.shake * this.shake * 0.5
