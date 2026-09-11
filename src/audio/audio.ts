@@ -303,6 +303,56 @@ export class AudioDriver {
         this.tone('sine', 60, 25, 0.7, 0.9 * v)
         this.burst(0.5, 0.5 * v, 'lowpass', 300)
         break
+      case 'erupt':
+        if (big > 0.5) {
+          this.tone('sine', 70, 30, 0.6, 0.8 * v)
+          this.burst(0.6, 0.5 * v, 'lowpass', 500)
+          this.burst(0.3, 0.25 * v, 'bandpass', 1200, 0.1)
+        } else this.burst(0.8, 0.12 * v, 'lowpass', 120)
+        break
+      case 'surge':
+        if (big > 0.5) this.tone('sawtooth', 90, 60, 0.6, 0.3 * v)
+        this.burst(0.9, (big > 0.5 ? 0.3 : 0.12) * v, 'lowpass', 160)
+        break
+      case 'trampled':
+        for (let i = 0; i < 4; i++) this.tone('sine', 80, 40, 0.12, 0.5 * v, i * 0.08)
+        this.burst(0.3, 0.3 * v, 'lowpass', 400)
+        break
+      case 'npcPop':
+        this.tone('sine', 500 * p, 1400 * p, 0.09, 0.25 * v)
+        this.burst(0.06, 0.2 * v, 'highpass', 1500)
+        break
+      case 'poopedOn':
+        this.tone('sine', 220, 70, 0.2, 0.4 * v)
+        this.burst(0.14, 0.3 * v, 'lowpass', 800)
+        this.tone('square', 300, 180, 0.2, 0.08 * v, 0.15)
+        break
+      case 'nap':
+        for (let i = 0; i < 3; i++) this.tone('sine', [660, 550, 440][i], [660, 550, 440][i], 0.35, 0.12 * v, i * 0.18, 'lin')
+        break
+      case 'boomerang':
+        this.burst(0.25, 0.18 * v, 'bandpass', big > 0 ? 1400 : 900, 0, 0.6)
+        this.tone('sine', big > 0 ? 400 : 700, big > 0 ? 800 : 400, 0.2, 0.08 * v)
+        break
+      case 'decoy':
+        this.burst(0.2, 0.2 * v, 'bandpass', 2000)
+        this.tone('sine', big > 0 ? 500 : 900, big > 0 ? 900 : 300, 0.2, 0.1 * v)
+        break
+      case 'melting':
+        this.tone('sine', 900, 300, 0.2, 0.1 * v)
+        break
+      case 'milkGone':
+        for (let i = 0; i < 3; i++) this.tone('sawtooth', [392, 330, 262][i], [392, 330, 262][i] * 0.97, 0.25, 0.12 * v, i * 0.2, 'lin')
+        break
+      case 'rivalWin':
+        this.tone('square', 880, 660, 0.1, 0.12 * v)
+        this.tone('square', 660, 880, 0.12, 0.12 * v, 0.12)
+        this.tone('square', 880, 880, 0.18, 0.1 * v, 0.26, 'lin')
+        break
+      case 'covered':
+        this.tone('sine', 190, 55, 0.3, 0.6 * v)
+        this.burst(0.25, 0.35 * v, 'lowpass', 700)
+        break
       default:
         break
     }
