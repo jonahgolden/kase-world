@@ -231,7 +231,7 @@ describe('sim', () => {
     s.player.invuln = 0
     s.player.hp = 100
     const dmgBefore = s.stats.damageTaken
-    s.npcs = [{ id: 950, kind: 'adult', x: s.player.x + 0.3, z: s.player.z, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0, scale: 1 }]
+    s.npcs = [{ id: 950, kind: 'adult', x: s.player.x + 0.3, z: s.player.z, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0, scale: 1, cover: 0 }]
     run(s, 0.5)
     expect(s.stats.damageTaken).toBeGreaterThan(dmgBefore)
     expect(s.player.ride).toBeNull()
@@ -341,7 +341,7 @@ describe('sim', () => {
     s.player.ride = 'quad'
     s.player.rideHp = CFG.ride.quad.hp
     s.player.invuln = 0
-    s.npcs = [{ id: 950, kind: 'adult', x: s.player.x + 0.3, z: s.player.z, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0, scale: 1 }]
+    s.npcs = [{ id: 950, kind: 'adult', x: s.player.x + 0.3, z: s.player.z, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0, scale: 1, cover: 0 }]
     run(s, 0.3)
     expect(s.player.ride).toBe('quad')
     expect(s.player.rideHp).toBe(CFG.ride.quad.hp - 1)
@@ -379,7 +379,7 @@ describe('sim', () => {
     const car = s.props.find((p) => p.kind === 'car')!
     car.x = 3
     car.z = 0
-    s.npcs = [{ id: 951, kind: 'adult', x: 2, z: 2, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0, scale: 1 }]
+    s.npcs = [{ id: 951, kind: 'adult', x: 2, z: 2, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'chase', stateT: 0, targetX: 0, targetZ: 0, scaredCd: 0, color: 0, hitFlash: 0, scale: 1, cover: 0 }]
     s.pickups = [{ id: 971, kind: 'giant', x: s.player.x, y: 0, z: s.player.z, vy: 0, age: 1, float: false }]
     run(s, 0.1)
     expect(s.player.giantT).toBeGreaterThan(0)
@@ -423,7 +423,7 @@ describe('sim', () => {
     const s = createState({ seed: 9 })
     s.features = []
     s.props = []
-    s.npcs = [{ id: 960, kind: 'adult', x: 1.6, z: 3, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'wander', stateT: 5, targetX: 1.6, targetZ: 3, scaredCd: 0, color: 0, hitFlash: 0, scale: 1 }]
+    s.npcs = [{ id: 960, kind: 'adult', x: 1.6, z: 3, vx: 0, vz: 0, facing: 0, r: 0.4, hp: 60, state: 'wander', stateT: 5, targetX: 1.6, targetZ: 3, scaredCd: 0, color: 0, hitFlash: 0, scale: 1, cover: 0 }]
     s.player.facing = 0
     s.player.hasAim = false
     fireScream(s, 1)
@@ -454,7 +454,7 @@ describe('sim', () => {
     fireScream(s, 1)
     expect(statue.broken).toBe(false)
     for (let i = 0; i < 4; i++) {
-      s.poops.push({ id: 8000 + i, x: -5.6, y: 0.5, z: 0, vx: -1, vy: 0, vz: 0, r: 0.22 })
+      s.poops.push({ id: 8000 + i, x: -5.6, y: 0.5, z: 0, vx: -1, vy: 0, vz: 0, r: 0.22, ox: 0, oz: 0 })
       run(s, 0.1)
     }
     expect(statue.broken).toBe(true)
@@ -519,29 +519,74 @@ describe('sim', () => {
     expect(bossHit(sky, 'poop')).toBe(true)
   })
 
-  it('sky flight: always airborne, turns at a limited rate, boost from wings, skims over islands', () => {
+  it('sky hover: hold jump to rise, let go to sink, boost from wings, land on islands', () => {
     const s = createState({ seed: 5, levelId: 'sky' })
-    run(s, 1)
+    s.features = []
+    s.npcs = []
+    run(s, 0.5)
     expect(s.player.flying).toBe(true)
-    expect(s.player.y).toBeGreaterThanOrEqual(CFG.fly.minY)
-    const f0 = s.player.facing
-    run(s, 0.5, { ...EMPTY_INPUT, mx: 1 })
-    const turned = Math.abs(s.player.facing - f0)
-    expect(turned).toBeGreaterThan(0.3)
-    expect(turned).toBeLessThan(CFG.fly.turnRate * 0.5 + 0.05)
-    run(s, 1.5, { ...EMPTY_INPUT, mz: -1 })
-    expect(s.player.y).toBeGreaterThan(2)
+    run(s, 1.5, { ...EMPTY_INPUT, jump: true })
+    expect(s.player.y).toBeGreaterThan(3)
+    const top = s.player.y
+    run(s, 1.5)
+    expect(s.player.y).toBeLessThan(top)
+    run(s, 4)
+    expect(s.player.y).toBe(0)
+    expect(s.player.grounded).toBe(true)
+    run(s, 1, { ...EMPTY_INPUT, mx: 1 })
     const speedBefore = Math.hypot(s.player.vx, s.player.vz)
     s.player.boostFuel = 3
-    run(s, 0.3, { ...EMPTY_INPUT, jump: true })
+    run(s, 0.6, { ...EMPTY_INPUT, mx: 1, jump: true })
     expect(Math.hypot(s.player.vx, s.player.vz)).toBeGreaterThan(speedBefore * 1.3)
-    expect(s.player.boostFuel).toBeLessThan(3)
-    s.features = [{ id: 990, kind: 'platform', x: s.player.x + Math.sin(s.player.facing) * 6, z: s.player.z + Math.cos(s.player.facing) * 6, r: 4, h: 6, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false }]
-    s.player.y = 1
-    s.player.pitch = 0
-    run(s, 1.5)
-    expect(s.player.y).toBeLessThan(6.5)
-    expect(s.player.y).toBeGreaterThanOrEqual(CFG.fly.minY)
+    s.features = [{ id: 990, kind: 'platform', x: s.player.x + 4, z: s.player.z, r: 3, h: 2, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false }]
+    s.player.y = 3
+    s.player.vy = 0
+    s.player.grounded = false
+    run(s, 0.9, { ...EMPTY_INPUT, mx: 1 })
+    expect(s.player.y).toBeCloseTo(2, 1)
+    expect(s.player.grounded).toBe(true)
+  })
+
+  it('poop coverage: a chicken freezes from one hit, an adult only slows, and it wears off', () => {
+    const s = createState({ seed: 6 })
+    s.features = []
+    const chick = s.npcs.find((n) => n.kind === 'chicken' && n.scale < 1.1)!
+    const adult = s.npcs.find((n) => n.kind === 'adult')!
+    s.npcs = [chick, adult]
+    for (const n of s.npcs) {
+      n.cover = 0
+      n.state = 'wander'
+    }
+    s.poops.push({ id: 8100, x: chick.x, y: 0.5, z: chick.z, vx: 0, vy: 0, vz: 0, r: 0.22, ox: chick.x - 5, oz: chick.z })
+    s.poops.push({ id: 8101, x: adult.x, y: 0.5, z: adult.z, vx: 0, vy: 0, vz: 0, r: 0.22, ox: adult.x - 5, oz: adult.z })
+    run(s, 0.05)
+    expect(chick.cover).toBeGreaterThanOrEqual(CFG.cover.freezeAt)
+    expect(adult.cover).toBeGreaterThan(0.2)
+    expect(adult.cover).toBeLessThan(CFG.cover.freezeAt)
+    const cx = chick.x
+    run(s, 2)
+    expect(Math.abs(chick.x - cx)).toBeLessThan(0.3)
+    const c0 = chick.cover
+    run(s, 5)
+    expect(chick.cover).toBeLessThan(c0)
+  })
+
+  it('evil baby: only poop from a distance counts, five hits drop it', () => {
+    const s = createState({ seed: 6 })
+    const eb = s.props.find((p) => p.kind === 'evilbaby')!
+    expect(eb).toBeDefined()
+    s.npcs = []
+    s.features = s.features.filter((f) => f.kind === 'lake' || (f.kind === 'platform' && f.island))
+    const before = eb.hp
+    s.poops.push({ id: 8200, x: eb.x, y: eb.y + 1, z: eb.z, vx: 0, vy: 0, vz: 0, r: 0.22, ox: eb.x - 2, oz: eb.z })
+    run(s, 0.05)
+    expect(eb.hp).toBe(before)
+    for (let i = 0; i < 5; i++) {
+      s.poops.push({ id: 8300 + i, x: eb.x, y: eb.y + 1, z: eb.z, vx: 0, vy: 0, vz: 0, r: 0.22, ox: eb.x - 12, oz: eb.z })
+      run(s, 0.05)
+    }
+    expect(eb.broken).toBe(true)
+    expect(s.pickups.some((k) => k.kind === 'clock')).toBe(true)
   })
 
   it('player dies at zero hp and the game is over', () => {

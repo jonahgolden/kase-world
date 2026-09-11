@@ -88,5 +88,13 @@ smoothed), stick y = climb/dive with auto-level, JUMP = boost from wing pickups,
 heading; chase camera looks ahead with an FOV kick on boost. Render interpolation (main snapshots
 positions before each sim step, renderer lerps by `alpha`) removed the 60 Hz judder. Flying pose
 tilts the walk model belly-down and banks. Globe shows the animated 3D baby on the chosen continent.
-Next: family playtest; remaining: distinct fights for Khan/animal groups/Columbus, chase goal,
+v0.7: feedback round 4. Globe title/chooser has 8 cloned Kases (SkeletonUtils) wandering and pooping
+on each other. Milk bottles say rotating baby phrases (`BABY_TALK` in main.ts). Poop coverage on
+creatures (`Npc.cover`): small ones freeze from one hit, big ones slow then freeze, stacks to 3, decays
+0.05/s, brown blob + shiver. Sky flight is now hover: hold JUMP to lift, release to sink, stick moves as on
+the ground, wings = boost fuel, land on islands; upright model; fixed-yaw follow camera that tracks
+height; soft flap + procedural lullaby (`audio.music`). Touch attack buttons drag-to-aim (Brawl Stars
+style), tap = auto-aim; aim arrow + dashed poop arc shown while holding. Evil baby target on every
+continent's lake island: poop only, only from ≥7 units away, 5 hits, drops a clock.
+Next: apply the controls memo (pending), distinct fights for Khan/animal groups/Columbus, chase goal,
 Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.

@@ -1,6 +1,7 @@
 // Low-poly globe hub: vertex-colored icosphere with the seven continents, a boss card on each.
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js'
 import { LEVELS } from '../sim/levels.ts'
 import { CONTINENTS } from '../sim/continents.ts'
 import { pointInRing } from '../sim/geom.ts'
@@ -42,6 +43,13 @@ export class Globe {
   private markers = new Map<string, { group: THREE.Group; lock: THREE.Sprite; medal: THREE.Sprite }>()
   private baby: THREE.Group = new THREE.Group()
   private babyMixer: THREE.AnimationMixer | null = null
+  private walkers: { group: THREE.Group; mixer: THREE.AnimationMixer; dir: THREE.Vector3; heading: THREE.Vector3; throwT: number }[] = []
+  private poops: { mesh: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; t: number }[] = []
+  private splats: { mesh: THREE.Mesh; life: number }[] = []
+  private poopGeo = new THREE.SphereGeometry(0.12, 8, 6)
+  private poopMat = new THREE.MeshLambertMaterial({ color: 0x6b3e1e })
+  private splatGeo = new THREE.CircleGeometry(0.28, 10)
+  private splatMat = new THREE.MeshBasicMaterial({ color: 0x5a3416, transparent: true, opacity: 0.9 })
   private fromQ = new THREE.Quaternion()
   private toQ = new THREE.Quaternion()
   private flyT = 0
@@ -130,8 +138,101 @@ export class Globe {
       this.babyMixer = new THREE.AnimationMixer(model)
       const clip = gltf.animations.find((c) => c.name === 'walk-idle') ?? gltf.animations[0]
       if (clip) this.babyMixer.clipAction(clip).play()
+      // a crowd of Kases wandering the globe and pooping on each other
+      const walk = gltf.animations.find((c) => c.name === 'walk') ?? gltf.animations[0]
+      for (let i = 0; i < 8; i++) {
+        const m = skeletonClone(model) as THREE.Group
+        m.scale.copy(model.scale).multiplyScalar(0.75)
+        const wrap = new THREE.Group()
+        wrap.add(m)
+        const dir = new THREE.Vector3().randomDirection()
+        const heading = new THREE.Vector3().randomDirection().projectOnPlane(dir).normalize()
+        const mixer = new THREE.AnimationMixer(m)
+        if (walk) {
+          const act = mixer.clipAction(walk)
+          act.timeScale = 0.9 + Math.random() * 0.3
+          act.time = Math.random()
+          act.play()
+        }
+        this.group.add(wrap)
+        this.walkers.push({ group: wrap, mixer, dir, heading, throwT: 2 + Math.random() * 4 })
+      }
     } catch (e) {
       console.warn('globe baby failed', e)
+    }
+  }
+
+  private placeOnSphere(obj: THREE.Object3D, dir: THREE.Vector3, heading: THREE.Vector3) {
+    obj.position.copy(dir).multiplyScalar(this.R * 1.03)
+    const m = new THREE.Matrix4()
+    const right = new THREE.Vector3().crossVectors(heading, dir).normalize()
+    m.makeBasis(right, dir, heading.clone().negate())
+    obj.quaternion.setFromRotationMatrix(m)
+  }
+
+  private updateWalkers(dt: number) {
+    const speed = 0.12 // radians per second around the globe
+    for (const w of this.walkers) {
+      // step along the heading on the sphere, then re-tangent
+      const step = w.heading.clone().multiplyScalar(speed * dt)
+      w.dir.add(step).normalize()
+      w.heading.projectOnPlane(w.dir).normalize()
+      // wander: rotate heading a little around the surface normal
+      w.heading.applyAxisAngle(w.dir, (Math.random() - 0.5) * 0.9 * dt)
+      this.placeOnSphere(w.group, w.dir, w.heading)
+      w.mixer.update(dt)
+      w.throwT -= dt
+      if (w.throwT <= 0) {
+        w.throwT = 3 + Math.random() * 5
+        // pick a neighbor to poop on
+        let best: (typeof this.walkers)[number] | null = null
+        let bestD = Infinity
+        for (const o of this.walkers) {
+          if (o === w) continue
+          const d = o.dir.angleTo(w.dir)
+          if (d < bestD) {
+            bestD = d
+            best = o
+          }
+        }
+        if (best && bestD < 1.2) {
+          const mesh = new THREE.Mesh(this.poopGeo, this.poopMat)
+          this.group.add(mesh)
+          this.poops.push({ mesh, from: w.dir.clone(), to: best.dir.clone(), t: 0 })
+          // face the target
+          w.heading.copy(best.dir).sub(w.dir).projectOnPlane(w.dir).normalize()
+        }
+      }
+    }
+    for (let i = this.poops.length - 1; i >= 0; i--) {
+      const q = this.poops[i]
+      q.t += dt * 0.9
+      const k = Math.min(1, q.t)
+      const d = q.from.clone().lerp(q.to, k).normalize()
+      const h = this.R * 1.03 + Math.sin(k * Math.PI) * 1.2 + 0.4
+      q.mesh.position.copy(d).multiplyScalar(h)
+      if (k >= 1) {
+        this.group.remove(q.mesh)
+        this.poops.splice(i, 1)
+        const sp = new THREE.Mesh(this.splatGeo, this.splatMat.clone())
+        sp.position.copy(q.to).multiplyScalar(this.R * 1.035)
+        sp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), q.to)
+        this.group.add(sp)
+        this.splats.push({ mesh: sp, life: 6 })
+        if (this.splats.length > 20) {
+          const old = this.splats.shift()!
+          this.group.remove(old.mesh)
+        }
+      }
+    }
+    for (let i = this.splats.length - 1; i >= 0; i--) {
+      const sp = this.splats[i]
+      sp.life -= dt
+      ;(sp.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(0.9, sp.life * 0.4)
+      if (sp.life <= 0) {
+        this.group.remove(sp.mesh)
+        this.splats.splice(i, 1)
+      }
     }
   }
 
@@ -343,6 +444,7 @@ export class Globe {
       m.group.scale.setScalar(s)
     }
     if (this.babyMixer) this.babyMixer.update(dt)
+    this.updateWalkers(dt)
     this.camera.position.set(0, 0.4, this.camDist)
     this.camera.lookAt(0, 0.2, 0)
   }

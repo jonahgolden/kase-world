@@ -51,6 +51,8 @@ let chosen = 0
 let helpFromGame = false
 
 const PROGRESS_KEY = 'kw.progress'
+const BABY_TALK = ['mm milk', 'car car!', 'MINE', "where's my hat", 'ba ba boo', 'goo?', 'num num', 'no nap!', 'uh oh', 'bapple', 'doggy!', 'moo', 'dada?', 'MORE!', 'blah bleh', 'ni-ni', 'wawa', 'bubbles', 'tickle tickle', 'ooh shiny']
+let babyTalkIdx = Math.floor(Math.random() * BABY_TALK.length)
 function loadUnlocked(): number {
   try {
     const p = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}') as { unlocked?: number }
@@ -206,6 +208,7 @@ function beginLevel(fresh: boolean) {
   mode = 'play'
   audio.unlock()
   audio.play('levelPhase', { vol: 0.4 })
+  audio.music(!!currentLevel(state).sky)
   if (touch && !bot && !params.has('auto') && !document.fullscreenElement) {
     try {
       document.documentElement.requestFullscreen?.()?.catch(() => {})
@@ -234,6 +237,7 @@ function resume() {
 
 function goTitle() {
   audio.play('ui')
+  audio.music(false)
   mode = 'title'
   state = null
   helpFromGame = false
@@ -345,7 +349,7 @@ function handleEvents(s: State) {
       case 'pickup': {
         const pt = renderer.project(e.x ?? 0, 1.6, e.z ?? 0)
         const labels: Record<string, [string, string]> = {
-          milk: ['+1 HEART', '#ff5c5c'],
+          milk: [BABY_TALK[babyTalkIdx++ % BABY_TALK.length], '#ff5c5c'],
           pacifier: ['MEGA SCREAM!', '#ffd23f'],
           rattle: ['POOP STORM!', '#d9a066'],
           clock: ['', '#4cd137'],
@@ -395,6 +399,16 @@ function handleEvents(s: State) {
       case 'bossSlip': {
         const pt = renderer.project(e.x ?? 0, 2.5, e.z ?? 0)
         ui.popup('SLIPPED! HIT HIM!', pt.x, pt.y, '#4cd137', 1)
+        break
+      }
+      case 'tooClose': {
+        const pt = renderer.project(e.x ?? 0, 4.6, e.z ?? 0)
+        ui.popup('TOO CLOSE! BACK UP AND LOB IT', pt.x, pt.y, '#ffffff', 0.5)
+        break
+      }
+      case 'frozen': {
+        const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)
+        ui.popup(e.kind === 'chicken' ? 'FROZEN BAWK' : 'FROZEN!', pt.x, pt.y, '#d9a066', 0.8)
         break
       }
       case 'miniHatch':
@@ -484,10 +498,14 @@ function playSound(e: GameEvent) {
       return
     case 'needScream':
     case 'needPoop':
+    case 'tooClose':
       audio.play('bossBlocked')
       return
+    case 'frozen':
+      audio.play('splat', { vol: 0.8, pitch: 0.7 })
+      return
     case 'flap':
-      audio.play('fan', { vol: 0.25, pitch: 1.6 })
+      audio.play('flap', { vol: e.big ?? 0.3 })
       return
     case 'miniHatch':
       audio.play('chicken', { pitch: 0.7 })

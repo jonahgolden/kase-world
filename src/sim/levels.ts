@@ -24,6 +24,7 @@ export const PROP_STATS: Record<PropKind, PropStat> = {
   crate: { r: 0.5, h: 0.9, hp: 40, mass: 2, points: 40, color: 0xd93a3a },
   glass: { r: 0.45, h: 1.6, hp: 40, mass: 3, points: 150, color: 0xbfe6ff },
   statue: { r: 0.6, h: 2.0, hp: 60, mass: 6, points: 220, color: 0xb0b0c0 },
+  evilbaby: { r: 1.6, h: 3.6, hp: 5, mass: 50, points: 400, color: 0xffd9b8 },
 }
 
 export interface NpcStat {

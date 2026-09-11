@@ -132,7 +132,10 @@ export class Renderer {
   private walkTS = 1
   private flyTilt = 0
   private fovKick = 0
-  chase = false // over-the-shoulder camera (sky level)
+  chase = false // over-the-shoulder camera (unused for now; steering stays screen-relative)
+  private skyCam = false
+  private aimArrow: THREE.Mesh
+  private arc: THREE.Line
   // previous-tick positions for render interpolation (filled by main before each sim step)
   prev: PrevSnap | null = null
   alpha = 1
@@ -179,6 +182,16 @@ export class Renderer {
     this.splats.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.scene.add(this.splats)
     this.particles = new Particles(this.scene, this.gradient)
+    const arrowGeo = new THREE.ConeGeometry(0.28, 1.1, 4)
+    arrowGeo.rotateX(Math.PI / 2)
+    arrowGeo.translate(0, 0, 1.3)
+    this.aimArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false }))
+    this.aimArrow.visible = false
+    this.scene.add(this.aimArrow)
+    const arcGeo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 24 }, () => new THREE.Vector3()))
+    this.arc = new THREE.Line(arcGeo, new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.9, depthWrite: false }))
+    this.arc.visible = false
+    this.scene.add(this.arc)
     const coneGeo = new THREE.CircleGeometry(1, 20, -Math.PI / 2 - Math.PI / 3, (Math.PI * 2) / 3)
     coneGeo.rotateX(-Math.PI / 2)
     this.chargeCone = new THREE.Mesh(coneGeo, new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.22, depthWrite: false }))
@@ -331,7 +344,8 @@ export class Renderer {
     if (this.sand) this.scene.remove(this.sand)
     if (this.water) this.scene.remove(this.water)
     const sky = isSky(s)
-    this.chase = sky
+    this.chase = false
+    this.skyCam = sky
     this.camYaw = s.player.facing
     this.ground = this.makeContinent(s.arena.ring, 1, sky ? 1.6 : 0.7, th.ground, th.ground2, !sky)
     this.ground.position.y = sky ? -1.6 : -0.7
@@ -720,6 +734,34 @@ export class Renderer {
         g.add(icon)
         break
       }
+      case 'evilbaby': {
+        const skin = mat(color)
+        add(new THREE.CylinderGeometry(1.2, 1.4, 0.5, 16), mat(0x555566), 0, 0.25)
+        const head = add(new THREE.SphereGeometry(1.35, 16, 12), skin, 0, 2.0)
+        head.scale.set(1, 1.1, 1)
+        add(new THREE.SphereGeometry(0.22, 8, 6), mat(0xffffff), -0.5, 2.3, 1.1)
+        add(new THREE.SphereGeometry(0.22, 8, 6), mat(0xffffff), 0.5, 2.3, 1.1)
+        add(new THREE.SphereGeometry(0.1, 8, 6), mat(0x111111), -0.5, 2.3, 1.3)
+        add(new THREE.SphereGeometry(0.1, 8, 6), mat(0x111111), 0.5, 2.3, 1.3)
+        const browL = add(new THREE.BoxGeometry(0.55, 0.12, 0.12), mat(0x2b2b3a), -0.5, 2.62, 1.15)
+        browL.rotation.z = -0.5
+        const browR = add(new THREE.BoxGeometry(0.55, 0.12, 0.12), mat(0x2b2b3a), 0.5, 2.62, 1.15)
+        browR.rotation.z = 0.5
+        add(new THREE.BoxGeometry(0.7, 0.1, 0.1), mat(0x2b2b3a), 0, 1.85, 1.28)
+        add(new THREE.SphereGeometry(0.16, 8, 6), mat(0xffd9b8), 0, 2.0, 1.32)
+        const tuft = add(new THREE.ConeGeometry(0.12, 0.5, 6), mat(0x8b5a2b), 0, 3.5, 0)
+        tuft.rotation.z = 0.3
+        const splat = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 10), new THREE.MeshToonMaterial({ color: 0x6b3e1e, gradientMap: this.gradient, transparent: true, opacity: 0 }))
+        splat.position.y = 2.0
+        splat.scale.set(1.05, 1.15, 1.05)
+        splat.name = 'cover'
+        g.add(splat)
+        const icon = this.promptSprite('🎯')
+        icon.position.y = 4.4
+        icon.scale.setScalar(1.3)
+        g.add(icon)
+        break
+      }
       case 'crate':
         add(new THREE.BoxGeometry(0.95, 0.85, 0.95), mat(color), 0, 0.43)
         add(new THREE.BoxGeometry(1.0, 0.1, 1.0), mat(0xffd23f), 0, 0.85)
@@ -792,6 +834,7 @@ export class Renderer {
       g.eyes = eyes
       g.body = wrap
       g.add(wrap)
+      this.addCoverBlob(g, 0.45, 0.4)
       this.npcViews.set(n.id, g)
       this.scene.add(g)
       return g
@@ -838,6 +881,7 @@ export class Renderer {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       g.add(wrap)
       g.body = wrap
+      this.addCoverBlob(g, 0.4, 0.38)
       this.npcViews.set(n.id, g)
       this.scene.add(g)
       return g
@@ -869,9 +913,18 @@ export class Renderer {
     body.add(hat)
     g.body = body
     g.add(body)
+    this.addCoverBlob(g, n.kind === 'adult' ? 0.75 : 0.4, n.kind === 'adult' ? 0.55 : 0.35)
     this.npcViews.set(n.id, g)
     this.scene.add(g)
     return g
+  }
+
+  private addCoverBlob(g: THREE.Group, y: number, r: number) {
+    const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), new THREE.MeshToonMaterial({ color: 0x6b3e1e, gradientMap: this.gradient, transparent: true, opacity: 0 }))
+    blob.position.y = y
+    blob.scale.set(1.15, 1.35, 1.15)
+    blob.name = 'cover'
+    g.add(blob)
   }
 
   // ------------------------------------------------------------ pickups
@@ -1107,9 +1160,13 @@ export class Renderer {
         this.particles.burst(x, 1.2, z, 30, e.kind === 'egg' ? 0xffd23f : 0x2b2b3a, 4, 0.14)
         this.particles.burst(x, 1.2, z, 12, 0xffd23f, 3, 0.12)
         break
+      case 'frozen':
+        this.particles.burst(x, 0.8, z, 14, 0x6b3e1e, 2.5, 0.12)
+        break
+      case 'tooClose':
       case 'needScream':
       case 'needPoop': {
-        const sp = this.promptSprite(e.t === 'needScream' ? '🔊' : '💩')
+        const sp = this.promptSprite(e.t === 'needScream' ? '🔊' : e.t === 'tooClose' ? '↩️' : '💩')
         sp.position.set(x, 2.4, z)
         sp.scale.setScalar(1.8)
         this.scene.add(sp)
@@ -1249,13 +1306,23 @@ export class Renderer {
     const quad = p.ride === 'quad'
     this.player.position.set(px, py + (riding ? 0.16 : quad ? 0.55 : p.inLake ? -0.3 : 0), pz)
     this.player.rotation.y = pf
-    // flying pose: belly down, bank into turns, nose follows pitch
-    const wantTilt = p.flying || (p.wings && !p.grounded) ? 1 : 0
-    this.flyTilt += (wantTilt - this.flyTilt) * Math.min(1, dt * 6)
+    // in the air the baby stays upright, leaning a little into his velocity
+    const airborne = !p.grounded ? 1 : 0
+    this.flyTilt += (airborne - this.flyTilt) * Math.min(1, dt * 6)
     if (this.playerModel) {
-      this.playerModel.rotation.x = -1.25 * this.flyTilt + (p.flying ? -p.pitch * 0.5 : 0)
-      this.playerModel.rotation.z = p.flying ? -p.turnV * 0.5 : 0
+      const fwd = (p.vx * Math.sin(pf) + p.vz * Math.cos(pf)) / 6
+      this.playerModel.rotation.x = -Math.max(-0.35, Math.min(0.35, fwd)) * this.flyTilt
+      this.playerModel.rotation.z = 0
     }
+    // aim arrow while charging or holding poop, and the poop's flight arc while holding
+    const aiming = p.screamCharging || p.poopHeld
+    this.aimArrow.visible = aiming
+    if (aiming) {
+      this.aimArrow.position.set(px, py + 0.06, pz)
+      this.aimArrow.rotation.y = pf
+    }
+    this.arc.visible = p.poopHeld && !p.screamCharging
+    if (this.arc.visible) this.updateArc(s, px, py, pz, pf)
     this.board.visible = riding
     this.quad.visible = quad
     this.hat.visible = p.fedora
@@ -1427,7 +1494,7 @@ export class Renderer {
         v.position.set(pr.x, pr.y, pr.z)
         v.rotation.y = pr.rot
       }
-      if (pr.kind === 'statue') {
+      if (pr.kind === 'statue' || pr.kind === 'evilbaby') {
         const cov = v.getObjectByName('cover') as THREE.Mesh | undefined
         if (cov) (cov.material as THREE.MeshToonMaterial).opacity = pr.cover * 0.95
       }
@@ -1456,6 +1523,13 @@ export class Renderer {
       v.eyes.scale.setScalar(eyeScale)
       const hat = v.getObjectByName('partyhat')
       if (hat) hat.visible = n.state === 'follow'
+      const cov = v.getObjectByName('cover') as THREE.Mesh | undefined
+      if (cov) {
+        const c = Math.min(1, n.cover)
+        ;(cov.material as THREE.MeshToonMaterial).opacity = c * 0.95
+        cov.scale.setScalar(0.9 + c * 0.35 + Math.max(0, n.cover - 1) * 0.15)
+        if (n.cover >= 0.95) v.body.rotation.z = Math.sin(this.time * 40) * 0.04
+      }
       if (n.state === 'follow') v.body.rotation.z = Math.sin(this.time * 10 + n.id) * 0.25
       this.flash(v.mats, 0xffffff, n.hitFlash > 0 ? 0.7 : 0)
     }
@@ -1639,6 +1713,38 @@ export class Renderer {
     return 0
   }
 
+  // Predicted poop path for the current hold, same numbers as the sim.
+  private updateArc(s: State, px: number, py: number, pz: number, pf: number) {
+    const p = s.player
+    const power = p.fedora ? 1 : Math.min(1, p.poopHoldT / 0.5)
+    const speed = 10 + 7 * power
+    let x = px + Math.sin(pf) * 0.5
+    let y = py + 0.8
+    let z = pz + Math.cos(pf) * 0.5
+    let vx = Math.sin(pf) * speed + p.vx * 0.4
+    let vy = p.flying && !p.grounded ? p.vy * 0.4 + 2.5 : 5 + 2.5 * power
+    let vz = Math.cos(pf) * speed + p.vz * 0.4
+    const pos = this.arc.geometry.getAttribute('position') as THREE.BufferAttribute
+    const step = 1 / 30
+    let last = new THREE.Vector3(x, y, z)
+    for (let i = 0; i < pos.count; i++) {
+      pos.setXYZ(i, x, y, z)
+      last = new THREE.Vector3(x, y, z)
+      for (let k = 0; k < 2; k++) {
+        vy -= 22 * step
+        x += vx * step
+        y += vy * step
+        z += vz * step
+      }
+      if (y < 0) {
+        for (let j = i + 1; j < pos.count; j++) pos.setXYZ(j, last.x, 0.03, last.z)
+        break
+      }
+    }
+    pos.needsUpdate = true
+    this.arc.computeLineDistances()
+  }
+
   private updateCamera(s: State, dt: number) {
     const p = s.player
     const portrait = this.camera.aspect < 1
@@ -1667,8 +1773,9 @@ export class Renderer {
       }
       this.camPos.lerp(want, Math.min(1, 7 * dt))
     } else {
-      const back = (portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3
-      const up = (portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3
+      const skyClose = this.skyCam ? 0.8 : 1
+      const back = ((portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3) * skyClose
+      const up = ((portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3) * (this.skyCam ? 0.7 : 1)
       const lookAhead = 0.35
       let tx = p.x + p.vx * lookAhead
       let tz = p.z + p.vz * lookAhead
@@ -1676,8 +1783,9 @@ export class Renderer {
         tx = (tx * 2 + s.boss.x) / 3
         tz = (tz * 2 + s.boss.z) / 3
       }
-      this.camTarget.lerp(this.tmpV.set(tx, 0.8 + p.y * 0.7, tz), Math.min(1, 6 * dt))
-      const want = this.tmpS.set(this.camTarget.x, up + p.y * 0.7, this.camTarget.z + back)
+      const yf = this.skyCam ? 1 : 0.7
+      this.camTarget.lerp(this.tmpV.set(tx, 0.8 + p.y * yf, tz), Math.min(1, 6 * dt))
+      const want = this.tmpS.set(this.camTarget.x, up + p.y * yf, this.camTarget.z + back)
       this.camPos.lerp(want, Math.min(1, 5 * dt))
     }
     this.shake = Math.max(0, this.shake - dt * 3.2)

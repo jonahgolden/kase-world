@@ -9,6 +9,7 @@ export class InputDriver {
   private joy = { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 }
   private held = { scream: false, poop: false, jump: false }
   private mouse = { poop: false, scream: false, x: 0, y: 0, movedAt: -1e9 }
+  private drag = { x: 0, y: 0, active: false }
   aimProvider: ((sx: number, sy: number) => { x: number; z: number } | null) | null = null
   private joyEl: HTMLElement
   private knobEl: HTMLElement
@@ -111,19 +112,45 @@ export class InputDriver {
     z.addEventListener('pointercancel', end)
   }
 
+  // Attack buttons work like Brawl Stars: tap = auto-aim, drag off the button to aim, release to fire.
   private bindButton(sel: string, key: 'scream' | 'poop' | 'jump') {
     const el = this.root.querySelector<HTMLElement>(sel)!
+    let ox = 0
+    let oy = 0
     const down = (e: PointerEvent) => {
       this.held[key] = true
       el.classList.add('down')
       el.setPointerCapture(e.pointerId)
+      ox = e.clientX
+      oy = e.clientY
+      if (key !== 'jump') {
+        this.drag.active = true
+        this.drag.x = 0
+        this.drag.y = 0
+      }
       e.preventDefault()
+    }
+    const move = (e: PointerEvent) => {
+      if (!this.held[key] || key === 'jump') return
+      const dx = e.clientX - ox
+      const dy = e.clientY - oy
+      const d = Math.hypot(dx, dy)
+      if (d > 28) {
+        this.drag.x = dx / d
+        this.drag.y = dy / d
+      }
     }
     const up = () => {
       this.held[key] = false
       el.classList.remove('down')
+      if (key !== 'jump') {
+        this.drag.active = false
+        this.drag.x = 0
+        this.drag.y = 0
+      }
     }
     el.addEventListener('pointerdown', down)
+    el.addEventListener('pointermove', move)
     el.addEventListener('pointerup', up)
     el.addEventListener('pointercancel', up)
     el.addEventListener('lostpointercapture', up)
@@ -164,6 +191,11 @@ export class InputDriver {
         out.aimX = a.x
         out.aimZ = a.z
       }
+    }
+    // touch drag aim: screen-relative, which matches the fixed camera yaw
+    if (this.drag.active && (this.drag.x !== 0 || this.drag.y !== 0)) {
+      out.aimX = this.drag.x
+      out.aimZ = this.drag.y
     }
     return out
   }

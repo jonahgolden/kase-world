@@ -11,6 +11,9 @@ export class AudioDriver {
   private loading = new Set<string>()
   private voices = 0
   private lastPlay = new Map<string, number>()
+  private musicTimer: number | null = null
+  private musicGain: GainNode | null = null
+  private musicStep = 0
   muted = false
 
   constructor(private base = '/assets/audio/') {}
@@ -54,6 +57,57 @@ export class AudioDriver {
     }
     if (out.length) this.buffers.set(key, out)
     this.loading.delete(key)
+  }
+
+  // A soft looping lullaby-ish arpeggio for the sky. Pentatonic, quiet, no drums.
+  music(on: boolean) {
+    if (!on) {
+      if (this.musicTimer !== null) window.clearInterval(this.musicTimer)
+      this.musicTimer = null
+      if (this.musicGain && this.ctx) {
+        this.musicGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.8)
+      }
+      return
+    }
+    if (!this.ctx || !this.master || this.musicTimer !== null) return
+    const ctx = this.ctx
+    this.musicGain = ctx.createGain()
+    this.musicGain.gain.value = 0.11
+    this.musicGain.connect(this.master)
+    const notes = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3]
+    const pattern = [0, 2, 4, 7, 4, 2, 5, 3, 0, 3, 5, 7, 6, 4, 2, 1]
+    const stepMs = 260
+    this.musicStep = 0
+    const tick = () => {
+      if (!this.ctx || !this.musicGain || this.muted) return
+      const t = this.ctx.currentTime
+      const n = notes[pattern[this.musicStep % pattern.length]]
+      const o = this.ctx.createOscillator()
+      o.type = 'triangle'
+      o.frequency.value = n
+      const g = this.ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(1, t + 0.04)
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.7)
+      o.connect(g).connect(this.musicGain)
+      o.start(t)
+      o.stop(t + 0.75)
+      if (this.musicStep % 4 === 0) {
+        const pad = this.ctx.createOscillator()
+        pad.type = 'sine'
+        pad.frequency.value = n / 2
+        const pg = this.ctx.createGain()
+        pg.gain.setValueAtTime(0.0001, t)
+        pg.gain.exponentialRampToValueAtTime(0.5, t + 0.2)
+        pg.gain.exponentialRampToValueAtTime(0.001, t + 1.0)
+        pad.connect(pg).connect(this.musicGain)
+        pad.start(t)
+        pad.stop(t + 1.05)
+      }
+      this.musicStep++
+    }
+    tick()
+    this.musicTimer = window.setInterval(tick, stepMs)
   }
 
   play(event: EventType | string, opts: { vol?: number; pitch?: number; big?: number } = {}) {
@@ -232,6 +286,9 @@ export class AudioDriver {
       case 'fan':
         this.burst(0.4, 0.3 * v, 'bandpass', 900, 0, 0.5)
         this.tone('sine', 200, 900, 0.3, 0.12 * v)
+        break
+      case 'flap':
+        this.burst(0.12, 0.05 * v, 'lowpass', 500)
         break
       case 'explode':
         this.tone('sine', 90, 30, 0.5, 0.8 * v)

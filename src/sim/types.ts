@@ -28,6 +28,7 @@ export type PropKind =
   | 'crate'
   | 'glass' // scream only
   | 'statue' // poop only: cover it
+  | 'evilbaby' // poop only, from a distance
 
 export interface Prop {
   id: number
@@ -75,6 +76,7 @@ export interface Npc {
   color: number
   hitFlash: number
   scale: number
+  cover: number // poop coverage; slows, then freezes; decays slowly
 }
 
 export interface Poop {
@@ -86,6 +88,8 @@ export interface Poop {
   vy: number
   vz: number
   r: number
+  ox: number // where it was thrown from
+  oz: number
 }
 
 export interface Splat {
@@ -303,6 +307,8 @@ export type EventType =
   | 'bossSlip'
   | 'flap'
   | 'miniHatch'
+  | 'tooClose'
+  | 'frozen'
   | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'

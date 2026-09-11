@@ -48,8 +48,8 @@ export class Ui {
     this.root = root
     const controls = this.touch
       ? `<div class="ctl"><b>MOVE</b><span>drag anywhere on the left half. Screams and poop auto-aim at what is ahead</span></div>
-         <div class="ctl"><b>SCREAM</b><span>hold the red button. Longer hold = bigger scream</span></div>
-         <div class="ctl"><b>💩 POOP</b><span>tap to throw, hold to throw further</span></div>
+         <div class="ctl"><b>SCREAM</b><span>hold the red button, drag to aim, let go to scream. Longer hold = bigger</span></div>
+         <div class="ctl"><b>💩 POOP</b><span>tap to throw at what's ahead, or hold and drag to aim, let go to throw. Longer hold = further</span></div>
          <div class="ctl"><b>JUMP</b><span>tap. Jump over the boss stomp</span></div>`
       : `<div class="ctl"><b>MOVE</b><span>WASD or arrow keys</span></div>
          <div class="ctl"><b>AIM</b><span>Kase faces the mouse. Screams and poop go where you point</span></div>
@@ -246,7 +246,7 @@ export class Ui {
       lvl.goal.kind === 'find'
         ? lvl.goal.item === 'fedora'
           ? `Find ${lvl.goal.count} fedoras 🎩 (red hat boxes hide some)`
-          : `Fly! Find ${lvl.goal.count} golden eggs 🥚 · stick = turn and climb · JUMP = boost`
+          : `Find ${lvl.goal.count} golden eggs 🥚 · hold JUMP to fly up, let go to float down`
         : `Wreck ${Math.round(lvl.goal.pct * 100)}% of it`
     ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
     this.get('card-boss-name').textContent = lvl.boss.name

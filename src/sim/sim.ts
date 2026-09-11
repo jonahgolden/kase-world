@@ -62,19 +62,20 @@ export const CFG = {
   skyGravity: 0.65,
   flight: { rise: 5.5, riseAccel: 40, fuelPerWings: 3.5, maxFuel: 7 },
   fly: {
-    speed: 8.5,
-    boostSpeed: 13, // 1.5x, per arcade-flier convention
-    turnRate: 1.4, // rad/s at full stick (~80 deg/s), ramped over ~0.2 s
-    turnSmooth: 5,
-    pitchMax: 0.7, // ~40 degrees
-    pitchIn: 2.5,
-    autoLevel: 2,
-    minY: 0.35,
-    maxY: 13,
+    // hover model: hold JUMP to lift, let go to sink; stick moves you like on the ground
+    gravity: 0.42, // fraction of normal gravity
+    lift: 30, // upward acceleration while holding JUMP
+    riseMax: 6,
+    fallMax: 7,
+    airSpeed: 1.25, // horizontal speed multiplier in the air
+    boostSpeed: 1.5,
+    boostLift: 1.35,
+    maxY: 14,
     boostPerWings: 3,
     maxBoost: 9,
-    aimTurnGain: 1.8,
   },
+  cover: { perPoop: 1.0, sizeRef: 0.28, decay: 0.05, freezeAt: 0.95, max: 3, hitstun: 0.35 },
+  evilbaby: { minDist: 7, hits: 5 },
   ride: {
     skateboard: { speed: 1.7, accel: 0.55, smash: 1.8, push: 1.5, hp: 1 },
     quad: { speed: 2.2, accel: 0.5, smash: 2.6, push: 2.2, hp: 2 },
@@ -627,15 +628,47 @@ function populate(s: State, level: LevelDef) {
         color: st.color,
         hitFlash: 0,
         scale,
+        cover: 0,
       })
     }
+  }
+
+  // 3b. the evil baby: a distance-shooting target on the lake island (or far away) on every continent
+  if (!level.sky) {
+    const island = s.features.find((f) => f.kind === 'platform' && f.island)
+    const st = PROP_STATS.evilbaby
+    const at = island ? { x: island.x, z: island.z, y: island.h } : { ...farPoint(s, 0, 0, 3, 20), y: 0 }
+    s.props.push({
+      id: newId(s),
+      kind: 'evilbaby',
+      x: at.x,
+      z: at.z,
+      y: at.y,
+      vx: 0,
+      vz: 0,
+      vy: 0,
+      rot: Math.atan2(-at.x, -at.z),
+      angVel: 0,
+      r: st.r,
+      h: st.h,
+      hp: st.hp,
+      maxHp: st.hp,
+      mass: st.mass,
+      points: st.points,
+      color: st.color,
+      broken: false,
+      hitFlash: 0,
+      drop: 'clock',
+      cover: 0,
+      promptCd: 0,
+    })
+    if (island) placed.push({ x: island.x, z: island.z, r: 2 })
   }
 
   // 4. finds: on top of platforms, on islands, in the air (sky), or far along the coast
   const platforms = s.features.filter((f) => f.kind === 'platform')
   const tallTops = platforms.filter((f) => f.h > 1.5 && !f.island).sort((a, b) => b.h - a.h)
   const lowTops = platforms.filter((f) => f.h <= 1.5 && !f.island)
-  const islands = platforms.filter((f) => f.island)
   const usedTops = new Set<number>()
   const addPickup = (kind: PickupKind, x: number, y: number, z: number, float = false) => s.pickups.push({ id: newId(s), kind, x, y, z, vy: 0, age: 0, float })
   const onTop = (list: Feature[], kind: PickupKind): boolean => {
@@ -691,7 +724,7 @@ function populate(s: State, level: LevelDef) {
           break
         case 'fedora':
         case 'egg':
-          if (!onTop(i % 2 === 0 ? tallTops : lowTops, kind) && !onTop(islands, kind)) farFind(kind, 1.5)
+          if (!onTop(i % 2 === 0 ? tallTops : lowTops, kind)) farFind(kind, 1.5)
           break
         case 'quad':
         case 'skateboard':
@@ -836,59 +869,72 @@ function playerTimers(s: State, input: Input) {
   }
 }
 
-// Sky level: Kase is always flying. Stick x turns, stick y climbs or dives, JUMP boosts while fuel lasts.
+// Sky level: hover flight. Hold JUMP to lift, let go to sink, stick moves you like on the ground.
 function updateFlight(s: State, input: Input) {
   const p = s.player
+  const C = CFG.player
   const F = CFG.fly
   p.flying = true
   p.wings = true
-  p.grounded = false
-  let turn = Math.max(-1, Math.min(1, input.mx))
-  const climb = Math.max(-1, Math.min(1, -input.mz))
-  const aimLen = input.aimX !== undefined && input.aimZ !== undefined ? Math.hypot(input.aimX, input.aimZ) : 0
-  if (aimLen > 0.1) {
-    // mouse: fly toward the cursor, turn rate still limited
-    let diff = Math.atan2(input.aimX!, input.aimZ!) - p.facing
-    while (diff > Math.PI) diff -= Math.PI * 2
-    while (diff < -Math.PI) diff += Math.PI * 2
-    turn = Math.max(-1, Math.min(1, diff * F.aimTurnGain))
-    p.hasAim = true
-  } else p.hasAim = false
-  p.turnV += (turn - p.turnV) * Math.min(1, F.turnSmooth * DT)
-  if (Math.abs(p.turnV) < 0.02) p.turnV = 0
-  p.facing += p.turnV * F.turnRate * DT
-  const pitchTarget = climb * F.pitchMax
-  p.pitch += (pitchTarget - p.pitch) * Math.min(1, (Math.abs(climb) > 0.1 ? F.pitchIn : F.autoLevel) * DT)
+  let mx = input.mx
+  let mz = input.mz
+  const len = Math.hypot(mx, mz)
+  if (len > 1) {
+    mx /= len
+    mz /= len
+  }
   p.boosting = input.jump && p.boostFuel > 0
   if (p.boosting) p.boostFuel = Math.max(0, p.boostFuel - DT)
-  const speed = (p.boosting ? F.boostSpeed : F.speed) * (p.fedora ? CFG.fedora.speed : 1)
-  const cp = Math.cos(p.pitch)
-  p.vx = Math.sin(p.facing) * cp * speed
-  p.vz = Math.cos(p.facing) * cp * speed
-  p.vy = Math.sin(p.pitch) * speed
+  const speed = C.speed * (p.grounded ? 1 : F.airSpeed) * (p.boosting ? F.boostSpeed : 1) * (p.fedora ? CFG.fedora.speed : 1)
   if (p.hitstun > 0) {
     p.hitstun -= DT
+    p.vx *= 1 - 3 * DT
+    p.vz *= 1 - 3 * DT
+  } else {
+    const k = Math.min(1, C.accel * (p.grounded ? 1 : 0.6) * DT)
+    p.vx += (mx * speed - p.vx) * k
+    p.vz += (mz * speed - p.vz) * k
+  }
+  const aimLen = input.aimX !== undefined && input.aimZ !== undefined ? Math.hypot(input.aimX, input.aimZ) : 0
+  if (aimLen > 0.1 && p.hitstun <= 0) {
+    p.facing = Math.atan2(input.aimX!, input.aimZ!)
+    p.hasAim = true
+  } else {
+    p.hasAim = false
+    if (len > 0.1 && p.hitstun <= 0) p.facing = Math.atan2(mx, mz)
+  }
+  p.turnV = 0
+  p.pitch = 0
+  if (input.jump) {
+    p.vy = Math.min(F.riseMax * (p.boosting ? F.boostLift : 1), p.vy + F.lift * (p.boosting ? F.boostLift : 1) * DT)
+    p.grounded = false
+    if (s.tick % 15 === 0) ev(s, { t: 'flap', x: p.x, y: p.y, z: p.z, big: p.boosting ? 1 : 0.3 })
+  } else if (!p.grounded) {
+    p.vy = Math.max(-F.fallMax, p.vy - CFG.gravity * F.gravity * DT)
   }
   p.x += p.vx * DT
-  p.y += p.vy * DT
   p.z += p.vz * DT
   pushOutOfPlatforms(s, p, p.r, p.y)
-  const top = groundY(s, p.x, p.z, p.y + 0.5)
-  if (top > 0 && p.y < top + 0.45) {
-    p.y = top + 0.45
-    if (p.pitch < 0) p.pitch = 0
-  }
-  if (p.y < F.minY) {
-    p.y = F.minY
-    if (p.pitch < 0) p.pitch = 0
-  }
-  if (p.y > F.maxY) {
-    p.y = F.maxY
-    if (p.pitch > 0) p.pitch = 0
-  }
   clampArena(s, p, p.r)
-  p.gy = 0
-  if (s.tick % 15 === 0) ev(s, { t: 'flap', x: p.x, y: p.y, z: p.z, big: p.boosting ? 1 : 0.3 })
+  const gy = groundY(s, p.x, p.z, p.y)
+  p.gy = gy
+  if (p.grounded && p.y > gy + 0.01) p.grounded = false
+  if (!p.grounded) {
+    p.y += p.vy * DT
+    if (p.y <= gy) {
+      p.y = gy
+      p.vy = 0
+      p.grounded = true
+      ev(s, { t: 'land', x: p.x, z: p.z })
+    }
+    if (p.y > F.maxY) {
+      p.y = F.maxY
+      p.vy = Math.min(0, p.vy)
+    }
+  } else {
+    p.y = gy
+  }
+  p.jumpHeld = input.jump
   playerTimers(s, input)
 }
 
@@ -1099,7 +1145,7 @@ function assistAim(s: State, rangeLen: number): number | null {
   for (const n of s.npcs) if (n.state !== 'cower') consider(n.x, n.z, n.r)
   if (s.boss && s.boss.state !== 'enter' && s.boss.state !== 'dead') consider(s.boss.x, s.boss.z, s.boss.r)
   if (s.duo.active) consider(s.duo.x, s.duo.z, duoRadius(s.duo))
-  for (const pr of s.props) if (!pr.broken && (pr.kind === 'glass' || pr.kind === 'statue' || pr.kind === 'crate')) consider(pr.x, pr.z, pr.r)
+  for (const pr of s.props) if (!pr.broken && (pr.kind === 'glass' || pr.kind === 'statue' || pr.kind === 'crate' || pr.kind === 'evilbaby')) consider(pr.x, pr.z, pr.r)
   return best
 }
 
@@ -1272,9 +1318,11 @@ function throwPoop(s: State, power: number) {
       y: 0.8 + p.y,
       z: p.z + fz * 0.5,
       vx: fx * speed + p.vx * 0.4,
-      vy: p.flying ? p.vy * 0.6 + 1.5 : P.upV + P.upPerPower * power,
+      vy: p.flying && !p.grounded ? p.vy * 0.4 + 2.5 : P.upV + P.upPerPower * power,
       vz: fz * speed + p.vz * 0.4,
       r: P.r * (giant ? CFG.giant.poopR : 1),
+      ox: p.x,
+      oz: p.z,
     })
   }
   s.stats.poops += n
@@ -1283,15 +1331,29 @@ function throwPoop(s: State, power: number) {
   ev(s, { t: 'poopThrow', x: p.x, z: p.z, big: power })
 }
 
-function hitNpcWithProjectile(s: State, n: Npc, label: string, stun: number) {
+// Poop sticks: small creatures freeze from one hit, big ones slow down and need more. It wears off slowly.
+function hitNpcWithProjectile(s: State, n: Npc, label: string, stun: number, poop = true) {
   const st = NPC_STATS[n.kind]
-  n.state = 'stunned'
-  n.stateT = stun
   n.hp -= 20
   n.hitFlash = 0.4
   s.stats.directHits++
-  addWreck(s, Math.round(st.bonk * n.scale), n.x, n.z, label, st.color)
-  ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id, kind: n.kind })
+  if (poop) {
+    const before = n.cover
+    const size = (n.r / CFG.cover.sizeRef) * Math.sqrt(n.scale)
+    n.cover = Math.min(CFG.cover.max, n.cover + CFG.cover.perPoop / size)
+    if (n.state !== 'cower' && n.state !== 'follow') {
+      n.state = 'stunned'
+      n.stateT = CFG.cover.hitstun
+    }
+    const frozen = n.cover >= CFG.cover.freezeAt
+    addWreck(s, Math.round(st.bonk * n.scale * (before >= 1 ? 0.4 : 1)), n.x, n.z, frozen && before < CFG.cover.freezeAt ? 'FROZEN!' : label, st.color)
+    if (frozen && before < CFG.cover.freezeAt) ev(s, { t: 'frozen', x: n.x, z: n.z, id: n.id, kind: n.kind })
+  } else {
+    n.state = 'stunned'
+    n.stateT = stun
+    addWreck(s, Math.round(st.bonk * n.scale), n.x, n.z, label, st.color)
+  }
+  ev(s, { t: 'npcHit', x: n.x, z: n.z, id: n.id, kind: n.kind, big: Math.min(1, n.cover) })
 }
 
 function updatePoops(s: State, input: Input) {
@@ -1339,6 +1401,7 @@ function updatePoops(s: State, input: Input) {
       for (const pr of s.props) {
         if (pr.broken || q.y > pr.y + pr.h || q.y < pr.y - 0.3) continue
         if (dist(q.x, q.z, pr.x, pr.z) < q.r + pr.r) {
+          poopFlightDist = dist(q.ox, q.oz, q.x, q.z)
           damageProp(s, pr, P.propDamage * giantDmg, 1, 'poop')
           if (pr.kind !== 'statue') {
             pr.vx += q.vx * 0.15
@@ -1377,7 +1440,10 @@ function explode(s: State, x: number, z: number) {
     }
   }
   for (const n of s.npcs) {
-    if (dist(x, z, n.x, n.z) < R + n.r) hitNpcWithProjectile(s, n, 'BOOM!', 2.5)
+    if (dist(x, z, n.x, n.z) < R + n.r) {
+      n.cover = Math.min(CFG.cover.max, n.cover + 0.6)
+      hitNpcWithProjectile(s, n, 'BOOM!', 2.5, false)
+    }
   }
   if (s.duo.active && dist(x, z, s.duo.x, s.duo.z) < R + duoRadius(s.duo)) {
     if (s.duo.state === 'stun') bossHit(s, 'poop')
@@ -1530,8 +1596,35 @@ function updatePickups(s: State) {
 
 // ---------------------------------------------------------------- props
 
+let poopFlightDist = 0 // distance the current poop flew, set before damageProp on a poop hit
+
 function damageProp(s: State, pr: Prop, dmg: number, wreckScale = 1, src: DamageSource = 'other') {
   if (pr.broken) return
+  if (pr.kind === 'evilbaby') {
+    if (src !== 'poop' && src !== 'bomb') {
+      if (src !== 'boss' && pr.promptCd <= 0) {
+        pr.promptCd = 0.8
+        ev(s, { t: 'needPoop', x: pr.x, z: pr.z, id: pr.id })
+      }
+      return
+    }
+    if (src === 'poop' && poopFlightDist < CFG.evilbaby.minDist) {
+      if (pr.promptCd <= 0) {
+        pr.promptCd = 0.8
+        ev(s, { t: 'tooClose', x: pr.x, z: pr.z, id: pr.id })
+      }
+      return
+    }
+    pr.hp -= 1
+    pr.hitFlash = 0.3
+    pr.cover = 1 - pr.hp / pr.maxHp
+    if (pr.hp <= 0) breakProp(s, pr, wreckScale, 'BULLSEYE! EVIL BABY DOWN!')
+    else {
+      addWreck(s, 60, pr.x, pr.z, `HIT! ${pr.maxHp - pr.hp}/${pr.maxHp}`, 0x6b3e1e)
+      ev(s, { t: 'propHit', x: pr.x, z: pr.z, big: 0.5, color: 0x6b3e1e })
+    }
+    return
+  }
   if (pr.kind === 'glass' && src !== 'scream' && src !== 'boss') {
     if (pr.promptCd <= 0) {
       pr.promptCd = 0.8
@@ -1618,7 +1711,7 @@ function updateProps(s: State) {
         const nz = d > 0.001 ? dz / d : 0
         const overlap = minD - d
         const speed = Math.hypot(p.vx, p.vz)
-        const heavy = pr.kind === 'statue' ? 1 : pr.mass / (pr.mass + 1)
+        const heavy = pr.kind === 'statue' || pr.kind === 'evilbaby' ? 1 : pr.mass / (pr.mass + 1)
         p.x -= nx * overlap * heavy
         p.z -= nz * overlap * heavy
         pr.x += nx * overlap * (1 - heavy)
@@ -1626,7 +1719,7 @@ function updateProps(s: State) {
         if (speed > C.smashSpeed) {
           const giant = p.giantT > 0
           const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (ride ? ride.push : 1) * (giant ? 2 : 1)
-          if (pr.kind !== 'statue') {
+          if (pr.kind !== 'statue' && pr.kind !== 'evilbaby') {
             pr.vx += nx * push
             pr.vz += nz * push
             pr.angVel += range(s.rng, -6, 6)
@@ -1682,7 +1775,7 @@ function updateProps(s: State) {
         n.vz += pr.vz * 0.5
         pr.vx *= 0.4
         pr.vz *= 0.4
-        hitNpcWithProjectile(s, n, 'BONK!', 1.2)
+        hitNpcWithProjectile(s, n, 'BONK!', 1.2, false)
       }
     }
   }
@@ -1706,7 +1799,10 @@ function updateNpcs(s: State) {
   const p = s.player
   for (const n of s.npcs) {
     const st = NPC_STATS[n.kind]
-    const sp = 1 / Math.sqrt(n.scale)
+    if (n.cover > 0) n.cover = Math.max(0, n.cover - CFG.cover.decay * DT)
+    const covered = Math.min(1, n.cover)
+    const frozen = n.cover >= CFG.cover.freezeAt
+    const sp = (frozen ? 0 : 1 - covered * 0.85) / Math.sqrt(n.scale)
     n.stateT -= DT
     n.scaredCd = Math.max(0, n.scaredCd - DT)
     const dp = dist(n.x, n.z, p.x, p.z)
@@ -1807,6 +1903,10 @@ function updateNpcs(s: State) {
         }
         break
       }
+    }
+    if (frozen) {
+      n.vx *= 1 - 10 * DT
+      n.vz *= 1 - 10 * DT
     }
     n.x += n.vx * DT
     n.z += n.vz * DT
@@ -1953,6 +2053,7 @@ function updateDuogringo(s: State) {
           color: st.color,
           hitFlash: 0.3,
           scale: 1,
+          cover: 0,
         })
         ev(s, { t: 'miniHatch', x: d.x, z: d.z })
         d.layCd = D.layCd

@@ -9,15 +9,15 @@ export function botInput(s: State): Input {
   const period = s.tick % 120
 
   if (p.flying) {
-    // fly toward the boss when stunned, else the nearest egg or wings
+    // hover toward the boss when stunned, else the nearest egg or wings; hold JUMP when the target is higher
     let tx = 0
     let tz = 0
-    let ty = 4
+    let ty = 3
     let best = Infinity
     if (b && b.def.fight === 'nest') {
       tx = s.duo.x
       tz = s.duo.z
-      ty = s.duo.y + 0.5
+      ty = s.duo.y
       best = 0
     }
     for (const k of s.pickups) {
@@ -26,39 +26,19 @@ export function botInput(s: State): Input {
         best = d
         tx = k.x
         tz = k.z
-        ty = k.y + 0.3
+        ty = k.y
       }
     }
-    let diff = Math.atan2(tx - p.x, tz - p.z) - p.facing
-    while (diff > Math.PI) diff -= Math.PI * 2
-    while (diff < -Math.PI) diff += Math.PI * 2
-    out.mx = Math.max(-1, Math.min(1, diff * 2))
-    out.mz = -Math.max(-1, Math.min(1, (ty - p.y) * 0.6))
-    out.jump = best > 12
-    if (b && b.def.fight === 'nest') {
-      const d = Math.hypot(s.duo.x - p.x, s.duo.z - p.z)
-      out.scream = d < 7 && Math.abs(diff) < 0.5 && period < 40 && s.duo.state !== 'stun'
-      out.poop = d < 8 && Math.abs(diff) < 0.4 && s.duo.state === 'stun' && period % 20 < 3
-    }
-    return out
-  }
-
-  if (b && b.state !== 'enter' && b.state !== 'dead') {
-    const dx = b.x - p.x
-    const dz = b.z - p.z
+    const dx = tx - p.x
+    const dz = tz - p.z
     const d = Math.hypot(dx, dz) || 1
-    if (b.state === 'attack' || b.state === 'telegraph') {
-      out.mx = -dz / d
-      out.mz = dx / d
-      if (b.attack === 'stomp' && d < 5 && s.tick % 20 === 0) out.jump = true
-    } else if (d > 4.5) {
-      out.mx = dx / d
-      out.mz = dz / d
-    } else if (bossVulnerable(b)) {
-      out.mx = (dx / d) * 0.2
-      out.mz = (dz / d) * 0.2
-      out.scream = period < 45
-      out.poop = period % 30 < 4
+    out.mx = dx / d
+    out.mz = dz / d
+    out.jump = ty > p.y + 0.3 || (p.y < 1.5 && s.tick % 90 < 45)
+    if (b && b.def.fight === 'nest') {
+      const dd = Math.hypot(s.duo.x - p.x, s.duo.z - p.z)
+      out.scream = dd < 7 && period < 40 && s.duo.state !== 'stun'
+      out.poop = dd < 8 && s.duo.state === 'stun' && period % 20 < 3
     }
     return out
   }
