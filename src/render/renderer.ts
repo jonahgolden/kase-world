@@ -26,8 +26,8 @@ const PICKUP_COLOR: Record<string, number> = {
   decoy: 0xffd9b8,
 }
 import { ASSETS } from './assets.ts'
-import { makeGiraffe, makeHat, makeKacone, makePartModel, makeProp, makeQuad, makeSkateboard, makeWings } from './models.ts'
-import type { Flashable, ModelCtx } from './models.ts'
+import { buildNpc, makeGiraffe, makeHat, makeKacone, makePartModel, makeProp, makeQuad, makeSkateboard, makeWings } from './models.ts'
+import type { Flashable, ModelCtx, NpcView } from './models.ts'
 
 // One animal of a group boss: a 3D primitive build when we have one, else a cropped card.
 interface PartView {
@@ -81,7 +81,7 @@ export class Renderer {
   private water: THREE.Mesh | null = null
   private board: THREE.Group
   private propViews = new Map<number, THREE.Group & Flashable>()
-  private npcViews = new Map<number, THREE.Group & Flashable & { eyes: THREE.Object3D; body: THREE.Object3D }>()
+  private npcViews = new Map<number, NpcView>()
   private poopViews = new Map<number, THREE.Mesh>()
   private poopGeo = new THREE.SphereGeometry(0.22, 10, 8)
   private poopMat: THREE.MeshToonMaterial
@@ -691,256 +691,15 @@ export class Renderer {
 
   // ------------------------------------------------------------ npcs
 
-  private ensureNpc(n: Npc) {
+
+
+  private ensureNpc(n: Npc): NpcView {
     let v = this.npcViews.get(n.id)
     if (v) return v
-    const g = new THREE.Group() as THREE.Group & Flashable & { eyes: THREE.Object3D; body: THREE.Object3D }
-    g.mats = []
-    const mat = (c: number) => {
-      const m = this.toon(c)
-      g.mats.push(m)
-      return m
-    }
-    const body = new THREE.Group()
-    if (n.kind === 'adult' || n.kind === 'thief') {
-      const thief = n.kind === 'thief'
-      const shirt = thief ? 0x222233 : [0x4aa3ff, 0xff8fab, 0xffb020, 0x9b6bff, 0x4cd137][n.id % 5]
-      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.55, 4, 10), mat(shirt))
-      torso.position.y = 0.62
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), mat(0xffd9b8))
-      head.position.y = 1.22
-      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.3), mat(thief ? 0x222233 : 0x33415c))
-      legs.position.y = 0.18
-      torso.castShadow = head.castShadow = legs.castShadow = true
-      body.add(torso, head, legs)
-      if (thief) {
-        for (const y of [0.45, 0.65, 0.85]) {
-          const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.06, 10), mat(0xffffff))
-          stripe.position.y = y
-          body.add(stripe)
-        }
-        const mask = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.2), mat(0x111111))
-        mask.position.set(0, 1.26, 0.14)
-        body.add(mask)
-        const sack = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(0xd9a066))
-        sack.position.set(-0.3, 0.9, -0.2)
-        body.add(sack)
-      }
-      const eyes = new THREE.Group()
-      for (const x of [-0.09, 0.09]) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }))
-        e.position.set(x, 1.26, 0.2)
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
-        p.position.set(x, 1.26, 0.25)
-        eyes.add(e, p)
-      }
-      g.eyes = eyes
-      body.add(eyes)
-    } else if (n.kind === 'mini') {
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), mat(0x2e9e3a))
-      body.position.y = 0.34
-      const hatb = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.22, 10), mat(0xf2c14e))
-      hatb.position.y = 0.66
-      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 6), mat(0xffb020))
-      beak.rotation.x = Math.PI / 2
-      beak.position.set(0, 0.34, 0.3)
-      body.castShadow = true
-      const wrap = new THREE.Group()
-      wrap.add(body, hatb, beak)
-      const eyes = new THREE.Group()
-      for (const x of [-0.09, 0.09]) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }))
-        e.position.set(x, 0.42, 0.24)
-        const pu = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
-        pu.position.set(x, 0.42, 0.28)
-        eyes.add(e, pu)
-      }
-      wrap.add(eyes)
-      g.eyes = eyes
-      g.body = wrap
-      g.add(wrap)
-      this.addCoverBlob(g, 0.45, 0.4)
-      this.npcViews.set(n.id, g)
-      this.scene.add(g)
-      return g
-    } else if (n.kind === 'jelly') {
-      // Kelly Jelly by Louie: a toothy dome with spikes and tentacles
-      const jellyMat = new THREE.MeshToonMaterial({ color: 0xff7ab8, gradientMap: this.gradient, transparent: true, opacity: 0.8 })
-      g.mats.push(jellyMat)
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), jellyMat)
-      dome.position.y = 0.35
-      dome.castShadow = true
-      const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.48, 0.18, 14), jellyMat)
-      skirt.position.y = 0.27
-      body.add(dome, skirt)
-      const spike = mat(0xffd23f)
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2
-        const sp = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 5), i % 2 ? spike : mat(0xff3b3b))
-        sp.position.set(Math.cos(a) * 0.4, 0.78, Math.sin(a) * 0.4)
-        sp.rotation.z = -Math.cos(a) * 0.6
-        sp.rotation.x = Math.sin(a) * 0.6
-        body.add(sp)
-      }
-      const tent = mat(0xff9ccb)
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2
-        const t = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.5, 5), tent)
-        t.position.set(Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3)
-        t.name = 'tentacle'
-        body.add(t)
-      }
-      const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.08), mat(0xffffff))
-      teeth.position.set(0, 0.42, 0.5)
-      body.add(teeth)
-      const eyes = new THREE.Group()
-      for (const x of [-0.16, 0.16]) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }))
-        e.position.set(x, 0.62, 0.46)
-        eyes.add(e)
-      }
-      g.eyes = eyes
-      body.add(eyes)
-      g.body = body
-      g.add(body)
-      this.addCoverBlob(g, 0.45, 0.6)
-      this.npcViews.set(n.id, g)
-      this.scene.add(g)
-      return g
-    } else if (n.kind === 'fly' || n.kind === 'bigfly') {
-      const big = n.kind === 'bigfly'
-      const k = big ? 1.8 : 1
-      const bug = new THREE.Mesh(new THREE.SphereGeometry(0.2 * k, 8, 6), mat(0x222222))
-      bug.position.y = 1.0
-      bug.scale.set(1, 0.8, 1.3)
-      bug.castShadow = true
-      body.add(bug)
-      const wingMat = new THREE.MeshBasicMaterial({ color: 0xdfe8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
-      for (const side of [-1, 1]) {
-        const w = new THREE.Mesh(new THREE.PlaneGeometry(0.3 * k, 0.16 * k), wingMat)
-        w.position.set(side * 0.2 * k, 1.1, 0)
-        w.rotation.x = -Math.PI / 2
-        w.name = side < 0 ? 'wingL' : 'wingR'
-        body.add(w)
-      }
-      const eyes = new THREE.Group()
-      for (const x of [-0.08, 0.08]) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.05 * k, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }))
-        e.position.set(x * k, 1.06, 0.22 * k)
-        eyes.add(e)
-      }
-      g.eyes = eyes
-      body.add(eyes)
-      g.body = body
-      g.add(body)
-      this.addCoverBlob(g, 1.0, 0.3 * k)
-      this.npcViews.set(n.id, g)
-      this.scene.add(g)
-      return g
-    } else if (n.kind === 'chicken' || n.kind === 'king') {
-      const king = n.kind === 'king'
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), mat(king ? 0xfff2c4 : 0xffffff))
-      body.position.y = 0.34
-      body.scale.set(1, 0.9, 1.15)
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(0xffffff))
-      head.position.set(0, 0.62, 0.22)
-      const comb = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.16), mat(0xff3b3b))
-      comb.position.set(0, 0.76, 0.2)
-      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 6), mat(0xffb020))
-      beak.rotation.x = Math.PI / 2
-      beak.position.set(0, 0.6, 0.4)
-      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), mat(0xffffff))
-      tail.rotation.x = -Math.PI / 2.5
-      tail.position.set(0, 0.45, -0.3)
-      body.castShadow = head.castShadow = true
-      body.add(tail)
-      body.add(head, comb, beak)
-      const eyes = new THREE.Group()
-      for (const x of [-0.07, 0.07]) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
-        e.position.set(x, 0.66, 0.34)
-        eyes.add(e)
-      }
-      g.eyes = eyes
-      body.add(eyes)
-      body.position.y = 0.34
-      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.08), mat(0xffb020))
-      legs.position.y = 0.1
-      body.add(legs)
-      body.name = 'chickenBody'
-      const hat = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.28, 8), this.toon(0xff8fab))
-      hat.position.set(0, 0.9, 0.2)
-      hat.name = 'partyhat'
-      hat.visible = false
-      body.add(hat)
-      if (king) {
-        const gold = mat(0xffd23f)
-        const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.12, 8), gold)
-        crown.position.set(0, 0.8, 0.2)
-        body.add(crown)
-        for (let i = 0; i < 5; i++) {
-          const a = (i / 5) * Math.PI * 2
-          const pt = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), gold)
-          pt.position.set(Math.cos(a) * 0.12, 0.9, 0.2 + Math.sin(a) * 0.12)
-          body.add(pt)
-        }
-        const cape = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.05), mat(0xd93a3a))
-        cape.position.set(0, 0.3, -0.3)
-        cape.rotation.x = 0.3
-        body.add(cape)
-      }
-      const wrap = new THREE.Group()
-      wrap.add(body)
-      body.position.y = 0
-      wrap.position.y = 0.05
-      // reuse the group as body so bob/tilt apply
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      g.add(wrap)
-      g.body = wrap
-      this.addCoverBlob(g, 0.4, 0.38)
-      this.npcViews.set(n.id, g)
-      this.scene.add(g)
-      return g
-    } else {
-      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.5, 4, 10), mat(0xc49a6c))
-      torso.rotation.x = Math.PI / 2
-      torso.position.y = 0.35
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(0xc49a6c))
-      head.position.set(0, 0.55, 0.42)
-      const ear1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.05), mat(0x8b5a2b))
-      ear1.position.set(-0.15, 0.72, 0.4)
-      const ear2 = ear1.clone()
-      ear2.position.x = 0.15
-      torso.castShadow = head.castShadow = true
-      body.add(torso, head, ear1, ear2)
-      const eyes = new THREE.Group()
-      for (const x of [-0.08, 0.08]) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
-        e.position.set(x, 0.6, 0.6)
-        eyes.add(e)
-      }
-      g.eyes = eyes
-      body.add(eyes)
-    }
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 8), this.toon(0xff8fab))
-    hat.position.y = n.kind === 'adult' ? 1.55 : 0.85
-    hat.name = 'partyhat'
-    hat.visible = false
-    body.add(hat)
-    g.body = body
-    g.add(body)
-    this.addCoverBlob(g, n.kind === 'adult' ? 0.75 : 0.4, n.kind === 'adult' ? 0.55 : 0.35)
-    this.npcViews.set(n.id, g)
-    this.scene.add(g)
-    return g
-  }
-
-  private addCoverBlob(g: THREE.Group, y: number, r: number) {
-    const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), new THREE.MeshToonMaterial({ color: 0x6b3e1e, gradientMap: this.gradient, transparent: true, opacity: 0 }))
-    blob.position.y = y
-    blob.scale.set(1.15, 1.35, 1.15)
-    blob.name = 'cover'
-    g.add(blob)
+    v = buildNpc(this.modelCtx, n)
+    this.npcViews.set(n.id, v)
+    this.scene.add(v)
+    return v
   }
 
   // ------------------------------------------------------------ pickups
