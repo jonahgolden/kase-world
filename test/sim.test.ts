@@ -547,6 +547,23 @@ describe('sim', () => {
     expect(s.player.grounded).toBe(true)
   })
 
+  it('sky fans launch a hovering baby, even while JUMP is held', () => {
+    for (const hold of [false, true]) {
+      const s = createState({ seed: 5, levelId: 'sky' })
+      s.npcs = []
+      s.features = [{ id: 991, kind: 'fan', x: 0, z: 0, r: 1.2, h: 0, pair: -1, dirX: 1, dirZ: 0, cd: 0, island: false }]
+      s.player.x = 0
+      s.player.z = 0
+      run(s, 0.05, { ...EMPTY_INPUT, jump: hold })
+      expect(s.events.some((e) => e.t === 'fan') || s.player.vy > CFG.fly.riseMax).toBe(true)
+      run(s, 0.6, { ...EMPTY_INPUT, jump: hold })
+      expect(s.player.y).toBeGreaterThan(5)
+      expect(s.player.x).toBeGreaterThan(2)
+      run(s, 0.7, { ...EMPTY_INPUT, jump: hold })
+      expect(s.player.y).toBeGreaterThan(8)
+    }
+  })
+
   it('poop coverage: a chicken freezes from one hit, an adult only slows, and it wears off', () => {
     const s = createState({ seed: 6 })
     s.features = []

@@ -892,12 +892,14 @@ function updateFlight(s: State, input: Input) {
   p.aiming = false
   p.aimPower = input.aimPower ?? -1
   const speed = C.speed * (p.grounded ? 1 : F.airSpeed) * (p.boosting ? F.boostSpeed : 1) * (p.fedora ? CFG.fedora.speed : 1)
+  p.launchT = Math.max(0, p.launchT - DT)
   if (p.hitstun > 0) {
     p.hitstun -= DT
     p.vx *= 1 - 3 * DT
     p.vz *= 1 - 3 * DT
   } else {
-    const k = Math.min(1, C.accel * (p.grounded ? 1 : 0.6) * DT)
+    const control = p.launchT > 0 ? C.launchControl : p.grounded ? 1 : 0.6
+    const k = Math.min(1, C.accel * control * DT)
     p.vx += (mx * speed - p.vx) * k
     p.vz += (mz * speed - p.vz) * k
   }
@@ -912,7 +914,10 @@ function updateFlight(s: State, input: Input) {
   p.turnV = 0
   p.pitch = 0
   if (input.jump) {
-    p.vy = Math.min(F.riseMax * (p.boosting ? F.boostLift : 1), p.vy + F.lift * (p.boosting ? F.boostLift : 1) * DT)
+    const cap = F.riseMax * (p.boosting ? F.boostLift : 1)
+    // riding a fan launch: let it decay down to the hover cap instead of cutting it
+    if (p.vy > cap) p.vy = Math.max(cap, p.vy - CFG.gravity * F.gravity * DT)
+    else p.vy = Math.min(cap, p.vy + F.lift * (p.boosting ? F.boostLift : 1) * DT)
     p.grounded = false
     if (s.tick % 15 === 0) ev(s, { t: 'flap', x: p.x, y: p.y, z: p.z, big: p.boosting ? 1 : 0.3 })
   } else if (!p.grounded) {
@@ -940,8 +945,25 @@ function updateFlight(s: State, input: Input) {
   } else {
     p.y = gy
   }
+  fanLaunch(s)
   p.jumpHeld = input.jump
   playerTimers(s, input)
+}
+
+// Fans on the cloud floor / ground: hop over one at low height and it throws you up and along its arrow.
+function fanLaunch(s: State) {
+  const p = s.player
+  if (p.y - p.gy >= 1.2) return
+  const fan = featureAt(s, p.x, p.z, ['fan'])
+  if (!fan || fan.cd > 0) return
+  fan.cd = CFG.fan.cd
+  p.vy = CFG.fan.up
+  p.vx = fan.dirX * CFG.fan.push
+  p.vz = fan.dirZ * CFG.fan.push
+  p.grounded = false
+  p.launchT = CFG.player.launchTime
+  p.y = Math.max(p.y, p.gy + 0.05)
+  ev(s, { t: 'fan', x: p.x, z: p.z })
 }
 
 function updatePlayer(s: State, input: Input) {
@@ -1025,19 +1047,7 @@ function updatePlayer(s: State, input: Input) {
   } else {
     p.y = gy
   }
-  if (p.y < 1.2) {
-    const fan = featureAt(s, p.x, p.z, ['fan'])
-    if (fan && fan.cd <= 0) {
-      fan.cd = CFG.fan.cd
-      p.vy = CFG.fan.up
-      p.vx = fan.dirX * CFG.fan.push
-      p.vz = fan.dirZ * CFG.fan.push
-      p.grounded = false
-      p.launchT = C.launchTime
-      p.y = Math.max(p.y, 0.05)
-      ev(s, { t: 'fan', x: p.x, z: p.z })
-    }
-  }
+  fanLaunch(s)
   p.portalCd = Math.max(0, p.portalCd - DT)
   if (p.portalCd <= 0 && p.y < 1) {
     const portal = featureAt(s, p.x, p.z, ['portal'])
