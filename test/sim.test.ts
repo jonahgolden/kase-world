@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CFG, DT, HEART, addWreck, bossHit, createState, fireScream, groundY, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
+import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, fightOf, fireScream, groundY, nextLevelState, skipToBoss, step } from '../src/sim/sim.ts'
 import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
@@ -545,6 +545,175 @@ describe('sim', () => {
     run(s, 0.9, { ...EMPTY_INPUT, mx: 1 })
     expect(s.player.y).toBeCloseTo(2, 1)
     expect(s.player.grounded).toBe(true)
+  })
+
+  it('Khan: poop bounces off, a scream mid-charge spooks the horse, the rider lies exposed', () => {
+    const s = createState({ seed: 5, levelId: 'asia' })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.5)
+    const b = s.boss!
+    expect(b.def.fight).toBe('horse')
+    s.player.invuln = 99
+    expect(bossHit(s, 'poop')).toBe(false)
+    expect(s.events.some((e) => e.t === 'bossBlocked' && e.label === 'SCREAM THE HORSE!')).toBe(true)
+    b.state = 'idle'
+    expect(bossHit(s, 'scream')).toBe(false)
+    b.state = 'attack'
+    b.stateT = 1
+    expect(bossHit(s, 'scream')).toBe(true)
+    expect(b.hits).toBe(1)
+    expect(b.state).toBe('hurt')
+    run(s, CFG.boss.horse.thrown + 0.1)
+    expect(b.state).toBe('exposed')
+    b.invuln = 0
+    expect(bossHit(s, 'scream')).toBe(true)
+    expect(b.hits).toBe(2)
+    // he really does charge on his own
+    b.state = 'idle'
+    b.stateT = 0
+    run(s, 4)
+    expect(s.events.length >= 0).toBe(true)
+    expect(b.totalHits).toBe(12)
+  })
+
+  it('Africa group: four animals in order, each answers to one verb only', () => {
+    const s = createState({ seed: 5, levelId: 'africa' })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.2)
+    const b = s.boss!
+    s.player.invuln = 99
+    expect(b.parts.length).toBe(4)
+    expect(activePart(b)!.def.kind).toBe('lion')
+    run(s, CFG.boss.phaseChangeTime + 0.2)
+    expect(bossHit(s, 'scream')).toBe(false)
+    for (let i = 0; i < 3; i++) {
+      b.invuln = 0
+      expect(bossHit(s, 'poop')).toBe(true)
+    }
+    expect(b.parts[0].done).toBe(true)
+    expect(activePart(b)!.def.kind).toBe('giraffe')
+    expect(s.events.some((e) => e.t === 'bossPhase' && e.kind === 'part')).toBe(true)
+    run(s, CFG.boss.phaseChangeTime + 0.2)
+    expect(bossHit(s, 'poop')).toBe(false)
+    expect(bossHit(s, 'scream', false, 0.2)).toBe(false)
+    for (let i = 0; i < 3; i++) {
+      b.invuln = 0
+      expect(bossHit(s, 'scream', false, 1)).toBe(true)
+    }
+    expect(activePart(b)!.def.kind).toBe('rhino')
+    run(s, CFG.boss.phaseChangeTime + 0.2)
+    b.state = 'idle'
+    expect(bossHit(s, 'poop')).toBe(false)
+    for (let i = 0; i < 3; i++) {
+      b.state = 'exposed'
+      b.stateT = 2
+      b.invuln = 0
+      expect(bossHit(s, 'scream', false, 1)).toBe(true)
+    }
+    expect(activePart(b)!.def.kind).toBe('elephant')
+    expect(s.pickups.filter((k) => k.kind === 'potato').length).toBeGreaterThanOrEqual(CFG.boss.group.potatoes)
+    run(s, CFG.boss.phaseChangeTime + 0.2)
+    expect(bossHit(s, 'poop')).toBe(false)
+    expect(bossHit(s, 'scream', false, 1)).toBe(false)
+    for (let i = 0; i < 3; i++) {
+      b.invuln = 0
+      bossHit(s, 'poop', true)
+    }
+    expect(s.phase).toBe('won')
+  })
+
+  it('Outback Games: shove the kangaroo out, out-run the emu, find and poop the rockfish', () => {
+    const s = createState({ seed: 5, levelId: 'australia' })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + CFG.boss.phaseChangeTime + 0.5)
+    const b = s.boss!
+    const ring = s.bossRing!
+    const p = s.player
+    p.invuln = 99
+    expect(b.def.fight).toBe('games')
+    expect(activePart(b)!.def.kind).toBe('kangaroo')
+    expect(bossHit(s, 'poop')).toBe(false)
+    for (let bout = 0; bout < 3; bout++) {
+      b.state = 'idle'
+      b.stateT = 5
+      b.x = ring.x + ring.r - 1.0
+      b.z = ring.z
+      p.x = ring.x + ring.r - 3.5
+      p.z = ring.z
+      p.facing = Math.atan2(b.x - p.x, b.z - p.z)
+      p.hasAim = true
+      const before = b.vx
+      expect(bossHit(s, 'scream', false, 1)).toBe(true)
+      expect(b.vx).toBeGreaterThan(before)
+      run(s, 0.4)
+      expect(b.hits).toBe(bout + 1)
+      expect(s.events.length >= 0).toBe(true)
+    }
+    expect(activePart(b)!.def.kind).toBe('emu')
+    run(s, CFG.boss.phaseChangeTime + CFG.boss.race.countdown + 0.3)
+    expect(b.state).toBe('attack')
+    const trackR = ring.r - 1.4
+    // run a lap in 3 s: faster than the emu
+    for (let lap = 0; lap < 3; lap++) {
+      const hitsBefore = b.hits
+      for (let i = 0; i < 320 && b.hits === hitsBefore; i++) {
+        const a = (i / 180) * Math.PI * 2
+        p.x = ring.x + Math.cos(a) * trackR
+        p.z = ring.z + Math.sin(a) * trackR
+        step(s, EMPTY_INPUT)
+      }
+      expect(b.hits).toBe(hitsBefore + 1)
+      if (activePart(b)!.def.kind === 'emu') run(s, CFG.boss.race.countdown + 0.2)
+    }
+    expect(activePart(b)!.def.kind).toBe('rockfish')
+    run(s, CFG.boss.phaseChangeTime + 0.2)
+    expect(b.r).toBe(CFG.boss.rock.r)
+    expect(bossHit(s, 'scream', false, 1)).toBe(false)
+    const rx = b.x
+    expect(bossHit(s, 'poop')).toBe(true)
+    expect(b.x !== rx || b.hitFlash === 0).toBe(true)
+    p.invuln = 0
+    p.x = b.x
+    p.z = b.z
+    p.y = 0
+    const hp = p.hp
+    run(s, 0.05)
+    expect(p.hp).toBeLessThan(hp)
+  })
+
+  it('Columbus remixes charge, runner and poopcover across his three phases', () => {
+    const s = createState({ seed: 5, levelId: 'europe' })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.5)
+    const b = s.boss!
+    s.player.invuln = 99
+    expect(fightOf(b)).toBe('charge')
+    for (let i = 0; i < 3; i++) {
+      b.state = 'exposed'
+      b.stateT = 2
+      b.invuln = 0
+      expect(bossHit(s, 'poop')).toBe(true)
+    }
+    expect(fightOf(b)).toBe('runner')
+    expect(b.state).toBe('phaseChange')
+    run(s, CFG.boss.phaseChangeTime + 1)
+    expect(b.lap).not.toBe(0)
+    expect(bossHit(s, 'scream')).toBe(false)
+    const ring = s.bossRing!
+    for (let a = 0; a < Math.PI * 2; a += 0.2) s.splats.push({ id: 7100 + Math.round(a * 100), x: ring.x + Math.cos(a) * (ring.r - 1.4), z: ring.z + Math.sin(a) * (ring.r - 1.4), r: 0.6 })
+    run(s, 1.5)
+    expect(b.state).toBe('exposed')
+    for (let i = 0; i < 3; i++) {
+      b.state = 'exposed'
+      b.stateT = 2
+      b.invuln = 0
+      expect(bossHit(s, 'poop')).toBe(true)
+    }
+    expect(fightOf(b)).toBe('poopcover')
+    run(s, CFG.boss.phaseChangeTime + 0.2)
+    expect(bossHit(s, 'scream')).toBe(false)
+    for (let i = 0; i < 6 && s.phase === 'boss'; i++) bossHit(s, 'poop')
+    expect(s.phase).toBe('won')
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

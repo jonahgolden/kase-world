@@ -229,7 +229,29 @@ export interface Duogringo {
 }
 
 export type BossAttack = 'charge' | 'stomp'
-export type BossFight = 'charge' | 'poopcover' | 'runner' | 'nest'
+export type BossFight = 'charge' | 'poopcover' | 'runner' | 'nest' | 'horse' | 'group' | 'games' | 'remix'
+// what a boss part answers to: any hit while exposed, screams (charged), poop, bombs, a wall slam first,
+// sumo shoves out of the ring, a race you must win, or a hidden thing you must find and poop
+export type Weakness = 'any' | 'scream' | 'poop' | 'bomb' | 'wall' | 'sumo' | 'race' | 'hidden'
+
+export interface BossPartDef {
+  kind: string // lion, giraffe, rhino, elephant, kangaroo, emu, rockfish, devil
+  name: string
+  uv: [number, number, number, number] // crop of the group drawing, fractions, top-left origin: x0 y0 x1 y1
+  scale: number // card height in world units
+  weakness: Weakness
+  hint: string // toast when this part steps up
+  blocked: string // popup for the wrong verb
+  decor?: boolean // stands at the edge and heckles, never fought
+}
+
+export interface BossPart {
+  def: BossPartDef
+  x: number // idle spot at the ring edge, or where it fell
+  z: number
+  facing: number
+  done: boolean
+}
 export type BossState =
   | 'enter'
   | 'idle'
@@ -254,6 +276,8 @@ export interface BossDef {
   taunt: string
   fight: BossFight
   hint: string // one line shown when the fight starts
+  parts?: BossPartDef[] // group fights: one card per animal, fought in order
+  coverPoops?: number // poopcover phases: poops for full cover (default CFG.boss.coverPoops)
 }
 
 export interface Boss {
@@ -278,6 +302,13 @@ export interface Boss {
   everExposed: boolean
   cover: number // poopcover fights: 0..1
   lap: number // runner fights: angle along the track
+  parts: BossPart[]
+  plap: number // race: player's accumulated lap angle
+  pang: number // race: player's last angle around the ring
+  roundT: number // race: boss lap progress this round; elephant: potato respawn timer
+  hideT: number // rockfish: seconds until it burrows again; emu: seconds left tripped
+  charges: number // horse: charges left in this pass
+  status: string // one line for the HUD under the boss name (round, lap, event)
 }
 
 export type EventType =

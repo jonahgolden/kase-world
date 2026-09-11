@@ -1,6 +1,6 @@
 // Scripted player for smoke tests, screenshots and the title-screen demo. Not clever, just busy.
 import type { Input, State } from './types.ts'
-import { bossVulnerable } from './sim.ts'
+import { activePart, bossVulnerable, fightOf } from './sim.ts'
 
 export function botInput(s: State): Input {
   const p = s.player
@@ -40,6 +40,35 @@ export function botInput(s: State): Input {
       out.scream = dd < 7 && period < 40 && s.duo.state !== 'stun'
       out.poop = dd < 8 && s.duo.state === 'stun' && period % 20 < 3
     }
+    return out
+  }
+
+  if (b && b.state !== 'enter' && b.state !== 'dead' && s.phase === 'boss') {
+    // walk up to the boss and use the verb its fight wants; enough for screenshots and soak tests
+    const fight = fightOf(b)
+    const part = activePart(b)
+    const w = part?.def.weakness
+    const dx = b.x - p.x
+    const dz = b.z - p.z
+    const d = Math.hypot(dx, dz) || 1
+    const want = w === 'race' ? 0 : fight === 'horse' ? 6 : 3.5
+    if (d > want + 0.5) {
+      out.mx = dx / d
+      out.mz = dz / d
+    }
+    for (const k of s.pickups) {
+      if (k.kind !== 'potato' || p.potatoes > 0) continue
+      const kd = Math.hypot(k.x - p.x, k.z - p.z)
+      if (kd < 9) {
+        out.mx = (k.x - p.x) / kd
+        out.mz = (k.z - p.z) / kd
+      }
+    }
+    const scream = w === 'scream' || w === 'sumo' || fight === 'horse' || (w !== 'poop' && w !== 'bomb' && w !== 'hidden' && fight !== 'poopcover')
+    if (fight === 'horse') out.scream = b.state === 'attack' && d < 5
+    else if (scream) out.scream = period < 55 && (w === 'scream' || w === 'sumo' || bossVulnerable(b))
+    else out.poop = period % 30 < 3
+    if (w === 'sumo') out.poop = false
     return out
   }
 

@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import type { Boss, Feature, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
-import { aimTarget, bossPhase, currentLevel, duoRadius, isSky, screamRange } from '../sim/sim.ts'
+import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, isSky, screamRange } from '../sim/sim.ts'
 
 const PICKUP_COLOR: Record<string, number> = {
   milk: 0xffffff,
@@ -111,7 +111,7 @@ export class Renderer {
   private duoCurrent = ''
   private duoBaseHeight = 1
   private duoMats: THREE.Material[] = []
-  private boss: { group: THREE.Group; card: THREE.Mesh; overlay: THREE.Mesh; ring: THREE.Mesh; def: Boss['def']; h: number } | null = null
+  private boss: { group: THREE.Group; card: THREE.Mesh; overlay: THREE.Mesh; ring: THREE.Mesh; def: Boss['def']; h: number; partKey: string; parts: { mesh: THREE.Mesh; idx: number; h: number; fall: number }[] } | null = null
   private bossTextures = new Map<string, THREE.Texture>()
   private particles: Particles
   private rings: { mesh: THREE.Mesh; life: number; max: number; grow: number }[] = []
@@ -1043,31 +1043,38 @@ export class Renderer {
   private removeBoss() {
     if (this.boss) {
       this.scene.remove(this.boss.group)
+      for (const pv of this.boss.parts) this.scene.remove(pv.mesh)
       this.boss = null
     }
   }
 
-  private bossTexture(file: string): Promise<THREE.Texture> {
-    const cached = this.bossTextures.get(file)
+  // A drawing as a bordered paper card; uv crops one animal out of a group drawing.
+  private bossTexture(file: string, uv?: [number, number, number, number]): Promise<THREE.Texture> {
+    const key = uv ? `${file}|${uv.join(',')}` : file
+    const cached = this.bossTextures.get(key)
     if (cached) return Promise.resolve(cached)
     return new Promise((resolve) => {
       const img = new Image()
       img.onload = () => {
-        const border = Math.round(Math.max(img.width, img.height) * 0.045)
+        const sx = uv ? Math.round(uv[0] * img.width) : 0
+        const sy = uv ? Math.round(uv[1] * img.height) : 0
+        const sw = uv ? Math.round((uv[2] - uv[0]) * img.width) : img.width
+        const sh = uv ? Math.round((uv[3] - uv[1]) * img.height) : img.height
+        const border = Math.round(Math.max(sw, sh) * 0.045)
         const cv = document.createElement('canvas')
-        cv.width = img.width + border * 2
-        cv.height = img.height + border * 2
+        cv.width = sw + border * 2
+        cv.height = sh + border * 2
         const ctx = cv.getContext('2d')!
         ctx.fillStyle = '#fffaf0'
         ctx.beginPath()
         const r = border * 1.5
         ctx.roundRect(0, 0, cv.width, cv.height, r)
         ctx.fill()
-        ctx.drawImage(img, border, border)
+        ctx.drawImage(img, sx, sy, sw, sh, border, border, sw, sh)
         const tex = new THREE.CanvasTexture(cv)
         tex.colorSpace = THREE.SRGBColorSpace
         tex.anisotropy = 4
-        this.bossTextures.set(file, tex)
+        this.bossTextures.set(key, tex)
         resolve(tex)
       }
       img.onerror = () => {
@@ -1096,19 +1103,44 @@ export class Renderer {
     ring.position.y = 0.03
     group.add(card, overlay, ring)
     this.scene.add(group)
-    this.boss = { group, card, overlay, ring, def, h }
-    const tex = await this.bossTexture(def.drawing)
-    if (this.boss && this.boss.def.id === def.id && tex.image) {
-      const img = tex.image as HTMLCanvasElement
-      const aspect = img.width / img.height
-      const w = h * aspect
-      card.geometry.dispose()
-      card.geometry = new THREE.PlaneGeometry(w, h)
-      overlay.geometry.dispose()
-      overlay.geometry = new THREE.PlaneGeometry(w, h)
-      ;(card.material as THREE.MeshBasicMaterial).map = tex
-      ;(card.material as THREE.MeshBasicMaterial).needsUpdate = true
-    }
+    const parts: { mesh: THREE.Mesh; idx: number; h: number; fall: number }[] = []
+    b.parts.forEach((part, idx) => {
+      const ph = part.def.scale
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ph * 0.75, ph), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true }))
+      mesh.castShadow = true
+      mesh.position.set(part.x, ph / 2, part.z)
+      mesh.visible = false
+      this.scene.add(mesh)
+      parts.push({ mesh, idx, h: ph, fall: 0 })
+      void this.bossTexture(def.drawing, part.def.uv).then((tex) => {
+        if (!tex.image || !this.boss || this.boss.def.id !== def.id) return
+        const img = tex.image as HTMLCanvasElement
+        mesh.geometry.dispose()
+        mesh.geometry = new THREE.PlaneGeometry((ph * img.width) / img.height, ph)
+        ;(mesh.material as THREE.MeshBasicMaterial).map = tex
+        ;(mesh.material as THREE.MeshBasicMaterial).needsUpdate = true
+      })
+    })
+    this.boss = { group, card, overlay, ring, def, h, partKey: '', parts }
+    await this.setBossCard(def.id, def.drawing, undefined, h)
+  }
+
+  // Swap what the main card shows: the whole drawing, or one animal's crop at its own height.
+  private async setBossCard(id: string, file: string, uv: [number, number, number, number] | undefined, h: number) {
+    const tex = await this.bossTexture(file, uv)
+    const bv = this.boss
+    if (!bv || bv.def.id !== id || !tex.image) return
+    const img = tex.image as HTMLCanvasElement
+    const w = (h * img.width) / img.height
+    bv.h = h
+    bv.card.geometry.dispose()
+    bv.card.geometry = new THREE.PlaneGeometry(w, h)
+    bv.overlay.geometry.dispose()
+    bv.overlay.geometry = new THREE.PlaneGeometry(w, h)
+    const m = bv.card.material as THREE.MeshBasicMaterial
+    m.map = tex
+    m.transparent = true
+    m.needsUpdate = true
   }
 
   // ------------------------------------------------------------ events
@@ -1636,6 +1668,34 @@ export class Renderer {
         const camYaw = Math.atan2(this.camera.position.x - b.x, this.camera.position.z - b.z)
         bv.group.rotation.y = camYaw
         const ph = bossPhase(b)
+        const fight = fightOf(b)
+        const part = b.state === 'enter' ? null : activePart(b)
+        const partKey = part ? part.def.kind : ''
+        if (partKey !== bv.partKey) {
+          bv.partKey = partKey
+          void this.setBossCard(b.def.id, b.def.drawing, part?.def.uv, part ? part.def.scale : b.def.scale)
+        }
+        const hidden = part?.def.weakness === 'hidden'
+        for (const pv of bv.parts) {
+          const pt = b.parts[pv.idx]
+          const isActive = part === pt
+          pv.mesh.visible = !isActive && b.state !== 'enter'
+          if (!pv.mesh.visible) continue
+          const m = pv.mesh.material as THREE.MeshBasicMaterial
+          if (pt.done) {
+            pv.fall = Math.min(1, pv.fall + dt * 2.5)
+            pv.mesh.position.set(pt.x, 0.06 + (1 - pv.fall) * pv.h * 0.5, pt.z)
+            pv.mesh.rotation.set(-1.45 * pv.fall, Math.atan2(this.camera.position.x - pt.x, this.camera.position.z - pt.z), 0)
+            m.color.setScalar(1 - pv.fall * 0.45)
+            m.opacity = 1
+          } else {
+            const bob = Math.sin(this.time * 2.2 + pv.idx) * 0.06
+            pv.mesh.position.set(pt.x, pv.h / 2 + bob, pt.z)
+            pv.mesh.rotation.set(0, Math.atan2(this.camera.position.x - pt.x, this.camera.position.z - pt.z), Math.sin(this.time * 2.5 + pv.idx * 2) * 0.06)
+            m.color.setScalar(1)
+            m.opacity = 1
+          }
+        }
         let wob = Math.sin(this.time * 3 + ph) * 0.05
         let sy = 1
         let sx = 1
@@ -1660,19 +1720,34 @@ export class Renderer {
           tilt = Math.min(1.5, s.phaseT * 2.2)
           sy = 1
         }
+        if (fight === 'horse' && b.state === 'hurt') tilt = -0.9 // thrown off the horse
+        if ((fight === 'horse' || (fight === 'group' && part?.def.kind === 'rhino')) && b.state === 'exposed') tilt = 1.15 // flat out
+        const cm = bv.card.material as THREE.MeshBasicMaterial
+        if (hidden) {
+          // the rockfish: a flat card on the ground, faint until Kase is close, a poop lands near, or it stings
+          tilt = 1.5
+          const near = Math.hypot(p.x - b.x, p.z - b.z) < 3
+          cm.opacity = b.hitFlash > 0 ? 1 : near ? 0.75 : 0.3
+          wob = near ? Math.sin(this.time * 18) * 0.12 : 0
+          sy = 1
+          sx = 1
+        } else if (cm.opacity < 1) {
+          cm.opacity = 1
+        }
         bv.card.rotation.z = wob
         bv.card.rotation.x = -tilt
         bv.overlay.rotation.copy(bv.card.rotation)
         bv.card.scale.set(sx, sy, 1)
         bv.overlay.scale.copy(bv.card.scale)
-        bv.card.position.y = (bv.h / 2) * sy + (b.state === 'attack' && b.attack === 'stomp' ? Math.max(0, b.stateT) * 3 : 0)
+        bv.card.position.y = hidden ? 0.08 : (bv.h / 2) * sy + (b.state === 'attack' && b.attack === 'stomp' && fight === 'charge' ? Math.max(0, b.stateT) * 3 : 0)
         bv.overlay.position.y = bv.card.position.y
         const om = bv.overlay.material as THREE.MeshBasicMaterial
-        om.opacity = b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : b.hitFlash > 0 ? 0.6 : b.state === 'phaseChange' ? 0.3 : 0
+        om.opacity = hidden ? (b.hitFlash > 0 ? 0.5 : 0) : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : b.hitFlash > 0 ? 0.6 : b.state === 'phaseChange' ? 0.3 : 0
         om.color.set(b.hitFlash > 0 ? 0xffffff : 0xff3030)
         const rm = bv.ring.material as THREE.MeshBasicMaterial
-        rm.opacity = b.state === 'exposed' ? 0.55 + Math.sin(this.time * 10) * 0.3 : 0
-        bv.ring.scale.setScalar(b.state === 'exposed' ? 1 + Math.sin(this.time * 10) * 0.1 : 1)
+        const open = b.state === 'exposed' && (fight === 'charge' || fight === 'horse' || fight === 'runner' || part?.def.weakness === 'wall')
+        rm.opacity = open ? 0.55 + Math.sin(this.time * 10) * 0.3 : 0
+        bv.ring.scale.setScalar(open ? 1 + Math.sin(this.time * 10) * 0.1 : 1)
       }
     } else {
       this.removeBoss()
@@ -1688,7 +1763,8 @@ export class Renderer {
         this.prompts.splice(i, 1)
       }
     }
-    if (s.boss?.def.fight === 'runner' && s.bossRing && !this.track) {
+    const wantTrack = !!s.boss && s.boss.state !== 'enter' && (fightOf(s.boss) === 'runner' || (fightOf(s.boss) === 'games' && activePart(s.boss)?.def.kind === 'emu'))
+    if (wantTrack && s.bossRing && !this.track) {
       const ring = s.bossRing
       const geo = new THREE.RingGeometry(ring.r - 2.3, ring.r - 0.5, 48)
       geo.rotateX(-Math.PI / 2)
@@ -1696,7 +1772,7 @@ export class Renderer {
       this.track.position.set(ring.x, 0.04, ring.z)
       this.scene.add(this.track)
     }
-    if (this.track && (!s.boss || s.phase !== 'boss')) {
+    if (this.track && (!s.boss || s.phase !== 'boss' || !wantTrack)) {
       this.scene.remove(this.track)
       this.track = null
     }

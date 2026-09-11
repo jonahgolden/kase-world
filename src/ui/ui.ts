@@ -1,6 +1,6 @@
 // HTML overlay: title, HUD, level card, help/pause, end screens, boards, popups. Reads state, never mutates it.
 import { LEVELS } from '../sim/levels.ts'
-import { HEART, bossPhase, currentLevel } from '../sim/sim.ts'
+import { HEART, bossPhase, currentLevel, fightOf } from '../sim/sim.ts'
 import type { State } from '../sim/types.ts'
 import { fmtMs } from '../net/leaderboard.ts'
 import type { TimeRow } from '../net/leaderboard.ts'
@@ -43,6 +43,7 @@ export class Ui {
   private lastPct = -1
   private devTaps = 0
   private hintT = 0
+  private lastStatus = ''
 
   constructor(root: HTMLElement, private cb: UiCallbacks, private touch: boolean, dev: boolean) {
     this.root = root
@@ -413,13 +414,18 @@ export class Ui {
         ;(this.get('boss-img') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
         this.get('boss-name').innerHTML = `${lvl.boss.name} <small>by ${lvl.boss.drawnBy}</small>`
         this.lastBoss = lvl.id
+        this.lastStatus = ''
       }
     } else if (s.boss) {
       this.get('goal-wrap').hidden = true
       this.get('boss-wrap').hidden = false
       const b = s.boss
-      const pc = b.def.fight === 'poopcover'
-      this.get('boss-fill').style.width = `${pc ? b.cover * 100 : (1 - b.hits / b.totalHits) * 100}%`
+      const pc = fightOf(b) === 'poopcover'
+      if (b.status !== this.lastStatus) {
+        this.lastStatus = b.status
+        this.get('boss-name').innerHTML = `${lvl.boss.name} <small>${b.status || `by ${lvl.boss.drawnBy}`}</small>`
+      }
+      this.get('boss-fill').style.width = `${pc ? (b.def.fight === 'remix' ? (bossPhase(b) + b.cover) / b.def.phases : b.cover) * 100 : (1 - b.hits / b.totalHits) * 100}%`
       this.get('boss-fill').classList.toggle('cover', pc)
       const segs = this.get('boss-segs')
       if (segs.childElementCount !== b.def.phases) {

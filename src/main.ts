@@ -1,5 +1,5 @@
 import './ui/styles.css'
-import { DT, VERSION, createState, currentLevel, nextLevelState, skipToBoss, step } from './sim/sim.ts'
+import { DT, VERSION, createState, currentLevel, nextLevelState, skipToBoss, step, fightOf } from './sim/sim.ts'
 import { botInput } from './sim/bot.ts'
 import { LEVELS } from './sim/levels.ts'
 import type { GameEvent, State } from './sim/types.ts'
@@ -398,7 +398,20 @@ function handleEvents(s: State) {
       }
       case 'bossSlip': {
         const pt = renderer.project(e.x ?? 0, 2.5, e.z ?? 0)
-        ui.popup('SLIPPED! HIT HIM!', pt.x, pt.y, '#4cd137', 1)
+        ui.popup(e.label ?? 'SLIPPED! HIT HIM!', pt.x, pt.y, '#4cd137', 1)
+        break
+      }
+      case 'bossTelegraph':
+        if (e.label === 'race') ui.toast('READY...', 1100, 'boss')
+        break
+      case 'bossAttack':
+        if (e.label === 'race') ui.toast('GO! RUN THE TRACK!', 900, 'go')
+        break
+      case 'bossStomp': {
+        if (e.label === 'emu' || e.label === 'spike') {
+          const pt = renderer.project(e.x ?? 0, 2.5, e.z ?? 0)
+          ui.popup(e.label === 'emu' ? 'EMU WINS THE LAP!' : 'OUCH! SPIKES!', pt.x, pt.y, '#ff5c5c', 0.8)
+        }
         break
       }
       case 'tooClose': {
@@ -438,7 +451,10 @@ function handleEvents(s: State) {
         if (s.boss) ui.toast(s.boss.def.hint, 3200, 'go')
         break
       case 'bossExposed':
-        if ((e.big ?? 0) > 0) ui.toast('NOW! SCREAM OR POOP AT HIM!', 1800, 'go')
+        if ((e.big ?? 0) > 0) {
+          const f = s.boss ? fightOf(s.boss) : 'charge'
+          ui.toast(f === 'horse' ? 'HE IS DOWN! SCREAM AT HIM!' : f === 'group' ? 'DAZED! HIT IT!' : 'NOW! SCREAM OR POOP AT HIM!', 1800, 'go')
+        }
         break
       case 'bossHurt':
         hitstop = Math.max(hitstop, 0.09)
@@ -449,7 +465,8 @@ function handleEvents(s: State) {
         break
       case 'bossPhase':
         hitstop = Math.max(hitstop, 0.12)
-        ui.toast(`${s.boss?.def.name.toUpperCase()} IS ANGRY!`, 1400, 'boss')
+        if (e.kind === 'part' && e.label) ui.toast(e.label, 3600, 'go')
+        else ui.toast(`${s.boss?.def.name.toUpperCase()} IS ANGRY!`, 1400, 'boss')
         break
       case 'bossDead':
         hitstop = Math.max(hitstop, 0.25)

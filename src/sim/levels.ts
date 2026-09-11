@@ -1,4 +1,4 @@
-import type { BossDef, BossFight, FeatureKind, Goal, NpcKind, PickupKind, PropKind } from './types.ts'
+import type { BossDef, BossFight, BossPartDef, FeatureKind, Goal, NpcKind, PickupKind, PropKind } from './types.ts'
 
 export interface PropStat {
   r: number
@@ -95,8 +95,23 @@ const SUBURB: Partial<Record<PropKind, number>> = {
   statue: 1,
 }
 
+// Crops of the group drawings (fractions of the image, top-left origin).
+const AFRICA_PARTS: BossPartDef[] = [
+  { kind: 'lion', name: 'Lion', uv: [0.02, 0.03, 0.6, 0.99], scale: 3.0, weakness: 'poop', hint: 'LION: poop it! Dodge the pounce.', blocked: 'POOP THE LION!' },
+  { kind: 'giraffe', name: 'Giraffe', uv: [0.08, 0.14, 0.24, 0.5], scale: 3.6, weakness: 'scream', hint: 'GIRAFFE: too tall for poop. Hold SCREAM to charge it, then let go!', blocked: 'TOO TALL! CHARGED SCREAM!' },
+  { kind: 'rhino', name: 'Rhino', uv: [0.55, 0.3, 1.0, 0.8], scale: 2.8, weakness: 'wall', hint: 'RHINO: stand near the edge so it charges into the wall, then hit it while it is dazed.', blocked: 'MAKE IT HIT THE WALL!' },
+  { kind: 'elephant', name: 'Elephant', uv: [0.6, 0.02, 1.0, 0.42], scale: 3.2, weakness: 'bomb', hint: 'ELEPHANT: only hot potatoes work. Grab one and throw it. Jump over the stomp!', blocked: 'POTATO IT! 🥔' },
+]
+
+const AUSTRALIA_PARTS: BossPartDef[] = [
+  { kind: 'kangaroo', name: 'Kangaroo', uv: [0.3, 0.08, 0.66, 0.84], scale: 3.0, weakness: 'sumo', hint: 'KANGAROO BOXING: screams shove it. Push it out of the ring three times!', blocked: 'SHOVE IT WITH A SCREAM!' },
+  { kind: 'emu', name: 'Emu', uv: [0.6, 0.03, 0.95, 0.48], scale: 2.6, weakness: 'race', hint: 'EMU DASH: run a lap of the track before the emu does. Poop on the track trips it!', blocked: 'RACE IT! POOP TRIPS IT' },
+  { kind: 'rockfish', name: 'Rockfish', uv: [0.66, 0.52, 0.92, 0.74], scale: 1.6, weakness: 'hidden', hint: 'ROCKFISH: it hides on the ground and moves. Do not step on it. Find it and poop it!', blocked: "IT'S A ROCK. POOP IT!" },
+  { kind: 'devil', name: 'Tasmanian Devil', uv: [0.06, 0.11, 0.34, 0.48], scale: 2.0, weakness: 'any', hint: '', blocked: '', decor: true },
+]
+
 const FEATURES_BASIC: Partial<Record<FeatureKind | 'tall', number>> = { platform: 3, tall: 2, fan: 2, portal: 1, lake: 2 }
-const BROS = 'the Erbalaban Bros'
+const NOVA = 'Nova'
 
 export const LEVELS: LevelDef[] = [
   {
@@ -111,7 +126,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 4, dog: 2, chicken: 7 },
     finds: { milk: 2, clock: 2, skateboard: 1, giant: 1, conga: 1 },
     features: FEATURES_BASIC,
-    boss: boss({ id: 'donald-rump', name: 'Donald Rump', drawnBy: BROS, drawing: 'donald-rump.jpg', speed: 2.2, chargeSpeed: 9, damage: 15, scale: 2.6, taunt: 'Tremendous baby. The best baby. Sad!' }),
+    boss: boss({ id: 'donald-rump', name: 'Donald Rump', drawnBy: NOVA, drawing: 'donald-rump.jpg', speed: 2.2, chargeSpeed: 9, damage: 15, scale: 2.6, taunt: 'Tremendous baby. The best baby. Sad!' }),
     theme: { ground: 0x7ec850, ground2: 0x6db544, sky: 0x9fd8ff, fog: 0xbfe6ff, accent: 0xff5c5c },
   },
   {
@@ -126,7 +141,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { chicken: 8 },
     finds: { wings: 6, milk: 2, clock: 2 },
     features: {},
-    boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: 'Nova & Louie', drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', fight: 'nest', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy.' }),
+    boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: NOVA, drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', fight: 'nest', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy.' }),
     theme: { ground: 0xffffff, ground2: 0xeef4ff, sky: 0x7cc4ff, fog: 0xbfe6ff, accent: 0xffd23f },
     sky: true,
   },
@@ -142,7 +157,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 4, dog: 2, chicken: 8 },
     finds: { milk: 2, clock: 2, quad: 1, potato: 1, wings: 1 },
     features: { platform: 2, tall: 2, fan: 2, portal: 1, lake: 1 },
-    boss: boss({ id: 'insane-bolt', name: 'Insane Bolt', drawnBy: BROS, drawing: 'insane-bolt.jpg', speed: 3.4, chargeSpeed: 13, damage: 10, scale: 2.4, taunt: 'Catch me if you can, baby!', fight: 'runner', hint: 'Too fast to catch. Poop on his track so he slips, then hit him.' }),
+    boss: boss({ id: 'insane-bolt', name: 'Insane Bolt', drawnBy: NOVA, drawing: 'insane-bolt.jpg', speed: 3.4, chargeSpeed: 13, damage: 10, scale: 2.4, taunt: 'Catch me if you can, baby!', fight: 'runner', hint: 'Too fast to catch. Poop on his track so he slips, then hit him.' }),
     theme: { ground: 0x5fbf5a, ground2: 0x4fa84a, sky: 0xa8e0ff, fog: 0xcdeeff, accent: 0xffd23f },
   },
   {
@@ -157,7 +172,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 4, dog: 3, chicken: 8 },
     finds: { milk: 2, clock: 3, skateboard: 1, rattle: 1, goggles: 1 },
     features: { platform: 3, tall: 1, fan: 1, portal: 1, lake: 2 },
-    boss: boss({ id: 'president-jeff', name: 'President Jeff', drawnBy: BROS, drawing: 'president-jeff.jpg', speed: 1.7, chargeSpeed: 8, damage: 12, scale: 2.4, taunt: 'As president of Antarctica, I order you to nap.', fight: 'poopcover', hint: 'Screams bounce off ice. Cover him completely in poop.' }),
+    boss: boss({ id: 'president-jeff', name: 'President Jeff', drawnBy: NOVA, drawing: 'president-jeff.jpg', speed: 1.7, chargeSpeed: 8, damage: 12, scale: 2.4, taunt: 'As president of Antarctica, I order you to nap.', fight: 'poopcover', hint: 'Screams bounce off ice. Cover him completely in poop.' }),
     theme: { ground: 0xeef6ff, ground2: 0xdbe9f7, sky: 0xcfe6ff, fog: 0xe8f3ff, accent: 0x3b5ba5 },
   },
   {
@@ -172,7 +187,20 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 5, dog: 2, chicken: 9 },
     finds: { milk: 2, clock: 2, quad: 1, conga: 1, megaphone: 1 },
     features: { platform: 3, tall: 2, fan: 2, portal: 2, lake: 1 },
-    boss: boss({ id: 'genghis-khan', name: 'Genghis Khan', drawnBy: BROS, drawing: 'genghis-khan.jpg', speed: 2.8, chargeSpeed: 11, damage: 18, scale: 2.8, taunt: 'I like horses. I do not like babies.' }),
+    boss: boss({
+      id: 'genghis-khan',
+      name: 'Genghis Khan',
+      drawnBy: NOVA,
+      drawing: 'genghis-khan.jpg',
+      speed: 2.8,
+      chargeSpeed: 11,
+      damage: 18,
+      scale: 2.8,
+      taunt: 'I like horses. I do not like babies.',
+      fight: 'horse',
+      hitsPerPhase: 4,
+      hint: 'He charges on horseback. Hold your ground and SCREAM at the horse as it comes. Poop does nothing.',
+    }),
     theme: { ground: 0xc9b26b, ground2: 0xb9a25b, sky: 0xffd9a0, fog: 0xffe8c0, accent: 0xd93a3a },
   },
   {
@@ -187,7 +215,21 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 5, dog: 3, chicken: 10 },
     finds: { milk: 3, clock: 2, giant: 1, potato: 1, wings: 1 },
     features: { platform: 3, tall: 2, fan: 2, portal: 1, lake: 2 },
-    boss: boss({ id: 'africa-group', name: 'The African Animal Group', drawnBy: BROS, drawing: 'africa-group.jpg', speed: 2.4, chargeSpeed: 10, damage: 20, scale: 3.2, taunt: 'ROAR. (That was all of us.)' }),
+    boss: boss({
+      id: 'africa-group',
+      name: 'The African Animal Group',
+      drawnBy: NOVA,
+      drawing: 'africa-group.jpg',
+      speed: 2.4,
+      chargeSpeed: 10,
+      damage: 20,
+      scale: 3.2,
+      taunt: 'ROAR. (That was all of us.)',
+      fight: 'group',
+      phases: 4,
+      hint: 'Four animals, one trick each. The lion goes first: poop it!',
+      parts: AFRICA_PARTS,
+    }),
     theme: { ground: 0xd9a55a, ground2: 0xc9954a, sky: 0xffc98a, fog: 0xffdcb0, accent: 0x7a3f1f },
   },
   {
@@ -202,7 +244,21 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 5, dog: 3, chicken: 10 },
     finds: { milk: 2, clock: 3, quad: 1, pacifier: 1, fedora: 1 },
     features: { platform: 3, tall: 2, fan: 2, portal: 1, lake: 2 },
-    boss: boss({ id: 'australia-group', name: 'The Australian Animal Group', drawnBy: BROS, drawing: 'australia-group.jpg', speed: 2.6, chargeSpeed: 10, damage: 16, scale: 3.0, taunt: "G'day, baby. Prepare to be bounced." }),
+    boss: boss({
+      id: 'australia-group',
+      name: 'The Australian Animal Group',
+      drawnBy: NOVA,
+      drawing: 'australia-group.jpg',
+      speed: 2.6,
+      chargeSpeed: 10,
+      damage: 16,
+      scale: 3.0,
+      taunt: "G'day, baby. Welcome to the Outback Games.",
+      fight: 'games',
+      phases: 3,
+      hint: 'Three events: box the kangaroo out of the ring, outrun the emu, find the rockfish.',
+      parts: AUSTRALIA_PARTS,
+    }),
     theme: { ground: 0xe0925a, ground2: 0xd0824a, sky: 0xffe0b0, fog: 0xffeacc, accent: 0x2e8b57 },
   },
   {
@@ -217,7 +273,20 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 6, dog: 3, chicken: 9 },
     finds: { milk: 2, clock: 3, quad: 1, giant: 1, conga: 1, megaphone: 1 },
     features: { platform: 4, tall: 2, fan: 2, portal: 2, lake: 2 },
-    boss: boss({ id: 'columbus', name: 'Columbus', drawnBy: BROS, drawing: 'columbus.jpg', speed: 2.6, chargeSpeed: 11, damage: 22, scale: 3.0, taunt: 'I discovered this baby first.' }),
+    boss: boss({
+      id: 'columbus',
+      name: 'Columbus',
+      drawnBy: NOVA,
+      drawing: 'columbus.jpg',
+      speed: 2.6,
+      chargeSpeed: 11,
+      damage: 22,
+      scale: 3.0,
+      taunt: 'I discovered this baby first.',
+      fight: 'remix',
+      coverPoops: 6,
+      hint: 'The last boss stole every trick. Dodge and hit him, then trip him with poop, then cover him.',
+    }),
     theme: { ground: 0x86b86a, ground2: 0x76a85a, sky: 0xb8d8ff, fog: 0xd0e6ff, accent: 0x5b3a8b },
   },
 ]
