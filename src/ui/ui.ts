@@ -327,14 +327,14 @@ export class Ui {
   showCard(s: State) {
     const lvl = currentLevel(s)
     this.get('card-name').textContent = lvl.name.toUpperCase()
-    this.get('card-goal').textContent = goalCardText(lvl.goal)
+    this.get('card-goal').textContent = goalShort(lvl.goal)
     ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
     this.get('card-boss-name').textContent = lvl.boss.name
     const card = this.screens.card
     card.hidden = false
     card.classList.remove('out')
-    window.setTimeout(() => card.classList.add('out'), 2600)
-    window.setTimeout(() => (card.hidden = true), 3100)
+    window.setTimeout(() => card.classList.add('out'), 3600)
+    window.setTimeout(() => (card.hidden = true), 4100)
     this.hintT = this.touch ? 0 : 9
     this.get('hint').textContent = 'hold SPACE to scream · click to poop · SHIFT to jump'
     this.get('hint').classList.toggle('show', this.hintT > 0)
@@ -654,6 +654,28 @@ export function goalCardText(g: Goal): string {
       return `Race the pigeon 🐦 through ${g.checkpoints} gates 🏁. Screams stall it!`
     case 'hunt':
       return `Pop Kacone's ${g.count} guardians 🪼 (by Louie). Poop freezes them, screams pop them. Watch the volcano!`
+  }
+}
+
+// Six words at most: an 8-year-old reads two a second and the card is up for under four.
+export function goalShort(g: Goal): string {
+  switch (g.kind) {
+    case 'wreck':
+      return `Wreck ${Math.round(g.pct * 100)}% of everything`
+    case 'find':
+      return g.item === 'fedora' ? `Find ${g.count} fedoras 🎩` : `Find ${g.count} golden eggs 🥚`
+    case 'chase':
+      return `Catch the Chicken King 👑 ${g.count}×`
+    case 'grow':
+      return 'Roll a HUGE snowball ⛄'
+    case 'escape':
+      return 'Outrun the stampede 🏁'
+    case 'protect':
+      return `Guard the milk 🍼 (${g.count} thieves)`
+    case 'race':
+      return `Beat the pigeon 🐦 (${g.checkpoints} gates)`
+    case 'hunt':
+      return `Pop ${g.count} jellies 🪼`
   }
 }
 

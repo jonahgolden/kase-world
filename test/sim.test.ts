@@ -4,6 +4,7 @@ import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
 import { GHOST_DT, ghostAt, packGhost } from '../src/ghost.ts'
+import { goalShort } from '../src/ui/ui.ts'
 import type { Input, State } from '../src/sim/types.ts'
 import { LEVELS, PROP_STATS } from '../src/sim/levels.ts'
 
@@ -1148,6 +1149,28 @@ describe('sim', () => {
     run(s, CFG.boss.enterTime + 0.3)
     expect(devBeatBoss(s)).toBe(true)
     expect(s.phase).toBe('won')
+  })
+
+  it('research pass 5: pickups magnet to Kase, short goal lines fit a card, the race says SET', () => {
+    const s = createState({ seed: 5 })
+    s.features = []
+    s.npcs = []
+    s.pickups = [{ id: 9700, kind: 'clock', x: s.player.x + 1.4, y: 0, z: s.player.z, vy: 0, age: 1, float: false }]
+    const before = s.stats.pickups
+    run(s, 0.4)
+    expect(s.stats.pickups).toBe(before + 1)
+    for (const lvl of LEVELS) expect(goalShort(lvl.goal).split(' ').length).toBeLessThanOrEqual(6)
+    const r = createState({ seed: 5, levelId: 'australia' })
+    skipToBoss(r)
+    run(r, CFG.boss.enterTime + 0.3)
+    r.boss!.hits = 3
+    r.player.invuln = 99
+    let set = 0
+    for (let i = 0; i < 60 * (CFG.boss.phaseChangeTime + CFG.boss.race.countdown + 0.5); i++) {
+      step(r, EMPTY_INPUT)
+      set += r.events.filter((e) => e.t === 'bossTelegraph' && e.label === 'set').length
+    }
+    expect(set).toBe(1)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

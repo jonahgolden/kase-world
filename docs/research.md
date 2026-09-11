@@ -234,3 +234,23 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   [TV Tropes: Comeback Mechanic](https://tvtropes.org/pmwiki/pmwiki.php/Main/ComebackMechanic))
   **→ applied: at one heart or less, screams charge 30% faster ("last-heart lungs"); nothing else changes.**
 - Flight feel: nothing new found; the family already said hover flight feels good. Left alone.
+
+## 2026-09-11 (timer pass 5) — reading speed, pickup magnet, collecting juice, race starts
+
+- Silent reading: 90–130 wpm at 8–9, 130–170 at 10–11, i.e. about two words a second. In-app cards
+  should be ten words or fewer. ([Brighterly: reading speed by age](https://brighterly.com/blog/reading-speed-by-age/),
+  [Readigo: wpm norms 6–12](https://readigo.app/en/blog/reading-speed-by-age-words-per-minute),
+  [Eleken: notification UX](https://www.eleken.co/blog-posts/notification-ux))
+  **→ applied: the level card now shows a ≤6-word goal line (`goalShort`) and stays 3.6 s instead of 2.6; the
+  full sentence lives on the pause screen where it waits for you. Test: every level's short goal ≤ 6 words.**
+- Pickup magnet: a generous auto-collect radius removes fiddly positioning and makes running feel rewarding.
+  ([Vampire Survivors wiki: Magnet](https://vampire-survivors.fandom.com/wiki/Magnet),
+  [Death Must Die: bring magnets back](https://steamcommunity.com/app/2334730/discussions/0/4040355763640369333/))
+  **→ applied: pickups within 1.6 units (and roughly Kase's height) drift to him at 9 u/s.**
+- Collecting juice: the instant rising blip is the reward; late or harsh cues break it. Streaks feel best
+  when pitch climbs. ([Resprawn: juicy effects](https://resprawn.medium.com/when-you-play-a-great-game-it-feels-good-d23761b6eccf),
+  [Morphic: coin sounds](https://morphic.com/resources/sounds/coin-sound-effects))
+  **→ applied: pickups and goal finds within 2 s of each other climb in pitch (up to +40%).**
+- Race starts: kids' racers use a visible 3-2-1; real sports randomize the gap so GO cannot be guessed.
+  ([Mario Kart wiki: pre-race countdown](https://mariokart.fandom.com/wiki/Pre-race_countdown))
+  **→ applied: the emu dash reads READY… SET… GO! with the SET beat at the midpoint (kids' version, fixed).**

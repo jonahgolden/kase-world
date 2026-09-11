@@ -277,6 +277,15 @@ function clearFails(levelId: string) {
   }
 }
 let thiefWarns = 0
+// collecting streak: pickups close together climb in pitch
+let pickupAt = -10
+let pickupStreak = 0
+function pickupPitch(): number {
+  const now = performance.now() / 1000
+  pickupStreak = now - pickupAt < 2 ? Math.min(5, pickupStreak + 1) : 0
+  pickupAt = now
+  return 1 + pickupStreak * 0.08
+}
 // personal-best ghost: this run's path, sampled every GHOST_DT
 let ghostRec: GhostPoint[] = []
 let ghostNextT = 0
@@ -588,7 +597,8 @@ function handleEvents(s: State) {
         break
       }
       case 'bossTelegraph':
-        if (e.label === 'race') ui.toast('READY...', 1100, 'boss')
+        if (e.label === 'race') ui.toast('READY...', 800, 'boss')
+        if (e.label === 'set') ui.toast('SET...', 700, 'boss')
         break
       case 'bossAttack':
         if (e.label === 'race') ui.toast('GO! RUN THE TRACK!', 900, 'go')
@@ -699,10 +709,10 @@ function playSound(e: GameEvent) {
       return
     case 'pickup':
     case 'rideOn':
-      audio.play(e.kind === 'giant' ? 'levelPhase' : e.kind === 'conga' ? 'win' : 'bossPhase', { vol: 0.5 })
+      audio.play(e.kind === 'giant' ? 'levelPhase' : e.kind === 'conga' ? 'win' : 'bossPhase', { vol: 0.5, pitch: pickupPitch() })
       return
     case 'found':
-      audio.play('win', { vol: 0.45, pitch: 1.3 })
+      audio.play('win', { vol: 0.45, pitch: 1.2 + (pickupPitch() - 1) })
       return
     case 'needScream':
     case 'needPoop':

@@ -1103,6 +1103,8 @@ function updateGames(s: State, b: Boss, ph: number) {
       b.plap = 0
       b.roundT = 0
       b.hideT = 0
+      // READY... SET... GO!: the SET beat lands at the midpoint
+      if (b.stateT + DT > R.countdown * 0.5 && b.stateT <= R.countdown * 0.5) ev(s, { t: 'bossTelegraph', x: b.x, z: b.z, label: 'set' })
       if (b.stateT <= 0) {
         b.state = 'attack'
         ev(s, { t: 'bossAttack', x: b.x, z: b.z, label: 'race', big: 0.5 })

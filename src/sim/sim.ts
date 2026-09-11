@@ -175,6 +175,7 @@ export const CFG = {
   protect: { wave: 5, waveMin: 3.2, grace: 6, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
   assist: { maxHearts: 2 },
   comeback: { hearts: 1, chargeMult: 0.7 }, // last-heart lungs: screams charge faster when nearly out
+  magnet: { r: 1.6, speed: 9 }, // pickups this close drift to Kase: no fiddly positioning
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2, distractLead: 2, distractEvery: 4, distractFor: 1.5 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
   volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, maxChasing: 3, r: 1.6 },
@@ -1906,6 +1907,14 @@ function updatePickups(s: State) {
       }
     }
     if (s.phase === 'over' || s.phase === 'won') continue
+    // magnet: close enough and about Kase's height, and it comes to him
+    const dk = dist(k.x, k.z, p.x, p.z)
+    if (k.age > 0.3 && dk < CFG.magnet.r && dk > 0.01 && Math.abs(k.y - p.y) < 1.6) {
+      const stepLen = Math.min(dk, CFG.magnet.speed * DT)
+      k.x += ((p.x - k.x) / dk) * stepLen
+      k.z += ((p.z - k.z) / dk) * stepLen
+      k.y += (p.y + 0.4 - k.y) * Math.min(1, 8 * DT)
+    }
     if (k.age > 0.3 && Math.abs(k.y - p.y) < (k.float ? 1.4 : 0.9) && dist(k.x, k.z, p.x, p.z) < p.r + 0.6) {
       collect(s, k)
       s.pickups.splice(i, 1)
