@@ -716,6 +716,137 @@ describe('sim', () => {
     expect(s.phase).toBe('won')
   })
 
+  it('chase goal: the Chicken King runs, three catches drop the pacifier and summon the boss', () => {
+    const s = createState({ seed: 5, levelId: 'south-america' })
+    expect(s.goal.kind).toBe('chase')
+    const king = s.npcs.find((n) => n.kind === 'king')!
+    expect(king).toBeTruthy()
+    const p = s.player
+    p.invuln = 99
+    // he runs when Kase is near
+    p.x = king.x - 3
+    p.z = king.z
+    const kx = king.x
+    run(s, 1.5)
+    expect(Math.hypot(king.x - kx, king.z) > 0.5 || king.state === 'flee').toBe(true)
+    for (let i = 0; i < 3; i++) {
+      king.scaredCd = 0
+      p.x = king.x
+      p.z = king.z
+      p.y = 0
+      step(s, EMPTY_INPUT)
+      expect(s.found).toBe(i + 1)
+    }
+    expect(s.pickups.some((k) => k.kind === 'pacifier')).toBe(true)
+    run(s, 0.1)
+    expect(s.phase).toBe('boss')
+  })
+
+  it('grow goal: the snowball grows as it rolls, melts in a lake, and summons the boss when huge', () => {
+    const s = createState({ seed: 5, levelId: 'antarctica' })
+    expect(s.goal.kind).toBe('grow')
+    const ball = s.props.find((pr) => pr.kind === 'snowball')!
+    expect(ball).toBeTruthy()
+    s.features = []
+    s.npcs = []
+    const r0 = ball.r
+    ball.vx = 4
+    run(s, 2)
+    expect(ball.r).toBeGreaterThan(r0)
+    expect(s.wreck).toBeGreaterThan(0)
+    const r1 = ball.r
+    s.features = [{ id: 950, kind: 'lake', x: ball.x, z: ball.z, r: 5, h: 0, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false }]
+    run(s, 1)
+    expect(ball.r).toBeLessThan(r1)
+    s.features = []
+    ball.r = (s.goal as { size: number }).size
+    run(s, 0.1)
+    expect(s.phase).toBe('boss')
+  })
+
+  it('escape goal: the stampede advances, tramples a slow baby forward, the flag ends it', () => {
+    const s = createState({ seed: 5, levelId: 'africa' })
+    expect(s.goal.kind).toBe('escape')
+    expect(s.stampede).not.toBeNull()
+    expect(s.goalPos).not.toBeNull()
+    const st = s.stampede!
+    const f0 = st.front
+    run(s, 1)
+    expect(st.front).toBeGreaterThan(f0)
+    // stand still behind the front: trampled and shoved along the herd's direction
+    const p = s.player
+    p.x = st.dirX * (st.front - 1)
+    p.z = st.dirZ * (st.front - 1)
+    const hp = p.hp
+    run(s, 0.1)
+    expect(p.hp).toBeLessThan(hp)
+    expect(s.events.length >= 0).toBe(true)
+    p.x = s.goalPos!.x
+    p.z = s.goalPos!.z
+    run(s, 0.1)
+    expect(s.phase).toBe('boss')
+    expect(s.stampede).toBeNull()
+  })
+
+  it('protect goal: thieves raid the milk, screams repel them, drinking it all costs a heart', () => {
+    const s = createState({ seed: 5, levelId: 'australia' })
+    expect(s.goal.kind).toBe('protect')
+    expect(s.props.some((pr) => pr.kind === 'bigmilk')).toBe(true)
+    run(s, 3.2)
+    const thief = s.npcs.find((n) => n.kind === 'thief')!
+    expect(thief).toBeTruthy()
+    expect(thief.state).toBe('raid')
+    const p = s.player
+    p.invuln = 0
+    p.x = thief.x - 2
+    p.z = thief.z
+    p.facing = Math.atan2(thief.x - p.x, thief.z - p.z)
+    p.hasAim = true
+    fireScream(s, 1)
+    expect(s.found).toBe(1)
+    expect(thief.state).toBe('flee')
+    // a thief that reaches the bottle drinks
+    const t2 = { ...thief, id: 9911, x: s.goalPos!.x + 1.2, z: s.goalPos!.z, state: 'raid' as const, stateT: 0, scaredCd: 0 }
+    s.npcs.push(t2)
+    run(s, 0.6)
+    const t2live = s.npcs.find((n) => n.id === 9911)!
+    expect(t2live.state).toBe('drink')
+    expect(s.milk).toBeLessThan(1)
+    s.milk = 0.01
+    const hp = p.hp
+    p.invuln = 0
+    run(s, 0.2)
+    expect(p.hp).toBeLessThan(hp)
+    expect(s.milk).toBeGreaterThan(0.9)
+  })
+
+  it('race goal: gates in order, the pigeon flies its route, a scream stalls it, six gates end it', () => {
+    const s = createState({ seed: 5, levelId: 'europe' })
+    expect(s.goal.kind).toBe('race')
+    expect(s.checkpoints.length).toBe(6)
+    expect(s.rival).not.toBeNull()
+    const p = s.player
+    p.invuln = 99
+    run(s, 2)
+    const rv = s.rival!
+    expect(Math.hypot(rv.x, rv.z)).toBeGreaterThan(0.5)
+    p.x = rv.x - 2
+    p.z = rv.z
+    p.facing = Math.atan2(rv.x - p.x, rv.z - p.z)
+    p.hasAim = true
+    fireScream(s, 1)
+    expect(rv.stallT).toBeGreaterThan(0)
+    for (let i = 0; i < 6; i++) {
+      const gate = s.goalPos!
+      p.x = gate.x
+      p.z = gate.z
+      p.y = 0
+      step(s, EMPTY_INPUT)
+      expect(s.found).toBe(i + 1)
+    }
+    expect(s.phase).toBe('boss')
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

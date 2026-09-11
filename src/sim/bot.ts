@@ -72,6 +72,56 @@ export function botInput(s: State): Input {
     return out
   }
 
+  // level goals with a thing to chase, push or reach
+  const g = s.goal
+  if (s.phase === 'wreck') {
+    let tx: number | null = null
+    let tz = 0
+    let shout = false
+    if (g.kind === 'chase') {
+      const king = s.npcs.find((n) => n.kind === 'king')
+      if (king) {
+        tx = king.x
+        tz = king.z
+        shout = Math.hypot(king.x - p.x, king.z - p.z) < 5
+      }
+    } else if (g.kind === 'grow') {
+      const ball = s.props.find((pr) => pr.kind === 'snowball')
+      if (ball) {
+        // push from the side away from the arena center so the ball rolls somewhere open
+        const dx = ball.x - p.x
+        const dz = ball.z - p.z
+        const d = Math.hypot(dx, dz) || 1
+        tx = ball.x + (d > 1.3 ? 0 : dx / d) * 0.5
+        tz = ball.z + (d > 1.3 ? 0 : dz / d) * 0.5
+      }
+    } else if (g.kind === 'protect') {
+      let best: { x: number; z: number; d: number } | null = null
+      for (const n of s.npcs) {
+        if (n.kind !== 'thief' || (n.state !== 'raid' && n.state !== 'drink')) continue
+        const d = Math.hypot(n.x - p.x, n.z - p.z)
+        if (!best || d < best.d) best = { x: n.x, z: n.z, d }
+      }
+      if (best) {
+        tx = best.x
+        tz = best.z
+        shout = best.d < 5
+      }
+    } else if ((g.kind === 'escape' || g.kind === 'race') && s.goalPos) {
+      tx = s.goalPos.x
+      tz = s.goalPos.z
+      if (g.kind === 'race' && s.rival && Math.hypot(s.rival.x - p.x, s.rival.z - p.z) < 5) shout = period < 30
+    }
+    if (tx !== null) {
+      const d = Math.hypot(tx - p.x, tz - p.z) || 1
+      out.mx = (tx - p.x) / d
+      out.mz = (tz - p.z) / d
+      out.scream = shout && period < 40
+      if (s.tick % 200 === 0) out.jump = true
+      return out
+    }
+  }
+
   let pickup: { x: number; z: number; d: number; y: number } | null = null
   for (const k of s.pickups) {
     if (k.y > 1.5) continue // tall platforms need a fan; the bot is not that clever

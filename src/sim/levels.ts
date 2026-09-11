@@ -25,6 +25,8 @@ export const PROP_STATS: Record<PropKind, PropStat> = {
   glass: { r: 0.45, h: 1.6, hp: 40, mass: 3, points: 150, color: 0xbfe6ff },
   statue: { r: 0.6, h: 2.0, hp: 60, mass: 6, points: 220, color: 0xb0b0c0 },
   evilbaby: { r: 1.6, h: 3.6, hp: 5, mass: 50, points: 400, color: 0xffd9b8 },
+  snowball: { r: 0.55, h: 1.1, hp: 99999, mass: 3, points: 0, color: 0xffffff },
+  bigmilk: { r: 0.9, h: 2.8, hp: 99999, mass: 80, points: 0, color: 0xffffff },
 }
 
 export interface NpcStat {
@@ -45,6 +47,10 @@ export const NPC_STATS: Record<NpcKind, NpcStat> = {
   dog: { r: 0.3, hp: 30, wanderSpeed: 2.2, chaseSpeed: 3.8, fleeSpeed: 5.5, detect: 7, damage: 10, color: 0xc49a6c, scare: 100, bonk: 150 },
   chicken: { r: 0.28, hp: 20, wanderSpeed: 2.4, chaseSpeed: 0, fleeSpeed: 5.8, detect: 4, damage: 0, color: 0xffffff, scare: 80, bonk: 150 },
   mini: { r: 0.26, hp: 20, wanderSpeed: 2.5, chaseSpeed: 3.6, fleeSpeed: 4.5, detect: 12, damage: 10, color: 0x2e9e3a, scare: 60, bonk: 120 },
+  // the Chicken King: faster than Kase in a straight line, but he stops to gloat and poop slows him
+  king: { r: 0.5, hp: 9999, wanderSpeed: 0, chaseSpeed: 0, fleeSpeed: 5.0, detect: 8, damage: 0, color: 0xffd23f, scare: 150, bonk: 250 },
+  // milk thieves: walk to the bottle, drink, leave; a scream or a poop sends them packing
+  thief: { r: 0.4, hp: 60, wanderSpeed: 1.4, chaseSpeed: 3.0, fleeSpeed: 4.6, detect: 6, damage: 10, color: 0x333344, scare: 120, bonk: 180 },
 }
 
 export interface Theme {
@@ -149,12 +155,12 @@ export const LEVELS: LevelDef[] = [
     id: 'south-america',
     name: 'South America',
     continent: 'South America',
-    goal: { kind: 'wreck', pct: 0.55 },
+    goal: { kind: 'chase', count: 3 },
     spots: 5,
     propsPerSpot: 5,
     singles: 3,
     props: { ...SUBURB, tree: 6, cone: 5 },
-    npcs: { adult: 4, dog: 2, chicken: 8 },
+    npcs: { adult: 3, dog: 2, chicken: 8, king: 1 },
     finds: { milk: 2, clock: 2, quad: 1, potato: 1, wings: 1 },
     features: { platform: 2, tall: 2, fan: 2, portal: 1, lake: 1 },
     boss: boss({ id: 'insane-bolt', name: 'Insane Bolt', drawnBy: NOVA, drawing: 'insane-bolt.jpg', speed: 3.4, chargeSpeed: 13, damage: 10, scale: 2.4, taunt: 'Catch me if you can, baby!', fight: 'runner', hint: 'Too fast to catch. Poop on his track so he slips, then hit him.' }),
@@ -164,7 +170,7 @@ export const LEVELS: LevelDef[] = [
     id: 'antarctica',
     name: 'Antarctica',
     continent: 'Antarctica',
-    goal: { kind: 'wreck', pct: 0.55 },
+    goal: { kind: 'grow', size: 2.4 },
     spots: 5,
     propsPerSpot: 5,
     singles: 3,
@@ -207,7 +213,7 @@ export const LEVELS: LevelDef[] = [
     id: 'africa',
     name: 'Africa',
     continent: 'Africa',
-    goal: { kind: 'wreck', pct: 0.6 },
+    goal: { kind: 'escape' },
     spots: 6,
     propsPerSpot: 5,
     singles: 4,
@@ -236,7 +242,7 @@ export const LEVELS: LevelDef[] = [
     id: 'australia',
     name: 'Australia',
     continent: 'Australia',
-    goal: { kind: 'wreck', pct: 0.6 },
+    goal: { kind: 'protect', count: 10 },
     spots: 6,
     propsPerSpot: 5,
     singles: 4,
@@ -265,7 +271,7 @@ export const LEVELS: LevelDef[] = [
     id: 'europe',
     name: 'Europe',
     continent: 'Europe',
-    goal: { kind: 'wreck', pct: 0.65 },
+    goal: { kind: 'race', checkpoints: 6 },
     spots: 7,
     propsPerSpot: 5,
     singles: 5,

@@ -25,6 +25,7 @@ import type {
   Poop,
   Prop,
   PropKind,
+  Rival,
   State,
 } from './types.ts'
 
@@ -158,6 +159,12 @@ export const CFG = {
   },
   seenRadius: 9,
   caps: { splats: 220, debris: 700 },
+  // level goals
+  king: { taunt: 1.2, run: 2.8, catchCd: 2.5, scale: 1.6 },
+  snow: { growPerUnit: 0.022, melt: 0.25, push: 1.15, smashSpeed: 1.5 },
+  stampede: { speed: 3.2, surge: 6.4, surgeTime: 1.2, every: 8, warn: 1.0, behind: 14, damage: 10, shove: 10, hitCd: 1.5, flagR: 2.2 },
+  protect: { wave: 5, waveMin: 3.2, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
+  race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2 },
 }
 
 const GIFT_DROPS: PickupKind[] = ['clock', 'milk', 'potato', 'conga', 'giant', 'wings']
@@ -296,6 +303,13 @@ export function createState(opts: CreateOpts = {}): State {
     bossRing: null,
     conga: [],
     goal: level.goal,
+    goalDone: false,
+    goalPos: null,
+    stampede: null,
+    checkpoints: [],
+    rival: null,
+    milk: 1,
+    waveT: 0,
     found: 0,
     wreck: 0,
     wreckPoints: 0,
@@ -613,7 +627,7 @@ function populate(s: State, level: LevelDef) {
   for (const [kind, count] of Object.entries(level.npcs) as [NpcKind, number][]) {
     const st = NPC_STATS[kind]
     for (let i = 0; i < count; i++) {
-      const scale = kind === 'chicken' ? range(s.rng, 0.8, 1.7) : 1
+      const scale = kind === 'chicken' ? range(s.rng, 0.8, 1.7) : kind === 'king' ? CFG.king.scale : 1
       const r = st.r * scale
       let pos: { x: number; z: number } | null = null
       for (let t = 0; t < 30 && !pos; t++) {
@@ -748,6 +762,68 @@ function populate(s: State, level: LevelDef) {
       }
     }
   }
+
+  // 5. goal props and routes
+  const goalProp = (kind: PropKind, x: number, z: number): Prop => {
+    const st = PROP_STATS[kind]
+    const pr: Prop = { id: newId(s), kind, x, z, y: 0, vx: 0, vz: 0, vy: 0, rot: 0, angVel: 0, r: st.r, h: st.h, hp: st.hp, maxHp: st.hp, mass: st.mass, points: 0, color: st.color, broken: false, hitFlash: 0, drop: null, cover: 0, promptCd: 0 }
+    s.props.push(pr)
+    placed.push({ x, z, r: st.r + 1 })
+    return pr
+  }
+  if (level.goal.kind === 'grow') goalProp('snowball', 0, 3.5)
+  if (level.goal.kind === 'protect') {
+    goalProp('bigmilk', 0, -4)
+    s.goalPos = { x: 0, z: -4 }
+    s.waveT = 3
+  }
+  if (level.goal.kind === 'escape') {
+    const flag = farPoint(s, 0, 0, 2.5, 40, (x, z) => !onFeature(x, z, 1.5))
+    const d = Math.hypot(flag.x, flag.z) || 1
+    const dirX = flag.x / d
+    const dirZ = flag.z / d
+    const S = CFG.stampede
+    s.goalPos = flag
+    s.stampede = { dirX, dirZ, front: -S.behind, start: 0, end: d, speed: S.speed, surgeT: 0, warnT: S.every, hitCd: 0 }
+  }
+  if (level.goal.kind === 'race') {
+    const A = s.arena
+    const cx = (A.minX + A.maxX) / 2
+    const cz = (A.minZ + A.maxZ) / 2
+    const n = level.goal.checkpoints
+    const a0 = rand(s.rng) * Math.PI * 2
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i / n) * Math.PI * 2
+      let placedCp = false
+      for (let k = 0.42; k > 0.08 && !placedCp; k -= 0.06) {
+        const x = cx + Math.cos(a) * A.w * k
+        const z = cz + Math.sin(a) * A.d * k
+        if (coastClear(s, x, z) > 2.2 && !onFeature(x, z, 1.8) && Math.hypot(x, z) > 6) {
+          s.checkpoints.push({ x, z })
+          placedCp = true
+        }
+      }
+    }
+    // irregular coasts (Europe) can leave a gate unplaced: fill in with spots far from the others
+    while (s.checkpoints.length < n) {
+      let best: { x: number; z: number } | null = null
+      let bestD = -1
+      for (let t = 0; t < 30; t++) {
+        const q = randomInside(s, 2.5, 8)
+        if (!q || onFeature(q.x, q.z, 1.8)) continue
+        let d = Math.hypot(q.x, q.z)
+        for (const c of s.checkpoints) d = Math.min(d, dist(q.x, q.z, c.x, c.z))
+        if (d > bestD) {
+          bestD = d
+          best = q
+        }
+      }
+      if (!best) break
+      s.checkpoints.push(best)
+    }
+    if (s.checkpoints.length) s.goalPos = s.checkpoints[0]
+    s.rival = { x: 0, y: CFG.race.pigeonY, z: 0, vx: 0, vz: 0, facing: 0, cp: 0, stallT: 1.5, hitFlash: 0, laps: 0 }
+  }
 }
 
 export function currentLevel(s: State): LevelDef {
@@ -796,6 +872,7 @@ export function step(s: State, input: Input) {
   updateBoss(s)
   updateDebris(s)
   updatePickups(s)
+  updateGoal(s)
   updateCombo(s)
   updatePhase(s)
 }
@@ -1220,9 +1297,11 @@ function scareNpc(s: State, n: Npc, fromX: number, fromZ: number, push: number, 
   const st = NPC_STATS[n.kind]
   const wasScared = n.state === 'flee' || n.state === 'stunned'
   n.hitFlash = 0.3
+  if (n.kind === 'king') kingCaught(s, n)
+  if (n.kind === 'thief') thiefRepelled(s, n)
   if (n.state !== 'cower') {
     n.state = 'flee'
-    n.stateT = CFG.scream.scareTime
+    n.stateT = n.kind === 'king' ? CFG.king.run : n.kind === 'thief' ? 99 : CFG.scream.scareTime
   }
   const dx = n.x - fromX
   const dz = n.z - fromZ
@@ -1275,6 +1354,7 @@ export function fireScream(s: State, charge: number) {
     n.hp -= S.npcDamage * (0.5 + charge)
     scareNpc(s, n, p.x, p.z, 5)
   }
+  screamRival(s, rangeLen)
   const duo = s.duo
   if (duo.active) {
     const duoR = duoRadius(duo)
@@ -1369,6 +1449,8 @@ function hitNpcWithProjectile(s: State, n: Npc, label: string, stun: number, poo
   n.hp -= 20
   n.hitFlash = 0.4
   s.stats.directHits++
+  if (n.kind === 'king') kingCaught(s, n)
+  if (n.kind === 'thief') thiefRepelled(s, n)
   if (poop) {
     const before = n.cover
     const size = (n.r / CFG.cover.sizeRef) * Math.sqrt(n.scale)
@@ -1636,6 +1718,7 @@ let poopFlightDist = 0 // distance the current poop flew, set before damageProp 
 
 function damageProp(s: State, pr: Prop, dmg: number, wreckScale = 1, src: DamageSource = 'other') {
   if (pr.broken) return
+  if (pr.kind === 'snowball' || pr.kind === 'bigmilk') return
   if (pr.kind === 'evilbaby') {
     if (src !== 'poop' && src !== 'bomb') {
       if (src !== 'boss' && pr.promptCd <= 0) {
@@ -1719,6 +1802,36 @@ function breakProp(s: State, pr: Prop, wreckScale: number, label?: string) {
   ev(s, { t: 'smash', x: pr.x, z: pr.z, big: Math.min(1, pr.mass / 6), color: pr.color, points: pr.points })
 }
 
+// Every unit rolled adds snow; lakes melt it. Big and fast, it flattens what it hits.
+function updateSnowball(s: State, pr: Prop) {
+  const moved = Math.hypot(pr.vx, pr.vz) * DT
+  const goal = s.goal.kind === 'grow' ? s.goal.size : 2.4
+  if (lakeAt(s, pr.x, pr.z)) {
+    pr.r = Math.max(PROP_STATS.snowball.r, pr.r - CFG.snow.melt * DT)
+    if (pr.promptCd <= 0) {
+      pr.promptCd = 1.2
+      ev(s, { t: 'melting', x: pr.x, z: pr.z })
+    }
+  } else if (moved > 0.001) {
+    pr.r = Math.min(goal * 1.08, pr.r + moved * CFG.snow.growPerUnit)
+  }
+  pr.promptCd = Math.max(0, pr.promptCd - DT)
+  pr.h = pr.r * 2
+  pr.mass = 3 + pr.r * 4
+  pr.rot += moved / Math.max(0.3, pr.r)
+  const sp = Math.hypot(pr.vx, pr.vz)
+  if (sp > CFG.snow.smashSpeed && pr.r > 0.9) {
+    for (const o of s.props) {
+      if (o === pr || o.broken || o.kind === 'snowball' || o.kind === 'evilbaby') continue
+      if (dist(pr.x, pr.z, o.x, o.z) < pr.r + o.r) {
+        o.vx += pr.vx * 0.8
+        o.vz += pr.vz * 0.8
+        damageProp(s, o, 40 * pr.r * sp, 1, 'bump')
+      }
+    }
+  }
+}
+
 function updateProps(s: State) {
   const p = s.player
   const C = CFG.player
@@ -1735,6 +1848,7 @@ function updateProps(s: State) {
     pushOutOfPlatforms(s, pr, pr.r, pr.y)
     clampArena(s, pr, pr.r, false)
     if (pr.y > 0) pr.y = groundY(s, pr.x, pr.z, pr.y + 1)
+    if (pr.kind === 'snowball') updateSnowball(s, pr)
 
     const overlapY = p.y < pr.y + pr.h && p.y + 1 > pr.y
     if (overlapY) {
@@ -1747,15 +1861,20 @@ function updateProps(s: State) {
         const nz = d > 0.001 ? dz / d : 0
         const overlap = minD - d
         const speed = Math.hypot(p.vx, p.vz)
-        const heavy = pr.kind === 'statue' || pr.kind === 'evilbaby' ? 1 : pr.mass / (pr.mass + 1)
+        const heavy = pr.kind === 'statue' || pr.kind === 'evilbaby' || pr.kind === 'bigmilk' ? 1 : pr.kind === 'snowball' ? 0.7 : pr.mass / (pr.mass + 1)
         p.x -= nx * overlap * heavy
         p.z -= nz * overlap * heavy
         pr.x += nx * overlap * (1 - heavy)
         pr.z += nz * overlap * (1 - heavy)
-        if (speed > C.smashSpeed) {
+        if (pr.kind === 'snowball') {
+          // rolling: the ball takes Kase's speed no matter how big it gets
+          const k = Math.min(1, 6 * DT)
+          pr.vx += (nx * speed * CFG.snow.push - pr.vx) * k
+          pr.vz += (nz * speed * CFG.snow.push - pr.vz) * k
+        } else if (speed > C.smashSpeed) {
           const giant = p.giantT > 0
           const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (ride ? ride.push : 1) * (giant ? 2 : 1)
-          if (pr.kind !== 'statue' && pr.kind !== 'evilbaby') {
+          if (pr.kind !== 'statue' && pr.kind !== 'evilbaby' && pr.kind !== 'bigmilk') {
             pr.vx += nx * push
             pr.vz += nz * push
             pr.angVel += range(s.rng, -6, 6)
@@ -1838,7 +1957,7 @@ function updateNpcs(s: State) {
     if (n.cover > 0) n.cover = Math.max(0, n.cover - CFG.cover.decay * DT)
     const covered = Math.min(1, n.cover)
     const frozen = n.cover >= CFG.cover.freezeAt
-    const sp = (frozen ? 0 : 1 - covered * 0.85) / Math.sqrt(n.scale)
+    const sp = (frozen ? 0 : 1 - covered * 0.85) / (n.kind === 'king' ? 1 : Math.sqrt(n.scale))
     n.stateT -= DT
     n.scaredCd = Math.max(0, n.scaredCd - DT)
     const dp = dist(n.x, n.z, p.x, p.z)
@@ -1861,9 +1980,11 @@ function updateNpcs(s: State) {
           n.vz *= 0.8
         }
         if (dp < st.detect && n.scaredCd <= 0 && (s.phase === 'wreck' || n.kind === 'mini')) {
-          if (n.kind === 'chicken') {
+          if (n.kind === 'chicken' || n.kind === 'king') {
             n.state = 'flee'
-            n.stateT = 1.5
+            n.stateT = n.kind === 'king' ? CFG.king.run : 1.5
+          } else if (n.kind === 'thief') {
+            // thieves have one thing on their mind
           } else {
             n.state = 'chase'
             n.stateT = 0
@@ -1899,9 +2020,42 @@ function updateNpcs(s: State) {
         const wob = Math.sin(s.time * 9 + n.id) * (n.kind === 'chicken' ? 1.2 : 0.5)
         moveToward(n, n.x + (dx / d) * 5 + wob, n.z + (dz / d) * 5 - wob, st.fleeSpeed * sp, 7)
         if (n.stateT <= 0) {
-          n.state = 'wander'
-          n.stateT = 0
-          n.scaredCd = n.kind === 'chicken' ? 0.5 : 2.5
+          if (n.kind === 'thief') {
+            n.state = 'raid'
+            n.stateT = 0
+          } else {
+            n.state = 'wander'
+            // the king stops to gloat; that is your window
+            n.stateT = n.kind === 'king' ? CFG.king.taunt : 0
+            n.scaredCd = n.kind === 'chicken' ? 0.5 : n.kind === 'king' ? CFG.king.taunt : 2.5
+          }
+        }
+        break
+      }
+      case 'raid': {
+        const g = s.goalPos
+        if (!g) break
+        const d = moveToward(n, g.x, g.z, st.chaseSpeed * sp, 5)
+        if (d < PROP_STATS.bigmilk.r + n.r + 0.25) {
+          n.state = 'drink'
+          n.stateT = CFG.protect.drink
+          n.vx = n.vz = 0
+        }
+        break
+      }
+      case 'drink': {
+        n.vx *= 1 - 6 * DT
+        n.vz *= 1 - 6 * DT
+        s.milk = Math.max(0, s.milk - (CFG.protect.sip / CFG.protect.drink) * DT)
+        if (s.milk <= 0) {
+          s.milk = 1
+          hurtPlayer(s, CFG.protect.penalty, n.x, n.z, 0.6)
+          ev(s, { t: 'milkGone', x: p.x, z: p.z, big: 1 })
+        }
+        if (n.stateT <= 0) {
+          n.state = 'flee'
+          n.stateT = 99
+          n.scaredCd = 99 // full and leaving
         }
         break
       }
@@ -1944,6 +2098,7 @@ function updateNpcs(s: State) {
       n.vx *= 1 - 10 * DT
       n.vz *= 1 - 10 * DT
     }
+    if (n.kind === 'king' && dp < n.r + p.r + 0.15 && p.y < 1) kingCaught(s, n)
     n.x += n.vx * DT
     n.z += n.vz * DT
     pushOutOfPlatforms(s, n, n.r)
@@ -3289,15 +3444,209 @@ function updateDebris(s: State) {
   }
 }
 
+// ---------------------------------------------------------------- level goals
+
+function goalCount(s: State): number {
+  const g = s.goal
+  return g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' ? g.count : g.kind === 'race' ? g.checkpoints : 0
+}
+
+// A catch: touch him, scream him, or poop him. He gets a head start after each one.
+function kingCaught(s: State, n: Npc) {
+  if (s.goal.kind !== 'chase' || s.phase !== 'wreck' || n.scaredCd > 0 || s.found >= s.goal.count) return
+  s.found++
+  s.wreck = s.found / s.goal.count
+  n.scaredCd = CFG.king.catchCd
+  n.state = 'flee'
+  n.stateT = CFG.king.run
+  const dx = n.x - s.player.x
+  const dz = n.z - s.player.z
+  const d = Math.hypot(dx, dz) || 1
+  n.vx += (dx / d) * 6
+  n.vz += (dz / d) * 6
+  addWreck(s, NPC_STATS.king.bonk, n.x, n.z, 'CAUGHT!', 0xffd23f)
+  ev(s, { t: 'found', x: n.x, z: n.z, points: s.found, kind: 'king' })
+  if (s.found >= s.goal.count) spawnPickup(s, 'pacifier', n.x, n.z, 6)
+}
+
+function thiefRepelled(s: State, n: Npc) {
+  if (s.goal.kind !== 'protect' || s.phase !== 'wreck' || (n.state !== 'raid' && n.state !== 'drink')) return
+  s.found++
+  s.wreck = Math.min(1, s.found / s.goal.count)
+  n.scaredCd = 99 // leaving for good
+  addWreck(s, NPC_STATS.thief.bonk, n.x, n.z, 'MILK SAVED!', 0xbfe6ff)
+  ev(s, { t: 'found', x: n.x, z: n.z, points: s.found, kind: 'thief' })
+}
+
+function spawnThief(s: State) {
+  const p = s.player
+  let best: { x: number; z: number } | null = null
+  let bestD = -1
+  for (let i = 0; i < 24; i++) {
+    const q = randomInside(s, 1.2, 4)
+    if (!q) continue
+    const h = closestOnRing(q.x, q.z, s.arena.ring)
+    const x = h.x + h.nx * 1.0
+    const z = h.z + h.nz * 1.0
+    const d = dist(x, z, p.x, p.z)
+    if (d > bestD) {
+      bestD = d
+      best = { x, z }
+    }
+  }
+  if (!best) return
+  const st = NPC_STATS.thief
+  s.npcs.push({ id: newId(s), kind: 'thief', x: best.x, z: best.z, vx: 0, vz: 0, facing: 0, r: st.r, hp: st.hp, state: 'raid', stateT: 0, targetX: best.x, targetZ: best.z, scaredCd: 0, color: st.color, hitFlash: 0, scale: 1, cover: 0 })
+  ev(s, { t: 'npcScared', x: best.x, z: best.z, kind: 'thief', big: 0 })
+}
+
+// Stampede front, milk thieves, the pigeon, the snowball meter: everything a goal shape needs per tick.
+function updateGoal(s: State) {
+  if (s.phase !== 'wreck') return
+  const p = s.player
+  const g = s.goal
+  if (g.kind === 'grow') {
+    const ball = s.props.find((pr) => pr.kind === 'snowball' && !pr.broken)
+    const r0 = PROP_STATS.snowball.r
+    s.wreck = ball ? Math.max(0, Math.min(1, (ball.r - r0) / (g.size - r0))) : 0
+  } else if (g.kind === 'escape' && s.stampede && s.goalPos) {
+    const st = s.stampede
+    const S = CFG.stampede
+    st.hitCd = Math.max(0, st.hitCd - DT)
+    if (st.surgeT > 0) st.surgeT -= DT
+    else {
+      st.warnT -= DT
+      if (st.warnT <= 0) {
+        st.surgeT = S.surgeTime
+        st.warnT = S.every
+        ev(s, { t: 'surge', big: 1 })
+      } else if (st.warnT <= S.warn && st.warnT + DT > S.warn) ev(s, { t: 'surge', big: 0 })
+    }
+    st.front += (st.surgeT > 0 ? S.surge : S.speed) * DT
+    const proj = (x: number, z: number) => x * st.dirX + z * st.dirZ
+    const pp = proj(p.x, p.z)
+    s.wreck = Math.max(0, Math.min(1, (pp - st.start) / (st.end - st.start)))
+    // the herd flattens what it runs over
+    for (const pr of s.props) {
+      if (pr.broken || pr.kind === 'evilbaby') continue
+      const q = proj(pr.x, pr.z)
+      if (q < st.front && q > st.front - 3) {
+        pr.vx += st.dirX * 9
+        pr.vz += st.dirZ * 9
+        damageProp(s, pr, 500, 0, 'boss')
+      }
+    }
+    for (const n of s.npcs) {
+      const q = proj(n.x, n.z)
+      if (q < st.front && q > st.front - 2.5 && n.state !== 'stunned' && n.state !== 'cower') {
+        n.state = 'stunned'
+        n.stateT = 1.5
+        n.vx += st.dirX * 6
+        n.vz += st.dirZ * 6
+      }
+    }
+    if (pp < st.front && p.y < 0.9 && st.hitCd <= 0) {
+      st.hitCd = S.hitCd
+      hurtPlayer(s, S.damage, p.x - st.dirX * 2, p.z - st.dirZ * 2, 0.9)
+      p.vx += st.dirX * S.shove
+      p.vz += st.dirZ * S.shove
+      p.vy = Math.max(p.vy, 4)
+      p.grounded = false
+      ev(s, { t: 'trampled', x: p.x, z: p.z, big: 1 })
+    }
+  } else if (g.kind === 'protect' && s.goalPos) {
+    s.waveT -= DT
+    if (s.waveT <= 0) {
+      spawnThief(s)
+      s.waveT = Math.max(CFG.protect.waveMin, CFG.protect.wave - s.found * 0.2)
+    }
+    // full or frightened thieves leave the continent
+    s.npcs = s.npcs.filter((n) => !(n.kind === 'thief' && n.state === 'flee' && dist(n.x, n.z, p.x, p.z) > CFG.protect.leaveDist && coastClear(s, n.x, n.z) < 3))
+    s.wreck = Math.min(1, s.found / g.count)
+  } else if (g.kind === 'race' && s.rival) {
+    const R = CFG.race
+    const rv = s.rival
+    rv.hitFlash = Math.max(0, rv.hitFlash - DT)
+    if (rv.stallT > 0) {
+      rv.stallT -= DT
+      rv.vx *= 1 - 5 * DT
+      rv.vz *= 1 - 5 * DT
+    } else {
+      const t = s.checkpoints[rv.cp]
+      if (t) {
+        const d = moveToward(rv, t.x, t.z, R.pigeonSpeed, 4)
+        if (d < 1.2) rv.cp++
+      }
+      if (rv.cp >= s.checkpoints.length) {
+        rv.cp = 0
+        rv.laps++
+        rv.x = 0
+        rv.z = 0
+        hurtPlayer(s, R.penalty, p.x + 1, p.z, 0.6)
+        ev(s, { t: 'rivalWin', x: p.x, z: p.z, big: 1 })
+      }
+    }
+    rv.x += rv.vx * DT
+    rv.z += rv.vz * DT
+    rv.y = R.pigeonY + Math.sin(s.time * 3) * 0.2
+    const gate = s.goalPos
+    if (gate && p.y < 2 && dist(p.x, p.z, gate.x, gate.z) < R.gateR + p.r) {
+      s.found++
+      s.wreck = s.found / g.checkpoints
+      addWreck(s, 150, gate.x, gate.z, `GATE ${s.found}!`, 0x4cd137)
+      ev(s, { t: 'found', x: gate.x, z: gate.z, points: s.found, kind: 'gate' })
+      s.goalPos = s.checkpoints[s.found] ?? null
+    }
+  }
+}
+
+// The pigeon in the scream cone loses its nerve for a moment.
+function screamRival(s: State, rangeLen: number) {
+  const rv = s.rival
+  const p = s.player
+  if (!rv || s.goal.kind !== 'race') return
+  if (inCone(p.x, p.z, p.facing, rv.x, rv.z, 0.5, rangeLen, CFG.scream.halfAngle)) {
+    rv.stallT = CFG.race.stall
+    rv.hitFlash = 0.4
+    addWreck(s, 120, rv.x, rv.z, 'PIGEON STALLED!', 0xbfe6ff)
+    ev(s, { t: 'npcScared', x: rv.x, z: rv.z, kind: 'pigeon', big: 1 })
+  }
+}
+
 // ---------------------------------------------------------------- phase
 
+function goalMet(s: State): boolean {
+  if (s.goalDone) return true
+  const g = s.goal
+  switch (g.kind) {
+    case 'wreck':
+      return s.wreckPoints >= s.wreckGoalPoints
+    case 'find':
+    case 'chase':
+    case 'protect':
+      return s.found >= g.count
+    case 'race':
+      return s.found >= g.checkpoints
+    case 'grow': {
+      const ball = s.props.find((pr) => pr.kind === 'snowball' && !pr.broken)
+      return !!ball && ball.r >= g.size
+    }
+    case 'escape':
+      return !!s.goalPos && dist(s.player.x, s.player.z, s.goalPos.x, s.goalPos.z) < CFG.stampede.flagR
+  }
+}
+
 function updatePhase(s: State) {
-  const done = s.goal.kind === 'find' ? s.found >= s.goal.count : s.wreckPoints >= s.wreckGoalPoints
+  const done = goalMet(s)
   if (s.phase === 'wreck' && done) {
     s.wreck = 1
     s.phase = 'boss'
     s.phaseT = 0
     ev(s, { t: 'goalReached', x: s.player.x, z: s.player.z, big: 1 })
+    s.stampede = null
+    s.rival = null
+    s.goalPos = null
+    s.npcs = s.npcs.filter((n) => n.kind !== 'thief')
     spawnBoss(s)
   }
 }
@@ -3305,7 +3654,9 @@ function updatePhase(s: State) {
 export function skipToBoss(s: State) {
   if (s.phase === 'wreck') {
     s.wreckPoints = s.wreckGoalPoints
-    if (s.goal.kind === 'find') s.found = s.goal.count
+    const n = goalCount(s)
+    if (n) s.found = n
+    s.goalDone = true
     s.wreck = 1
   }
 }

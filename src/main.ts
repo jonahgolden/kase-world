@@ -387,9 +387,34 @@ function handleEvents(s: State) {
         break
       case 'found': {
         const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)
-        ui.popup(`${e.kind === 'egg' ? '🥚' : '🎩'} ${e.points} / ${s.goal.kind === 'find' ? s.goal.count : '?'}`, pt.x, pt.y, e.kind === 'egg' ? '#ffd23f' : '#9b6bff', 1.2)
+        const g = s.goal
+        const total = g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' ? g.count : g.kind === 'race' ? g.checkpoints : '?'
+        const icon = e.kind === 'egg' ? '🥚' : e.kind === 'king' ? '🐔 CAUGHT' : e.kind === 'thief' ? '🍼 SAVED' : e.kind === 'gate' ? '🏁 GATE' : '🎩'
+        ui.popup(`${icon} ${e.points} / ${total}`, pt.x, pt.y, e.kind === 'egg' ? '#ffd23f' : e.kind === 'gate' || e.kind === 'thief' ? '#4cd137' : '#9b6bff', 1.2)
+        if (e.kind === 'king' && e.points === total) ui.toast('HE DROPPED THE PACIFIER! Grab it!', 2000, 'good')
         break
       }
+      case 'trampled':
+        hitstop = Math.max(hitstop, 0.1)
+        ui.toast('TRAMPLED! Keep running!', 1200, 'boss')
+        break
+      case 'surge':
+        if ((e.big ?? 0) > 0) ui.toast('STAMPEDE SURGE!', 1200, 'boss')
+        else ui.toast('rumble rumble...', 900)
+        break
+      case 'melting': {
+        const pt = renderer.project(e.x ?? 0, 2.5, e.z ?? 0)
+        ui.popup('MELTING! Get it out of the water!', pt.x, pt.y, '#bfe6ff', 0.6)
+        break
+      }
+      case 'milkGone':
+        hitstop = Math.max(hitstop, 0.1)
+        ui.toast('THEY DRANK THE MILK! Refilled, but that cost a heart', 2200, 'boss')
+        break
+      case 'rivalWin':
+        hitstop = Math.max(hitstop, 0.1)
+        ui.toast('THE PIGEON FINISHED A LAP! Move it!', 1800, 'boss')
+        break
       case 'needScream':
       case 'needPoop': {
         const pt = renderer.project(e.x ?? 0, 2.6, e.z ?? 0)

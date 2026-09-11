@@ -1,7 +1,7 @@
 // HTML overlay: title, HUD, level card, help/pause, end screens, boards, popups. Reads state, never mutates it.
 import { LEVELS } from '../sim/levels.ts'
 import { HEART, bossPhase, currentLevel, fightOf } from '../sim/sim.ts'
-import type { State } from '../sim/types.ts'
+import type { Goal, State } from '../sim/types.ts'
 import { fmtMs } from '../net/leaderboard.ts'
 import type { TimeRow } from '../net/leaderboard.ts'
 
@@ -243,12 +243,7 @@ export class Ui {
   showCard(s: State) {
     const lvl = currentLevel(s)
     this.get('card-name').textContent = lvl.name.toUpperCase()
-    this.get('card-goal').textContent =
-      lvl.goal.kind === 'find'
-        ? lvl.goal.item === 'fedora'
-          ? `Find ${lvl.goal.count} fedoras 🎩 (red hat boxes hide some)`
-          : `Find ${lvl.goal.count} golden eggs 🥚 · hold JUMP to fly up, let go to float down`
-        : `Wreck ${Math.round(lvl.goal.pct * 100)}% of it`
+    this.get('card-goal').textContent = goalCardText(lvl.goal)
     ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
     this.get('card-boss-name').textContent = lvl.boss.name
     const card = this.screens.card
@@ -333,6 +328,38 @@ export class Ui {
       ctx.strokeText('★', X(k.x), Z(k.z) + 4)
       ctx.fillText('★', X(k.x), Z(k.z) + 4)
     }
+    if (s.phase === 'wreck') {
+      for (let i = s.found; i < s.checkpoints.length; i++) {
+        const c = s.checkpoints[i]
+        ctx.strokeStyle = i === s.found ? '#4cd137' : 'rgba(27,27,47,0.5)'
+        ctx.lineWidth = i === s.found ? 2 : 1
+        ctx.beginPath()
+        ctx.arc(X(c.x), Z(c.z), 4, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      ctx.font = 'bold 12px sans-serif'
+      ctx.textAlign = 'center'
+      if (s.goalPos) ctx.fillText('🏁', X(s.goalPos.x), Z(s.goalPos.z) + 4)
+      const king = s.npcs.find((n) => n.kind === 'king')
+      if (king) ctx.fillText('👑', X(king.x), Z(king.z) + 4)
+      if (s.stampede) {
+        const st = s.stampede
+        const px = st.dirX * st.front
+        const pz = st.dirZ * st.front
+        ctx.strokeStyle = '#7a3f1f'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.moveTo(X(px - st.dirZ * 60), Z(pz + st.dirX * 60))
+        ctx.lineTo(X(px + st.dirZ * 60), Z(pz - st.dirX * 60))
+        ctx.stroke()
+      }
+      if (s.rival) {
+        ctx.fillStyle = '#bfe6ff'
+        ctx.beginPath()
+        ctx.arc(X(s.rival.x), Z(s.rival.z), 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
     if (s.bossRing) {
       ctx.strokeStyle = '#ff5c5c'
       ctx.lineWidth = 2
@@ -403,11 +430,11 @@ export class Ui {
       const pct = Math.floor(s.wreck * 100)
       if (pct !== this.lastPct) {
         this.get('goal-fill').style.width = `${pct}%`
-        if (s.goal.kind === 'find') this.get('goal-text').textContent = `${s.goal.item === 'fedora' ? '🎩' : '🥚'} ${s.found} / ${s.goal.count} ${s.goal.item === 'fedora' ? 'FEDORAS' : 'EGGS'}`
-        else this.get('goal-text').textContent = pct === 0 ? 'WRECK IT!' : `${pct}% WRECKED`
+        this.get('goal-text').textContent = goalMeterText(s, pct)
         this.get('goal-wrap').classList.toggle('almost', pct >= 85)
         this.lastPct = pct
       }
+      if (s.goal.kind === 'protect' && s.tick % 6 === 0) this.get('goal-text').textContent = goalMeterText(s, pct)
       if (this.lastBoss !== lvl.id) {
         this.get('goal-label').textContent = lvl.name.toUpperCase()
         ;(this.get('goal-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
@@ -518,4 +545,43 @@ export class Ui {
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+}
+
+export function goalCardText(g: Goal): string {
+  switch (g.kind) {
+    case 'wreck':
+      return `Wreck ${Math.round(g.pct * 100)}% of it`
+    case 'find':
+      return g.item === 'fedora' ? `Find ${g.count} fedoras 🎩 (red hat boxes hide some)` : `Find ${g.count} golden eggs 🥚 · hold JUMP to fly up, let go to float down`
+    case 'chase':
+      return `The Chicken King 🐔👑 stole the pacifier! Catch him ${g.count} times: bump, scream or poop him`
+    case 'grow':
+      return 'Push the snowball ⛄ until it is HUGE. Water melts it!'
+    case 'escape':
+      return 'STAMPEDE! 🦬 Run to the flag 🏁 before the herd tramples you'
+    case 'protect':
+      return `Guard the giant milk 🍼: chase off ${g.count} thieves before they drink it`
+    case 'race':
+      return `Race the pigeon 🐦 through ${g.checkpoints} gates 🏁. Screams stall it!`
+  }
+}
+
+export function goalMeterText(s: State, pct: number): string {
+  const g = s.goal
+  switch (g.kind) {
+    case 'wreck':
+      return pct === 0 ? 'WRECK IT!' : `${pct}% WRECKED`
+    case 'find':
+      return `${g.item === 'fedora' ? '🎩' : '🥚'} ${s.found} / ${g.count} ${g.item === 'fedora' ? 'FEDORAS' : 'EGGS'}`
+    case 'chase':
+      return `🐔 ${s.found} / ${g.count} CAUGHT`
+    case 'grow':
+      return pct === 0 ? '⛄ ROLL THE SNOWBALL' : `⛄ ${pct}% SNOWBALL`
+    case 'escape':
+      return pct === 0 ? '🏁 RUN TO THE FLAG!' : `🏁 ${pct}% THERE`
+    case 'protect':
+      return `🍼 ${s.found} / ${g.count} · MILK ${Math.round(s.milk * 100)}%`
+    case 'race':
+      return `🏁 GATE ${s.found} / ${g.checkpoints}`
+  }
 }

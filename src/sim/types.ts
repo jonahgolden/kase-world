@@ -30,6 +30,8 @@ export type PropKind =
   | 'glass' // scream only
   | 'statue' // poop only: cover it
   | 'evilbaby' // poop only, from a distance
+  | 'snowball' // grow levels: push it and it grows
+  | 'bigmilk' // protect levels: the bottle the thieves want
 
 export interface Prop {
   id: number
@@ -56,8 +58,8 @@ export interface Prop {
   promptCd: number
 }
 
-export type NpcKind = 'adult' | 'dog' | 'chicken' | 'mini'
-export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow'
+export type NpcKind = 'adult' | 'dog' | 'chicken' | 'mini' | 'king' | 'thief'
+export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow' | 'raid' | 'drink'
 
 export interface Npc {
   id: number
@@ -118,7 +120,39 @@ export interface Debris {
 export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'egg'
 
 export type GoalItem = 'fedora' | 'egg'
-export type Goal = { kind: 'wreck'; pct: number } | { kind: 'find'; count: number; item: GoalItem }
+export type Goal =
+  | { kind: 'wreck'; pct: number }
+  | { kind: 'find'; count: number; item: GoalItem }
+  | { kind: 'chase'; count: number } // catch the Chicken King this many times; he has the pacifier
+  | { kind: 'grow'; size: number } // roll the snowball until its radius reaches size
+  | { kind: 'escape' } // reach the flag with the stampede on your heels
+  | { kind: 'protect'; count: number } // chase off this many milk thieves
+  | { kind: 'race'; checkpoints: number } // through the gates before the pigeon finishes its lap
+
+export interface Stampede {
+  dirX: number // the herd runs this way
+  dirZ: number
+  front: number // herd front, as a projection onto dir
+  start: number // where the front began (meter 0)
+  end: number // the flag's projection (meter 100)
+  speed: number
+  surgeT: number // seconds of surge left (<0 while resting)
+  warnT: number // seconds until the next surge; a rumble warns first
+  hitCd: number
+}
+
+export interface Rival {
+  x: number
+  y: number
+  z: number
+  vx: number
+  vz: number
+  facing: number
+  cp: number // next checkpoint index
+  stallT: number // seconds of stall left after a scream
+  hitFlash: number
+  laps: number // laps the pigeon has finished (each one costs Kase a heart)
+}
 
 export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake'
 
@@ -358,6 +392,11 @@ export type EventType =
   | 'duoShrink'
   | 'duoPeck'
   | 'levelPhase'
+  | 'trampled'
+  | 'surge'
+  | 'melting'
+  | 'milkGone'
+  | 'rivalWin'
   | 'gameOver'
   | 'win'
   | 'jump'
@@ -437,7 +476,14 @@ export interface State {
   bossRing: { x: number; z: number; r: number } | null
   conga: number[] // npc ids in the conga line, in order
   goal: Goal
-  found: number // lanterns collected on find levels
+  goalDone: boolean // dev skip: pretend the goal is met
+  goalPos: { x: number; z: number } | null // flag, milk bottle, or the current checkpoint
+  stampede: Stampede | null
+  checkpoints: { x: number; z: number }[]
+  rival: Rival | null
+  milk: number // protect: 0..1 left in the bottle
+  waveT: number // protect: seconds until the next thief
+  found: number // goal count: items found, king catches, thieves repelled, checkpoints passed
   wreck: number // 0..1 progress toward the boss
   wreckPoints: number
   wreckGoalPoints: number

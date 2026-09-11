@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import type { Boss, Feature, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
-import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, isSky, screamRange } from '../sim/sim.ts'
+import { activePart, aimTarget, bossPhase, currentLevel, duoRadius, fightOf, groundY, isSky, screamRange } from '../sim/sim.ts'
 
 const PICKUP_COLOR: Record<string, number> = {
   milk: 0xffffff,
@@ -96,6 +96,9 @@ export class Renderer {
   private promptTex = new Map<string, THREE.Texture>()
   private prompts: { sprite: THREE.Sprite; life: number }[] = []
   private track: THREE.Mesh | null = null
+  private beacon: THREE.Group | null = null // flag / gate at the goal position
+  private herd: THREE.Group | null = null // stampede front
+  private pigeon: THREE.Group | null = null // race rival
   private debris: THREE.InstancedMesh
   private splats: THREE.InstancedMesh
   private player: THREE.Group = new THREE.Group()
@@ -391,6 +394,7 @@ export class Renderer {
     for (const v of this.pickupViews.values()) this.scene.remove(v)
     this.pickupViews.clear()
     this.removeBoss()
+    this.removeGoalViews()
     this.particles.clear()
     for (const r of this.rings) this.scene.remove(r.mesh)
     this.rings = []
@@ -775,6 +779,41 @@ export class Renderer {
         g.add(icon)
         break
       }
+      case 'snowball': {
+        // unit sphere, scaled by the sim radius every frame; spots so the roll reads
+        const ball = add(new THREE.SphereGeometry(1, 16, 12), mat(0xf4f8ff), 0, 1)
+        ball.name = 'ball'
+        const spot = mat(0x9aa4b8)
+        for (const [x, y, z] of [
+          [0.55, 1.6, 0.5],
+          [-0.7, 0.7, 0.4],
+          [0.2, 0.4, -0.85],
+          [-0.3, 1.5, -0.6],
+        ]) {
+          const sp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), spot)
+          sp.position.set(x, y, z)
+          ball.add(sp)
+        }
+        break
+      }
+      case 'bigmilk': {
+        const glass = new THREE.MeshToonMaterial({ color: 0xe8f4ff, gradientMap: this.gradient, transparent: true, opacity: 0.45 })
+        g.mats.push(glass)
+        add(new THREE.CylinderGeometry(0.9, 0.95, 2.0, 16), glass, 0, 1.0)
+        const milk = add(new THREE.CylinderGeometry(0.8, 0.85, 1.9, 16), mat(0xffffff), 0, 0.98)
+        milk.name = 'milk'
+        add(new THREE.CylinderGeometry(0.55, 0.9, 0.35, 16), glass, 0, 2.15)
+        add(new THREE.CylinderGeometry(0.5, 0.5, 0.25, 16), mat(0x3aa0e8), 0, 2.4)
+        add(new THREE.SphereGeometry(0.28, 12, 10), mat(0xffb27a), 0, 2.7)
+        const icon = this.promptSprite('🍼')
+        icon.position.y = 3.6
+        icon.scale.setScalar(1.3)
+        g.add(icon)
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.7, 7, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }))
+        pillar.position.y = 3.5
+        g.add(pillar)
+        break
+      }
       case 'crate':
         add(new THREE.BoxGeometry(0.95, 0.85, 0.95), mat(color), 0, 0.43)
         add(new THREE.BoxGeometry(1.0, 0.1, 1.0), mat(0xffd23f), 0, 0.85)
@@ -804,16 +843,30 @@ export class Renderer {
       return m
     }
     const body = new THREE.Group()
-    if (n.kind === 'adult') {
-      const shirt = [0x4aa3ff, 0xff8fab, 0xffb020, 0x9b6bff, 0x4cd137][n.id % 5]
+    if (n.kind === 'adult' || n.kind === 'thief') {
+      const thief = n.kind === 'thief'
+      const shirt = thief ? 0x222233 : [0x4aa3ff, 0xff8fab, 0xffb020, 0x9b6bff, 0x4cd137][n.id % 5]
       const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.55, 4, 10), mat(shirt))
       torso.position.y = 0.62
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), mat(0xffd9b8))
       head.position.y = 1.22
-      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.3), mat(0x33415c))
+      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.3), mat(thief ? 0x222233 : 0x33415c))
       legs.position.y = 0.18
       torso.castShadow = head.castShadow = legs.castShadow = true
       body.add(torso, head, legs)
+      if (thief) {
+        for (const y of [0.45, 0.65, 0.85]) {
+          const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.06, 10), mat(0xffffff))
+          stripe.position.y = y
+          body.add(stripe)
+        }
+        const mask = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.2), mat(0x111111))
+        mask.position.set(0, 1.26, 0.14)
+        body.add(mask)
+        const sack = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(0xd9a066))
+        sack.position.set(-0.3, 0.9, -0.2)
+        body.add(sack)
+      }
       const eyes = new THREE.Group()
       for (const x of [-0.09, 0.09]) {
         const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }))
@@ -851,8 +904,9 @@ export class Renderer {
       this.npcViews.set(n.id, g)
       this.scene.add(g)
       return g
-    } else if (n.kind === 'chicken') {
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), mat(0xffffff))
+    } else if (n.kind === 'chicken' || n.kind === 'king') {
+      const king = n.kind === 'king'
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), mat(king ? 0xfff2c4 : 0xffffff))
       body.position.y = 0.34
       body.scale.set(1, 0.9, 1.15)
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(0xffffff))
@@ -886,6 +940,22 @@ export class Renderer {
       hat.name = 'partyhat'
       hat.visible = false
       body.add(hat)
+      if (king) {
+        const gold = mat(0xffd23f)
+        const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.12, 8), gold)
+        crown.position.set(0, 0.8, 0.2)
+        body.add(crown)
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2
+          const pt = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 4), gold)
+          pt.position.set(Math.cos(a) * 0.12, 0.9, 0.2 + Math.sin(a) * 0.12)
+          body.add(pt)
+        }
+        const cape = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.05), mat(0xd93a3a))
+        cape.position.set(0, 0.3, -0.3)
+        cape.rotation.x = 0.3
+        body.add(cape)
+      }
       const wrap = new THREE.Group()
       wrap.add(body)
       body.position.y = 0
@@ -1141,6 +1211,136 @@ export class Renderer {
     m.map = tex
     m.transparent = true
     m.needsUpdate = true
+  }
+
+  // ------------------------------------------------------------ level goals
+
+  private removeGoalViews() {
+    for (const g of [this.beacon, this.herd, this.pigeon]) if (g) this.scene.remove(g)
+    this.beacon = this.herd = this.pigeon = null
+  }
+
+  // Flag or gate at the goal spot, the stampede front, and the racing pigeon.
+  private syncGoalViews(s: State, dt: number) {
+    const live = s.phase === 'wreck'
+    if (live && s.goalPos && s.goal.kind !== 'protect') {
+      if (!this.beacon) {
+        const g = new THREE.Group()
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.2, 8), this.toon(0xeeeeee))
+        pole.position.y = 1.6
+        const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.8), new THREE.MeshBasicMaterial({ color: 0x4cd137, side: THREE.DoubleSide }))
+        flag.position.set(0.6, 2.8, 0)
+        flag.name = 'flag'
+        const ring = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.9, 32), new THREE.MeshBasicMaterial({ color: 0x4cd137, transparent: true, opacity: 0.6, depthWrite: false }))
+        ring.rotation.x = -Math.PI / 2
+        ring.position.y = 0.05
+        ring.name = 'ring'
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 9, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0x4cd137, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }))
+        pillar.position.y = 4.5
+        g.add(pole, flag, ring, pillar)
+        this.scene.add(g)
+        this.beacon = g
+      }
+      const b = this.beacon
+      b.position.set(s.goalPos.x, groundY(s, s.goalPos.x, s.goalPos.z, 3), s.goalPos.z)
+      const flag = b.getObjectByName('flag')
+      if (flag) flag.rotation.y = Math.sin(this.time * 4) * 0.25
+      const ring = b.getObjectByName('ring')
+      if (ring) ring.scale.setScalar(1 + Math.sin(this.time * 5) * 0.08)
+    } else if (this.beacon) {
+      this.scene.remove(this.beacon)
+      this.beacon = null
+    }
+
+    if (live && s.stampede) {
+      const st = s.stampede
+      if (!this.herd) {
+        const g = new THREE.Group()
+        const hide = this.toon(0x6b4a2a)
+        const dark = this.toon(0x3a2a1a)
+        for (let i = 0; i < 26; i++) {
+          const beast = new THREE.Group()
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 1.5), hide)
+          body.position.y = 0.75
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.6), dark)
+          head.position.set(0, 0.95, 0.9)
+          const hornL = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.35, 5), this.toon(0xeeeeee))
+          hornL.position.set(-0.25, 1.3, 0.9)
+          hornL.rotation.z = 0.5
+          const hornR = hornL.clone()
+          hornR.position.x = 0.25
+          hornR.rotation.z = -0.5
+          body.castShadow = true
+          beast.add(body, head, hornL, hornR)
+          beast.position.set((i - 12.5) * 2.4, 0, (i % 3) * -1.6 - (i % 2) * 0.8)
+          beast.name = 'beast'
+          g.add(beast)
+        }
+        const dust = new THREE.Mesh(new THREE.PlaneGeometry(64, 6), new THREE.MeshBasicMaterial({ color: 0xc9a06a, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }))
+        dust.position.set(0, 2.5, -2)
+        dust.name = 'dust'
+        g.add(dust)
+        this.scene.add(g)
+        this.herd = g
+      }
+      const h = this.herd
+      h.position.set(st.dirX * st.front, 0, st.dirZ * st.front)
+      h.rotation.y = Math.atan2(st.dirX, st.dirZ)
+      let i = 0
+      for (const c of h.children) {
+        if (c.name !== 'beast') continue
+        c.position.y = Math.abs(Math.sin(this.time * 14 + i * 1.7)) * 0.35
+        c.rotation.x = Math.sin(this.time * 14 + i * 1.7) * 0.15
+        i++
+      }
+      const dust = h.getObjectByName('dust') as THREE.Mesh | undefined
+      if (dust) (dust.material as THREE.MeshBasicMaterial).opacity = 0.25 + (st.surgeT > 0 ? 0.3 : 0) + Math.sin(this.time * 9) * 0.05
+    } else if (this.herd) {
+      this.scene.remove(this.herd)
+      this.herd = null
+    }
+
+    if (live && s.rival) {
+      const rv = s.rival
+      if (!this.pigeon) {
+        const g = new THREE.Group()
+        const grey = this.toon(0x9aa4b8)
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), grey)
+        body.scale.set(1, 0.85, 1.3)
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), this.toon(0x6b7a99))
+        head.position.set(0, 0.25, 0.38)
+        const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 6), this.toon(0xffb020))
+        beak.rotation.x = Math.PI / 2
+        beak.position.set(0, 0.22, 0.58)
+        const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.05, 0.4), grey)
+        wingL.position.set(-0.5, 0.1, 0)
+        wingL.name = 'wingL'
+        const wingR = wingL.clone()
+        wingR.position.x = 0.5
+        wingR.name = 'wingR'
+        const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
+        eyeL.position.set(-0.08, 0.3, 0.5)
+        const eyeR = eyeL.clone()
+        eyeR.position.x = 0.08
+        body.castShadow = true
+        g.add(body, head, beak, wingL, wingR, eyeL, eyeR)
+        this.scene.add(g)
+        this.pigeon = g
+      }
+      const g = this.pigeon
+      g.position.set(rv.x, rv.y, rv.z)
+      g.rotation.y = rv.facing
+      const flap = rv.stallT > 0 ? Math.sin(this.time * 40) * 0.9 : Math.sin(this.time * 18) * 0.6
+      const wl = g.getObjectByName('wingL')
+      const wr = g.getObjectByName('wingR')
+      if (wl) wl.rotation.z = flap
+      if (wr) wr.rotation.z = -flap
+      g.rotation.z = rv.stallT > 0 ? Math.sin(this.time * 30) * 0.3 : 0
+      void dt
+    } else if (this.pigeon) {
+      this.scene.remove(this.pigeon)
+      this.pigeon = null
+    }
   }
 
   // ------------------------------------------------------------ events
@@ -1553,6 +1753,29 @@ export class Renderer {
         const cov = v.getObjectByName('cover') as THREE.Mesh | undefined
         if (cov) (cov.material as THREE.MeshToonMaterial).opacity = pr.cover * 0.95
       }
+      if (pr.kind === 'snowball') {
+        // roll about the axis perpendicular to travel; scale follows the sim radius
+        const ball = v.getObjectByName('ball') as THREE.Mesh | undefined
+        v.rotation.set(0, 0, 0)
+        v.scale.setScalar(pr.r)
+        if (ball) {
+          const sp = Math.hypot(pr.vx, pr.vz)
+          if (sp > 0.05) this.tmpV.set(pr.vz / sp, 0, -pr.vx / sp)
+          ball.quaternion.setFromAxisAngle(this.tmpV, pr.rot)
+        }
+        this.flash(v.mats, 0xffffff, pr.hitFlash > 0 ? 0.7 : 0)
+        continue
+      }
+      if (pr.kind === 'bigmilk') {
+        const milk = v.getObjectByName('milk') as THREE.Mesh | undefined
+        if (milk) {
+          milk.scale.y = Math.max(0.02, s.milk)
+          milk.position.y = 0.03 + 0.95 * Math.max(0.02, s.milk)
+        }
+        v.rotation.set(0, 0, 0)
+        v.scale.setScalar(1)
+        continue
+      }
       const tilt = Math.min(0.5, Math.hypot(pr.vx, pr.vz) * 0.08)
       v.rotation.z = -pr.vx * 0.04 * tilt * 5
       v.rotation.x = pr.vz * 0.04 * tilt * 5
@@ -1655,6 +1878,8 @@ export class Renderer {
     this.debris.count = nd
     this.debris.instanceMatrix.needsUpdate = true
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true
+
+    this.syncGoalViews(s, dt)
 
     // boss
     if (s.boss && s.boss.def.fight !== 'nest') {
