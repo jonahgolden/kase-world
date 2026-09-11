@@ -80,6 +80,7 @@ export interface LevelDef {
   features: Partial<Record<FeatureKind | 'tall', number>>
   boss: BossDef
   theme: Theme
+  par: [number, number, number] // gold, silver, bronze clear times in seconds (boss included)
   sky?: boolean // cloud floor, islands, flight
   water?: boolean // one big lagoon: Kase floats in a tube, islands, Louie's monsters
 }
@@ -140,6 +141,7 @@ export const LEVELS: LevelDef[] = [
     features: FEATURES_BASIC,
     boss: boss({ id: 'donald-rump', name: 'Donald Rump', drawnBy: NOVA, drawing: 'donald-rump.jpg', speed: 2.2, chargeSpeed: 9, damage: 15, scale: 2.6, taunt: 'Tremendous baby. The best baby. Sad!' }),
     theme: { ground: 0x7ec850, ground2: 0x6db544, sky: 0x9fd8ff, fog: 0xbfe6ff, accent: 0xff5c5c },
+    par: [100, 150, 240],
   },
   {
     id: 'sky',
@@ -155,6 +157,7 @@ export const LEVELS: LevelDef[] = [
     features: {},
     boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: NOVA, drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', fight: 'nest', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy. Poop his NEST to stop the minis.' }),
     theme: { ground: 0xffffff, ground2: 0xeef4ff, sky: 0x7cc4ff, fog: 0xbfe6ff, accent: 0xffd23f },
+    par: [120, 180, 280],
     sky: true,
   },
   {
@@ -171,6 +174,7 @@ export const LEVELS: LevelDef[] = [
     features: { platform: 2, tall: 2, fan: 2, portal: 1, lake: 1 },
     boss: boss({ id: 'insane-bolt', name: 'Insane Bolt', drawnBy: NOVA, drawing: 'insane-bolt.jpg', speed: 3.4, chargeSpeed: 13, damage: 10, scale: 2.4, taunt: 'Catch me if you can, baby!', fight: 'runner', hint: 'Too fast to catch. Poop on his track so he slips, then hit him.' }),
     theme: { ground: 0x5fbf5a, ground2: 0x4fa84a, sky: 0xa8e0ff, fog: 0xcdeeff, accent: 0xffd23f },
+    par: [110, 160, 260],
   },
   {
     id: 'antarctica',
@@ -186,6 +190,7 @@ export const LEVELS: LevelDef[] = [
     features: { platform: 3, tall: 1, fan: 1, portal: 1, lake: 2 },
     boss: boss({ id: 'president-jeff', name: 'President Jeff', drawnBy: NOVA, drawing: 'president-jeff.jpg', speed: 1.7, chargeSpeed: 8, damage: 12, scale: 2.4, taunt: 'As president of Antarctica, I order you to nap.', fight: 'poopcover', hint: 'Screams bounce off ice. Cover him completely in poop.' }),
     theme: { ground: 0xeef6ff, ground2: 0xdbe9f7, sky: 0xcfe6ff, fog: 0xe8f3ff, accent: 0x3b5ba5 },
+    par: [120, 180, 280],
   },
   {
     id: 'asia',
@@ -214,6 +219,7 @@ export const LEVELS: LevelDef[] = [
       hint: 'He charges on horseback. Hold your ground and SCREAM at the horse as it comes. Poop does nothing.',
     }),
     theme: { ground: 0xc9b26b, ground2: 0xb9a25b, sky: 0xffd9a0, fog: 0xffe8c0, accent: 0xd93a3a },
+    par: [130, 190, 300],
   },
   {
     id: 'africa',
@@ -243,6 +249,7 @@ export const LEVELS: LevelDef[] = [
       parts: AFRICA_PARTS,
     }),
     theme: { ground: 0xd9a55a, ground2: 0xc9954a, sky: 0xffc98a, fog: 0xffdcb0, accent: 0x7a3f1f },
+    par: [90, 140, 220],
   },
   {
     id: 'the-deep',
@@ -270,6 +277,7 @@ export const LEVELS: LevelDef[] = [
       hint: 'Robot legs STOMP a shockwave: JUMP over it, then hit him while he reboots.',
     }),
     theme: { ground: 0x1f6fb8, ground2: 0x1a5f9f, sky: 0x8fd0ff, fog: 0xbfe6ff, accent: 0xff7ab8 },
+    par: [150, 210, 330],
     water: true,
   },
   {
@@ -300,6 +308,7 @@ export const LEVELS: LevelDef[] = [
       parts: AUSTRALIA_PARTS,
     }),
     theme: { ground: 0xe0925a, ground2: 0xd0824a, sky: 0xffe0b0, fog: 0xffeacc, accent: 0x2e8b57 },
+    par: [130, 180, 280],
   },
   {
     id: 'europe',
@@ -328,11 +337,21 @@ export const LEVELS: LevelDef[] = [
       hint: 'The last boss stole every trick. Dodge and hit him, then trip him with poop, then cover him.',
     }),
     theme: { ground: 0x86b86a, ground2: 0x76a85a, sky: 0xb8d8ff, fog: 0xd0e6ff, accent: 0x5b3a8b },
+    par: [120, 170, 270],
   },
 ]
 
 export function levelById(id: string): LevelDef | undefined {
   return LEVELS.find((l) => l.id === id)
+}
+
+// Medal thresholds in ms for a level board, or the whole-world board (sum of every level's par).
+export function parFor(board: string): [number, number, number] {
+  const lvl = levelById(board)
+  if (lvl) return [lvl.par[0] * 1000, lvl.par[1] * 1000, lvl.par[2] * 1000]
+  const sum: [number, number, number] = [0, 0, 0]
+  for (const l of LEVELS) for (let i = 0; i < 3; i++) sum[i] += l.par[i] * 1000
+  return sum
 }
 
 export const LEVEL_IDS: string[] = LEVELS.map((l) => l.id)

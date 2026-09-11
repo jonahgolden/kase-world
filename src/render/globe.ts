@@ -2,7 +2,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js'
-import { LEVELS } from '../sim/levels.ts'
+import { LEVELS, parFor } from '../sim/levels.ts'
 import { CONTINENTS } from '../sim/continents.ts'
 import { pointInRing } from '../sim/geom.ts'
 import { ASSETS } from './assets.ts'
@@ -378,7 +378,8 @@ export class Globe {
       const best = p.bests[lvl.id]
       m.medal.visible = best !== undefined
       if (best !== undefined) {
-        const t = best <= 120_000 ? '🥇' : best <= 180_000 ? '🥈' : '🥉'
+        const [g, sv] = parFor(lvl.id)
+        const t = best <= g ? '🥇' : best <= sv ? '🥈' : '🥉'
         const mat = m.medal.material as THREE.SpriteMaterial
         mat.map = this.textSprite(t, 1).material.map
         mat.needsUpdate = true

@@ -6,10 +6,33 @@ export interface TimeRow {
   levelsCleared: number
   createdAt?: string
   mine?: boolean
+  home?: boolean // a name that has played on this device
 }
 
 const NAME_KEY = 'kw.name'
 const BEST_KEY = 'kw.best'
+const HOUSE_KEY = 'kw.names'
+
+// Everyone who has typed a name on this device: the household board.
+export function householdNames(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(HOUSE_KEY) ?? '[]') as string[]
+  } catch {
+    return []
+  }
+}
+
+export function rememberName(n: string) {
+  if (!n) return
+  const names = householdNames()
+  if (names.includes(n)) return
+  names.push(n)
+  try {
+    localStorage.setItem(HOUSE_KEY, JSON.stringify(names.slice(-12)))
+  } catch {
+    /* ignore */
+  }
+}
 
 export const playerName = {
   get(): string {

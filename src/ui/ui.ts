@@ -1,6 +1,7 @@
 // HTML overlay: title, HUD, level card, help/pause, end screens, boards, popups. Reads state, never mutates it.
 import { LEVELS } from '../sim/levels.ts'
 import { HEART, bossPhase, currentLevel, fightOf } from '../sim/sim.ts'
+import { parFor } from '../sim/levels.ts'
 import type { Goal, State } from '../sim/types.ts'
 import { fmtMs } from '../net/leaderboard.ts'
 import type { TimeRow } from '../net/leaderboard.ts'
@@ -24,10 +25,11 @@ const fmtClock = (t: number) => {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 }
 
-export function medalFor(ms: number): 'gold' | 'silver' | 'bronze' | null {
-  if (ms <= 120_000) return 'gold'
-  if (ms <= 180_000) return 'silver'
-  if (ms <= 300_000) return 'bronze'
+export function medalFor(ms: number, board = 'world'): 'gold' | 'silver' | 'bronze' | null {
+  const [g, sv, b] = parFor(board)
+  if (ms <= g) return 'gold'
+  if (ms <= sv) return 'silver'
+  if (ms <= b) return 'bronze'
   return null
 }
 
@@ -500,7 +502,7 @@ export class Ui {
   }
 
   showWon(s: State, hasNext: boolean, timeMs: number, isBest: boolean) {
-    const medal = medalFor(timeMs)
+    const medal = medalFor(timeMs, s.levelId)
     this.get('won-title').textContent = `${currentLevel(s).name.toUpperCase()} CONQUERED!`
     this.get('won-time').textContent = fmtMs(timeMs)
     this.get('won-medal').textContent = medal ? MEDAL[medal] : '⏱️'
@@ -524,7 +526,7 @@ export class Ui {
     this.show('over')
   }
 
-  renderBoard(target: 'won-board' | 'board-list', rows: TimeRow[] | null, note?: string) {
+  renderBoard(target: 'won-board' | 'board-list', rows: TimeRow[] | null, note?: string, board = 'world') {
     const el = this.get(target)
     if (!rows) {
       el.innerHTML = `<div class="empty">${note ?? 'Leaderboard offline'}</div>`
@@ -536,8 +538,8 @@ export class Ui {
     }
     el.innerHTML = rows
       .map((r, i) => {
-        const medal = medalFor(r.timeMs)
-        return `<div class="row ${r.mine ? 'mine' : ''}"><span class="rank">${i + 1}</span><span class="nm">${escapeHtml(r.name)}</span><span class="md">${medal ? MEDAL[medal] : ''}</span><span class="tm">${fmtMs(r.timeMs)}</span></div>`
+        const medal = medalFor(r.timeMs, board)
+        return `<div class="row ${r.mine ? 'mine' : ''}${r.home ? ' home' : ''}"><span class="rank">${i + 1}</span><span class="nm">${r.home ? '🏠 ' : ''}${escapeHtml(r.name)}</span><span class="md">${medal ? MEDAL[medal] : ''}</span><span class="tm">${fmtMs(r.timeMs)}</span></div>`
       })
       .join('')
   }

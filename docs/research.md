@@ -106,3 +106,24 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   ([ACM study on virtual joysticks](https://dl.acm.org/doi/fullHtml/10.1145/3623264.3624461),
   [MDN mobile touch](https://developer.mozilla.org/en-US/docs/Games/Techniques/Control_mechanisms/Mobile_touch))
   **→ verify `src/input/input.ts` floats the stick to the touch point; if fixed, change it.**
+
+## 2026-09-11 (early) — medals, iOS home screen, kids compete
+
+- Medal thresholds: bronze = a clean run with one small mistake (1–3 tries), silver = clean and
+  taking risks (2–5 tries), gold = perfect and fast (5+ tries). Missing a medal never fails the level.
+  ([Steam guide on medal times](https://steamcommunity.com/sharedfiles/filedetails/?id=133079373),
+  [TV Tropes: Time Trial](https://tvtropes.org/pmwiki/pmwiki.php/Main/TimeTrial))
+  **→ per-level `par` (gold/silver/bronze ms) replaces the global 2/3/5 min thresholds.**
+- iOS 26: every site added to the Home Screen opens as a web app; the manifest `display: standalone`,
+  `start_url`, icons all work; `display: fullscreen` (status bar hidden) is not reliable on iPhone.
+  Keep `apple-mobile-web-app-capable`; add a manifest and PNG icons (iOS ignores SVG icons).
+  ([MobiLoud PWA on iOS 2026](https://www.mobiloud.com/blog/progressive-web-apps-ios/),
+  [OJapp iOS PWA guide](https://tips.ojapp.app/en/pwa-ios-2026-complete-guide/))
+- Kids 10–13 in playtests lock in hardest when racing each other; a visible stopwatch was praised;
+  they asked for reset buttons and speedrun-style levels. Social comparison beats solo scores.
+  ([Playtesting with kids 1](https://askoldh.itch.io/project-c/devlog/940706/playtesting-with-kids-1),
+  [Playtesting with kids 2](https://askoldh.itch.io/project-c/devlog/949192/playtesting-with-kids-2))
+  **→ household board on the won screen: names used on this device get a 🏠 and a "beat X by N s"
+  line, so Nova vs Louie vs Mom is the visible contest.**
+- Family-friendly bosses (Kirby) test without stressing: readable telegraphs, one trick, no guide
+  needed. ([gamedesignskills boss design](https://gamedesignskills.com/game-design/game-boss-design/))

@@ -9,7 +9,8 @@ import { Globe } from './render/globe.ts'
 import { InputDriver } from './input/input.ts'
 import { AudioDriver } from './audio/audio.ts'
 import { Ui, medalFor } from './ui/ui.ts'
-import { fetchBoard, fmtMs, localBests, playerName, saveLocalBest, submitTime } from './net/leaderboard.ts'
+import { fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
+import type { TimeRow } from './net/leaderboard.ts'
 
 const params = new URLSearchParams(location.search)
 const dev = params.has('dev')
@@ -148,6 +149,7 @@ function setName(n: string) {
 // Title -> fly to the continent -> level.
 function launch(n: string, levelId: string) {
   setName(n)
+  rememberName(n)
   const idx = Math.max(0, LEVELS.findIndex((l) => l.id === levelId))
   if (idx > unlocked && !dev) return
   runStartIndex = idx
@@ -299,13 +301,25 @@ async function onLevelCleared(s: State) {
     const w = await submitTime({ name, kind: 'world', level: 'world', timeMs: runMs, levelsCleared: s.levelsCleared, version: VERSION, stats: { ...s.stats } })
     sub += w.ok ? ` · Whole world in ${fmtMs(runMs)}, rank #${w.rank}` : ` · Whole world in ${fmtMs(runMs)}`
   }
-  ui.setWonSub(sub)
   const rows = await fetchBoard(levelId, 8)
   if (rows) {
     const mine = rows.findIndex((r) => r.name === name && r.timeMs === timeMs)
     if (mine >= 0) rows[mine].mine = true
-    ui.renderBoard('won-board', rows)
+    // the household contest: whoever else in this house holds the best time here
+    const house = householdNames().filter((h) => h !== name)
+    let rival: TimeRow | null = null
+    for (const r of rows) {
+      if (!house.includes(r.name)) continue
+      r.home = true
+      if (!rival || r.timeMs < rival.timeMs) rival = r
+    }
+    if (rival) {
+      const diff = Math.abs(rival.timeMs - timeMs)
+      sub += timeMs < rival.timeMs ? ` · You beat ${rival.name} by ${fmtMs(diff)}!` : ` · ${rival.name} is ${fmtMs(diff)} ahead. Get 'em!`
+    }
+    ui.renderBoard('won-board', rows, undefined, levelId)
   }
+  ui.setWonSub(sub)
 }
 
 async function showBoard(board: string) {
@@ -316,7 +330,11 @@ async function showBoard(board: string) {
   ui.renderBoard('board-list', [], 'Loading...')
   const rows = await fetchBoard(board, 20)
   const best = localBests()[board]
-  if (rows) ui.renderBoard('board-list', rows, best ? `No times online yet. Your best here: ${fmtMs(best)}` : undefined)
+  if (rows) {
+    const house = householdNames()
+    for (const r of rows) if (house.includes(r.name)) r.home = true
+    ui.renderBoard('board-list', rows, best ? `No times online yet. Your best here: ${fmtMs(best)}` : undefined, board)
+  }
   else ui.renderBoard('board-list', null, best ? `Offline. Your best here: ${fmtMs(best)}` : 'Offline')
 }
 
