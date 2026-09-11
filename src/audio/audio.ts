@@ -192,15 +192,15 @@ export class AudioDriver {
         this.burst(0.5, 0.15 * v, 'bandpass', 1800, 0, 0.7)
         break
       case 'smash':
-        this.burst(0.16 + big * 0.2, 0.5 * v, 'bandpass', 700 - big * 300, 0, 0.8)
-        this.tone('sine', 110, 40, 0.18 + big * 0.15, 0.6 * v)
+        this.burst(0.16 + big * 0.2, 0.5 * v, 'bandpass', (700 - big * 300) * p, 0, 0.8)
+        this.tone('sine', 110 * p, 40 * p, 0.18 + big * 0.15, 0.6 * v)
         break
       case 'propHit':
-        this.burst(0.06, 0.25 * v, 'highpass', 1200)
+        this.burst(0.06, 0.25 * v, 'highpass', 1200 * p)
         break
       case 'splat':
-        this.tone('sine', 190, 55, 0.16, 0.5 * v)
-        this.burst(0.1, 0.25 * v, 'lowpass', 900)
+        this.tone('sine', 190 * p, 55 * p, 0.16, 0.5 * v)
+        this.burst(0.1, 0.25 * v, 'lowpass', 900 * p)
         break
       case 'poopThrow':
         this.burst(0.16, 0.2 * v, 'highpass', 2500)

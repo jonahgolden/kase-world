@@ -999,6 +999,35 @@ describe('sim', () => {
     expect(a.events.some((e) => e.t === 'bossDead' && e.kind === boss.def.beaten)).toBe(true)
   })
 
+  it('research pass 2: the pigeon pecks when two gates ahead, the snowball calls out BIG', () => {
+    const s = createState({ seed: 5, levelId: 'europe' })
+    const rv = s.rival!
+    s.player.invuln = 99
+    s.player.x = 60 // far away from every gate
+    rv.cp = 2
+    rv.stallT = 0
+    run(s, CFG.race.distractEvery + 0.2)
+    expect(s.events.some((e) => e.t === 'npcScared' && e.kind === 'pigeon') || rv.stallT > 0 || rv.peckT > CFG.race.distractEvery - 0.5).toBe(true)
+    let pecked = false
+    for (let i = 0; i < 60 * (CFG.race.distractEvery + 1) && !pecked; i++) {
+      step(s, EMPTY_INPUT)
+      if (rv.stallT > 0) pecked = true
+    }
+    expect(pecked).toBe(true)
+    const g = createState({ seed: 5, levelId: 'antarctica' })
+    g.features = []
+    g.npcs = []
+    const ball = g.props.find((pr) => pr.kind === 'snowball')!
+    ball.r = CFG.snow.milestones[0] - 0.02
+    ball.vx = 4
+    let big = 0
+    for (let i = 0; i < 120; i++) {
+      step(g, EMPTY_INPUT)
+      big += g.events.filter((e) => e.t === 'snowMilestone' && e.label === 'BIG!').length
+    }
+    expect(big).toBe(1)
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

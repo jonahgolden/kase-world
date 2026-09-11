@@ -1030,7 +1030,11 @@ function updateGames(s: State, b: Boss, ph: number) {
           b.y = 0
           b.vx *= 0.2
           b.vz *= 0.2
-          if (dp < S.punchR + p.r && p.y < 1.2) hurtPlayer(s, S.punch, b.x, b.z, 0.6)
+          if (dp < S.punchR + p.r && p.y < 1.2 && hurtPlayer(s, S.punch, b.x, b.z, 0.6)) {
+            // a little bounce-back keeps the bout fluid instead of a dead stop
+            b.vx = -b.dirX * 3
+            b.vz = -b.dirZ * 3
+          }
           ev(s, { t: 'bossStomp', x: b.x, z: b.z, big: 0.5, range: S.punchR, label: 'punch' })
           b.state = 'idle'
           b.stateT = 0.7 - round * 0.1

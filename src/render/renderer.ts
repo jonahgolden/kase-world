@@ -2268,8 +2268,11 @@ export class Renderer {
     const p = s.player
     const portrait = this.camera.aspect < 1
     const skyClose = this.skyCam ? 0.8 : 1
-    const back = ((portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3) * skyClose
-    const up = ((portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3) * (this.skyCam ? 0.7 : 1)
+    // the snowball level: the camera eases out as the ball grows so the scale reads (Katamari rule)
+    const ball = s.goal.kind === 'grow' ? s.props.find((pr) => pr.kind === 'snowball' && !pr.broken) : undefined
+    const grow = ball ? Math.max(0, ball.r - 0.55) * 1.6 : 0
+    const back = ((portrait ? 10.5 : 9) + this.bossMode * 3 + (this.giantScale - 1) * 3 + grow) * skyClose
+    const up = ((portrait ? 12 : 8.5) + this.bossMode * 2.5 + (this.giantScale - 1) * 3 + grow * 0.8) * (this.skyCam ? 0.7 : 1)
     const lookAhead = 0.35
     let tx = p.x + p.vx * lookAhead
     let tz = p.z + p.vz * lookAhead

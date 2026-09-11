@@ -480,6 +480,12 @@ function handleEvents(s: State) {
         if ((e.big ?? 0) > 0) ui.toast('STAMPEDE SURGE!', 1200, 'boss')
         else ui.toast('rumble rumble...', 900)
         break
+      case 'snowMilestone': {
+        hitstop = Math.max(hitstop, 0.08)
+        const pt = renderer.project(e.x ?? 0, 3, e.z ?? 0)
+        ui.popup(`⛄ ${e.label ?? ''}`, pt.x, pt.y, '#bfe6ff', 1.4)
+        break
+      }
       case 'melting': {
         const pt = renderer.project(e.x ?? 0, 2.5, e.z ?? 0)
         ui.popup('MELTING! Get it out of the water!', pt.x, pt.y, '#bfe6ff', 0.6)
@@ -490,6 +496,7 @@ function handleEvents(s: State) {
           thiefWarns++
           ui.toast('🍼 A thief is coming for the milk! Scream or poop him', 2000, 'boss')
         }
+        if (e.kind === 'pigeon' && (e.big ?? 0) === 0) ui.toast('The pigeon stopped to peck at something. Go go go!', 1400, 'good')
         break
       case 'milkGone':
         hitstop = Math.max(hitstop, 0.1)
@@ -661,8 +668,16 @@ function playSound(e: GameEvent) {
       audio.play('bossPhase', { vol: 0.6 })
       return
     case 'npcScared':
-      if (e.kind === 'thief' && (e.big ?? 0) === 0) return
+      if ((e.kind === 'thief' || e.kind === 'pigeon') && (e.big ?? 0) === 0) return
       audio.play(e.kind === 'chicken' ? 'chicken' : 'npcScared')
+      return
+    case 'snowMilestone':
+      audio.play('win', { vol: 0.4, pitch: 1 + (e.big ?? 0) * 0.4 })
+      return
+    case 'smash':
+    case 'splat':
+    case 'propHit':
+      audio.play(e.t, { big: e.big, pitch: 0.92 + Math.random() * 0.16 })
       return
     default:
       audio.play(e.t, { big: e.big })

@@ -157,3 +157,30 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   ([Godot recipes: screen shake](https://kidscancode.org/godot_recipes/4.x/2d/screen_shake/index.html),
   [BetterLink game feel post](https://eastondev.com/blog/en/posts/dev/20260521-game-feedback-feel/))
   Ours already squares the shake value and decays it; fine.
+
+## 2026-09-11 (timer pass 2) — rubber-banding, Katamari growth, onboarding, kid sound, knockback
+
+- Rubber-banding is hated when it is a hidden speed cheat; accepted when the rival adapts through
+  *visible behavior* and the player behind gets the help, never the leader. Wins must still feel earned.
+  ([TV Tropes: Rubber-Band AI](https://tvtropes.org/pmwiki/pmwiki.php/Main/RubberBandAI),
+  [Game AI Pro ch. 42, rubber-banding system](https://www.gameaipro.com/GameAIPro/GameAIPro_Chapter42_A_Rubber-Banding_System_for_Gameplay_and_Race_Management.pdf),
+  [gamedesignskills: racing](https://gamedesignskills.com/game-design/racing/))
+  **→ applied: when the pigeon is two gates ahead it stops to peck for 1.5 s every 4 s (a toast says so).
+  Never speeds up against a leading player.**
+- Katamari: growth must be continuous and *visible*, milestones change what you can do, the camera
+  zooms out with size, and every pickup wiggles + clicks. ([Game Developer: Katamari's scale](https://www.gamedeveloper.com/design/analysis-how-i-katamari-i-s-scale-makes-you-high),
+  [Mandeville breakdown](https://alexiamandeville.medium.com/game-design-breakdown-katamari-damacy-e3f927f9a392))
+  **→ applied: snowball milestones BIG / HUGE / GIGANTIC with a popup and chime; the camera pulls back as
+  the ball grows.**
+- Onboarding: "how do I let them discover" not "how do I teach"; three escalating encounters per idea;
+  no passive tutorial. ([Game Wisdom onboarding](https://game-wisdom.com/critical/onboarding-game-design),
+  [Nintendo Life: Miyamoto & Trinen](https://www.nintendolife.com/news/2016/07/shigeru_miyamoto_and_bill_trinen_explain_some_of_the_key_principles_that_define_nintendo_games))
+  Ours: the card + hint bar say the one rule; the rest is discovered. Keep. Watch in playtest whether the
+  level-1 wreck goal teaches scream vs poop before the glass/statue prompts do.
+- Kids' game audio: event-based cues, cheerful confirmation chimes, pitch/volume shape the feeling;
+  repetition fatigue is real, so vary repeated sounds. ([gamedesignskills: sound](https://gamedesignskills.com/game-design/sound/),
+  [Speequal: psychology of audio feedback](https://speequalgames.com/the-human-psychology-behind-game-auido-feedback/))
+  **→ applied: smash, splat and prop-hit sounds get ±8% random pitch.**
+- Knockback: separate force from duration, keep motion fluid with a small bounce-back on collision, low
+  friction so nobody gets stuck. ([G2A: knockback](https://www.g2a.com/news/glossary/what-is-knockback-in-gaming-meaning-example-and-how-it-works-in-games/))
+  **→ applied: the kangaroo bounces back a little when its punch lands, so bouts stay fluid.**

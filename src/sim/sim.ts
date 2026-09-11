@@ -169,11 +169,11 @@ export const CFG = {
   caps: { splats: 220, debris: 700 },
   // level goals
   king: { taunt: 1.2, run: 2.8, catchCd: 2.5, scale: 1.6 },
-  snow: { growPerUnit: 0.022, melt: 0.25, push: 1.15, smashSpeed: 1.5 },
+  snow: { growPerUnit: 0.022, melt: 0.25, push: 1.15, smashSpeed: 1.5, milestones: [1.2, 1.8] },
   stampede: { speed: 3.2, surge: 6.4, surgeTime: 1.2, every: 8, warn: 1.0, behind: 14, damage: 10, shove: 10, hitCd: 1.5, flagR: 2.2 },
   protect: { wave: 5, waveMin: 3.2, grace: 6, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
   assist: { maxHearts: 2 },
-  race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2 },
+  race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2, distractLead: 2, distractEvery: 4, distractFor: 1.5 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
   volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, r: 1.6 },
   pop: { jelly: 400, fly: 120, bigfly: 300 },
@@ -870,7 +870,7 @@ function populate(s: State, level: LevelDef) {
       s.checkpoints.push(best)
     }
     if (s.checkpoints.length) s.goalPos = s.checkpoints[0]
-    s.rival = { x: 0, y: CFG.race.pigeonY, z: 0, vx: 0, vz: 0, facing: 0, cp: 0, stallT: 1.5, hitFlash: 0, laps: 0 }
+    s.rival = { x: 0, y: CFG.race.pigeonY, z: 0, vx: 0, vz: 0, facing: 0, cp: 0, stallT: 1.5, hitFlash: 0, laps: 0, peckT: CFG.race.distractEvery }
   }
 }
 
@@ -2006,6 +2006,15 @@ function updateSnowball(s: State, pr: Prop) {
     pr.r = Math.min(goal * 1.08, pr.r + moved * CFG.snow.growPerUnit)
   }
   pr.promptCd = Math.max(0, pr.promptCd - DT)
+  // size milestones: BIG, HUGE, then GIGANTIC at the goal (pr.cover remembers the last one reached)
+  const marks = [...CFG.snow.milestones, goal]
+  const reached = marks.filter((m) => pr.r >= m).length
+  if (reached > pr.cover) {
+    pr.cover = reached
+    const label = ['BIG!', 'HUGE!', 'GIGANTIC!'][Math.min(2, reached - 1)]
+    addWreck(s, 100 * reached, pr.x, pr.z, label, 0xbfe6ff)
+    ev(s, { t: 'snowMilestone', x: pr.x, z: pr.z, big: reached / marks.length, label })
+  }
   pr.h = pr.r * 2
   pr.mass = 3 + pr.r * 4
   pr.rot += moved / Math.max(0.3, pr.r)

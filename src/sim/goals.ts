@@ -128,6 +128,15 @@ export function updateGoal(s: State) {
     const R = CFG.race
     const rv = s.rival
     rv.hitFlash = Math.max(0, rv.hitFlash - DT)
+    // far ahead? the pigeon gets distracted and pecks at something: help for the player behind, never a cheat
+    if (rv.stallT <= 0 && rv.cp - s.found >= R.distractLead) {
+      rv.peckT -= DT
+      if (rv.peckT <= 0) {
+        rv.peckT = R.distractEvery
+        rv.stallT = R.distractFor
+        ev(s, { t: 'npcScared', x: rv.x, z: rv.z, kind: 'pigeon', big: 0 })
+      }
+    } else if (rv.cp - s.found < R.distractLead) rv.peckT = R.distractEvery
     if (rv.stallT > 0) {
       rv.stallT -= DT
       rv.vx *= 1 - 5 * DT

@@ -156,6 +156,7 @@ export interface Rival {
   stallT: number // seconds of stall left after a scream
   hitFlash: number
   laps: number // laps the pigeon has finished (each one costs Kase a heart)
+  peckT: number // seconds until the next distraction while far ahead
 }
 
 export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake' | 'volcano'
@@ -413,6 +414,7 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'snowMilestone'
   | 'nap'
   | 'boomerang'
   | 'decoy'
