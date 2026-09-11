@@ -15,7 +15,8 @@ Live: https://kase-world.kase-world.workers.dev · Repo: github.com/jonahgolden/
 driver that reads state and events: `render/` (three.js), `input/` (keyboard + touch), `audio/`
 (Web Audio, manifest + synth fallback), `ui/` (HTML overlay), `net/` (leaderboard client),
 `worker/` (Cloudflare Worker: static assets + `/api/scores` on D1). Keep it that way. New gameplay
-goes in `sim/` with a test; new visuals go in `render/renderer.ts`.
+goes in `sim/` with a test; new visuals go in `render/renderer.ts`, and primitive character builds
+(animals, Kacone, rides, props) in `render/models.ts` as pure functions of a `ModelCtx`.
 
 ## Commands
 
