@@ -88,6 +88,7 @@ export class Ui {
         </div>
         <div id="toast"></div>
         <div id="hint"></div>
+        <div id="goal-arrow" hidden>➤</div>
         <canvas id="minimap" width="140" height="140"></canvas>
         <div id="popups"></div>
         <div id="joy-zone"><div id="joy"><div id="joy-knob"></div></div></div>
@@ -281,6 +282,27 @@ export class Ui {
 
   adminMsg(text: string) {
     this.get('admin-msg').textContent = text
+  }
+
+  // Green arrow on the screen edge pointing at an off-screen objective; hidden when it is on screen.
+  setArrow(sx: number, sy: number, visible: boolean) {
+    const el = this.get('goal-arrow')
+    el.hidden = !visible
+    if (!visible) return
+    const W = window.innerWidth
+    const H = window.innerHeight
+    const cx = W / 2
+    const cy = H / 2
+    const dx = sx - cx
+    const dy = sy - cy
+    const ang = Math.atan2(dy, dx)
+    // clamp to a rectangle inset from the edges
+    const padX = W * 0.42
+    const padY = H * 0.36
+    const k = Math.min(padX / Math.max(1e-6, Math.abs(dx)), padY / Math.max(1e-6, Math.abs(dy)))
+    el.style.left = `${cx + dx * k}px`
+    el.style.top = `${cy + dy * k}px`
+    el.style.transform = `translate(-50%, -50%) rotate(${ang}rad)`
   }
 
   show(id: 'title' | 'hud' | 'won' | 'over' | 'board' | 'help' | 'choose' | 'admin') {

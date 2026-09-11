@@ -1,5 +1,5 @@
 import './ui/styles.css'
-import { DT, VERSION, createState, currentLevel, devBeatBoss, nextLevelState, skipToBoss, step, fightOf } from './sim/sim.ts'
+import { DT, VERSION, createState, currentLevel, devBeatBoss, goalTarget, nextLevelState, skipToBoss, step, fightOf } from './sim/sim.ts'
 import { botInput } from './sim/bot.ts'
 import { LEVELS } from './sim/levels.ts'
 import type { GameEvent, State } from './sim/types.ts'
@@ -8,7 +8,7 @@ import type { PrevSnap } from './render/renderer.ts'
 import { Globe } from './render/globe.ts'
 import { InputDriver } from './input/input.ts'
 import { AudioDriver } from './audio/audio.ts'
-import { Ui, medalFor } from './ui/ui.ts'
+import { Ui, goalShort, medalFor } from './ui/ui.ts'
 import { adminCheck, adminClearBoard, adminToken, fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
 import type { TimeRow } from './net/leaderboard.ts'
 import { GHOST_DT, GHOST_MAX, loadGhost, packGhost, saveGhost } from './ghost.ts'
@@ -542,6 +542,9 @@ function handleEvents(s: State) {
         hitstop = Math.max(hitstop, 0.1)
         ui.toast('TRAMPLED! Keep running!', 1200, 'boss')
         break
+      case 'stuckHint':
+        ui.toast(`${goalShort(s.goal)} · follow the green arrow`, 2600, 'go')
+        break
       case 'kingPoof': {
         if ((e.big ?? 0) > 0) {
           hitstop = Math.max(hitstop, 0.1)
@@ -838,6 +841,16 @@ function loop(now: number) {
       }
       ui.updateHud(state, dt)
       if (state.tick % 4 === 0) ui.drawMinimap(state)
+      if (state.tick % 3 === 0) {
+        // objective arrow: only when the thing the meter wants is off screen
+        const t = goalTarget(state)
+        if (t) {
+          const pt = renderer.project(t.x, 0.8, t.z)
+          const m = 24
+          const off = pt.x < m || pt.y < m || pt.x > window.innerWidth - m || pt.y > window.innerHeight - m
+          ui.setArrow(pt.x, pt.y, off)
+        } else ui.setArrow(0, 0, false)
+      }
       if (endTimer > 0) {
         endTimer -= dt
         if (endTimer <= 0) {

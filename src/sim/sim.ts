@@ -7,6 +7,7 @@ import { activePart, bossHit, bossPhase, bossRound, bossVulnerable, fightOf, spa
 export { activePart, bossHit, bossPhase, bossRound, bossVulnerable, devBeatBoss, fightOf, telegraphShape } from './boss.ts'
 export type { TelegraphShape } from './boss.ts'
 import { goalCount, goalMet, kingCaught, screamRival, thiefRepelled, updateGoal } from './goals.ts'
+export { goalTarget } from './goals.ts'
 import { CONTINENTS } from './continents.ts'
 import { closestOnRing, pointInRing } from './geom.ts'
 import type {
@@ -177,6 +178,7 @@ export const CFG = {
   assist: { maxHearts: 2 },
   comeback: { hearts: 1, chargeMult: 0.7 }, // last-heart lungs: screams charge faster when nearly out
   magnet: { r: 1.6, speed: 9 }, // pickups this close drift to Kase: no fiddly positioning
+  hint: { stuckAfter: 25 }, // seconds without meter progress before the game points the way
   crowd: { maxChasing: 3 }, // grown-ups and dogs: a small near group, the rest keep wandering
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2, distractLead: 2, distractEvery: 4, distractFor: 1.5 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
@@ -336,6 +338,8 @@ export function createState(opts: CreateOpts = {}): State {
     boomerang: null,
     decoy: null,
     found: 0,
+    progressT: 0,
+    lastWreck: 0,
     wreck: 0,
     wreckPoints: 0,
     wreckGoalPoints: 1,

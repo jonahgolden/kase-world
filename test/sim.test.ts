@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, devBeatBoss, fightOf, fireScream, groundY, hurtPlayer, nextLevelState, skipToBoss, step, telegraphShape } from '../src/sim/sim.ts'
+import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, devBeatBoss, fightOf, fireScream, goalTarget, groundY, hurtPlayer, nextLevelState, skipToBoss, step, telegraphShape } from '../src/sim/sim.ts'
 import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
@@ -1238,6 +1238,30 @@ describe('sim', () => {
     run(b, CFG.boss.enterTime + 0.3)
     expect(b.phase).toBe('boss')
     expect(b.time).toBeGreaterThan(42)
+  })
+
+  it('research pass 8: the objective target exists on every level and a stuck baby gets a hint', () => {
+    for (const lvl of LEVELS) {
+      const s = createState({ seed: 5, levelId: lvl.id })
+      expect(goalTarget(s)).not.toBeNull()
+    }
+    const e = createState({ seed: 5, levelId: 'africa' })
+    expect(goalTarget(e)).toEqual(e.goalPos)
+    const s = createState({ seed: 5 })
+    s.features = []
+    s.npcs = []
+    s.player.invuln = 99
+    let hints = 0
+    for (let i = 0; i < 60 * (CFG.hint.stuckAfter + 1); i++) {
+      step(s, EMPTY_INPUT)
+      hints += s.events.filter((ev) => ev.t === 'stuckHint').length
+    }
+    expect(hints).toBe(1)
+    // progress resets the timer
+    s.progressT = CFG.hint.stuckAfter - 1
+    addWreck(s, 50, 0, 0)
+    step(s, EMPTY_INPUT)
+    expect(s.progressT).toBeLessThan(1)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

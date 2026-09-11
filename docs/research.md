@@ -308,3 +308,21 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   ([Game Developer: failure by design](https://www.gamedeveloper.com/design/failure-by-design-encouraging-learning-through-failure-with-games-),
   [SFX Engine: failure sounds](https://sfxengine.com/blog/failure-sound-effects))
   **→ applied: the nap screen says how far you got and "not yet" instead of a flat loss.**
+
+## 2026-09-11 (timer pass 8, covering three queued prompts) — wayfinding, stuck hints, combos, first seconds
+
+- Off-screen objective indicators: an arrow hugging the screen edge toward the target, rotated, hidden when the target is
+  on screen. ([Envato Tuts+: positioning on-screen indicators](https://gamedevelopment.tutsplus.com/tutorials/positioning-on-screen-indicators-to-point-to-off-screen-targets--gamedev-6644))
+  **→ applied: `goalTarget()` (goals.ts, pure, tested) names the current objective per goal shape (nearest wreckable,
+  nearest fedora/egg or crate, the finger or the king, the snowball, the flag, the nearest thief, the gate, the nearest
+  jelly, the boss); the HUD shows a green arrow at the screen edge whenever it is off screen.**
+- Stuck detection: modern games time no-progress and chime in with a hint or highlight the objective; escalating
+  hints beat one big spoiler. ([TV Tropes: Hint System](https://tvtropes.org/pmwiki/pmwiki.php/Main/HintSystem),
+  [Wauck et al.: data-driven hint design](https://www.sift.net/sites/default/files/publications/wauck_iui2017hints.pdf))
+  **→ applied: 25 s without the meter moving → `stuckHint` event → toast with the six-word goal and "follow the
+  arrow"; repeats every 25 s while stuck.**
+- Combos should make safe play visibly cost score and escalate feedback with the chain. Ours pops COMBO xN at 3+ and
+  grows the text; the multiplier already gates wreck points. Kept. ([Game Design Snacks: combo satisfaction](https://game-design-snacks.fandom.com/wiki/Combo_system_gives_a_sense_of_satisfaction.))
+- First seconds of a level: landmarks, sightlines and a clear "that way" cue. ([Level Design Book: wayfinding](https://book.leveldesignbook.com/process/blockout/wayfinding),
+  [World of Level Design: guiding the player](https://www.worldofleveldesign.com/categories/level_design_tutorials/alan-wake-guide-the-player.php))
+  The objective arrow covers the "that way"; finds already glow with pillars.

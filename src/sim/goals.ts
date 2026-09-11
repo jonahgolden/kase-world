@@ -72,8 +72,63 @@ function spawnThief(s: State) {
   ev(s, { t: 'npcScared', x: best.x, z: best.z, kind: 'thief', big: 0 })
 }
 
+// Where "that way" is right now: the thing the meter wants next. Null when there is nothing to point at.
+export function goalTarget(s: State): { x: number; z: number } | null {
+  const p = s.player
+  const nearest = <T extends { x: number; z: number }>(list: T[]): T | null => {
+    let best: T | null = null
+    let bd = Infinity
+    for (const o of list) {
+      const d = dist(o.x, o.z, p.x, p.z)
+      if (d < bd) {
+        bd = d
+        best = o
+      }
+    }
+    return best
+  }
+  if (s.phase === 'boss' && s.boss) return s.boss.def.fight === 'nest' ? { x: s.duo.x, z: s.duo.z } : { x: s.boss.x, z: s.boss.z }
+  if (s.phase !== 'wreck') return null
+  const g = s.goal
+  switch (g.kind) {
+    case 'wreck':
+      return nearest(s.props.filter((pr) => !pr.broken && pr.kind !== 'evilbaby' && pr.kind !== 'statue' && pr.kind !== 'glass'))
+    case 'find':
+      return nearest([...s.pickups.filter((k) => k.kind === g.item), ...s.props.filter((pr) => !pr.broken && pr.kind === 'crate')])
+    case 'chase':
+      return nearest(s.pickups.filter((k) => k.kind === 'finger')) ?? nearest(s.npcs.filter((n) => n.kind === 'king'))
+    case 'grow':
+      return nearest(s.props.filter((pr) => pr.kind === 'snowball' && !pr.broken))
+    case 'escape':
+    case 'race':
+      return s.goalPos
+    case 'protect':
+      return nearest(s.npcs.filter((n) => n.kind === 'thief' && (n.state === 'raid' || n.state === 'drink'))) ?? s.goalPos
+    case 'hunt':
+      return nearest(s.npcs.filter((n) => n.kind === g.npc))
+  }
+}
+
+// Stuck? 25 s without the meter moving and the game points the way (repeats while still stuck).
+function updateStuck(s: State) {
+  if (s.phase !== 'wreck') return
+  if (s.wreck > s.lastWreck + 1e-6) {
+    s.progressT = 0
+    s.lastWreck = s.wreck
+  } else s.progressT += DT
+  if (s.progressT >= CFG.hint.stuckAfter) {
+    s.progressT = 0
+    ev(s, { t: 'stuckHint', x: s.player.x, z: s.player.z })
+  }
+}
+
 // Stampede front, milk thieves, the pigeon, the snowball meter: everything a goal shape needs per tick.
 export function updateGoal(s: State) {
+  updateGoalInner(s)
+  updateStuck(s)
+}
+
+function updateGoalInner(s: State) {
   if (s.phase !== 'wreck') return
   const p = s.player
   const g = s.goal

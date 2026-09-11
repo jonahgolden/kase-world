@@ -416,6 +416,7 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'stuckHint'
   | 'kingPoof'
   | 'rockHint'
   | 'snowMilestone'
@@ -518,6 +519,8 @@ export interface State {
   boomerang: Boomerang | null
   decoy: { x: number; z: number; t: number } | null // grown-ups chase this instead of Kase
   found: number // goal count: items found, king catches, thieves repelled, checkpoints passed
+  progressT: number // seconds since the goal meter last moved (stuck-hint timer)
+  lastWreck: number // meter value the stuck timer last saw
   wreck: number // 0..1 progress toward the boss
   wreckPoints: number
   wreckGoalPoints: number
