@@ -110,6 +110,7 @@ export class Ui {
       </div>
       <div id="help" class="screen panel" hidden>
         <h2>HOW TO PLAY</h2>
+        <p id="help-level" class="goal-line" hidden></p>
         <p class="goal-line">Fill the meter at the top. The boss shows up. Beat him with the one trick on his card.</p>
         <div class="ctls">${controls}</div>
         <p class="goal-line small">🔊 SCREAM scares things and breaks glass · 💩 POOP covers and freezes things · ⭐ glowing stuff is worth a detour · ⏱ faster is better</p>
@@ -308,7 +309,14 @@ export class Ui {
     c.classList.add('bonus')
   }
 
-  showHelp(inGame: boolean, soundOn = true) {
+  showHelp(inGame: boolean, soundOn = true, s?: State) {
+    // in a level, lead with what THIS level wants and the boss's one trick
+    const lv = this.get('help-level')
+    if (inGame && s) {
+      const lvl = currentLevel(s)
+      lv.innerHTML = `<b>${lvl.name.toUpperCase()}:</b> ${goalCardText(lvl.goal)}<br><b>BOSS ${lvl.boss.name.toUpperCase()}:</b> ${lvl.boss.hint}`
+      lv.hidden = false
+    } else lv.hidden = true
     this.get('help-resume').hidden = !inGame
     this.get('help-restart').hidden = !inGame
     this.get('help-title').textContent = inGame ? 'QUIT TO TITLE' : 'BACK'
@@ -491,6 +499,7 @@ export class Ui {
     if (p.ride === 'giraffe') powers.push(`<span class="chip gold">🦒${'♥'.repeat(p.rideHp)}</span>`)
     if (p.naps > 0) powers.push(`<span class="chip blue">💤×${p.naps}</span>`)
     if (p.boomerang) powers.push('<span class="chip gold">🪃 binky</span>')
+    if (p.crispyT > 0) powers.push(`<span class="chip gold">🍗 CRISPY ${Math.ceil(p.crispyT)}</span>`)
     if (p.megaphone) powers.push('<span class="chip red">📣</span>')
     if (p.fedora) powers.push('<span class="chip purple">🎩 EPIC</span>')
     if (p.flying) powers.push(`<span class="chip blue">🚀 BOOST ${Math.ceil(p.boostFuel)}</span>`)
@@ -634,7 +643,7 @@ export function goalCardText(g: Goal): string {
     case 'find':
       return g.item === 'fedora' ? `Find ${g.count} fedoras 🎩 (red hat boxes hide some)` : `Find ${g.count} golden eggs 🥚 · hold JUMP to fly up, let go to float down`
     case 'chase':
-      return `The Chicken King 🐔👑 stole the pacifier! Catch him ${g.count} times: bump, scream or poop him`
+      return `Catch the CHICKEN KING 👑 (the big chicken with the crown) ${g.count} times: bump him, scream at him or poop him. Each catch turns him into a chicken finger 🍗. Grab it!`
     case 'grow':
       return 'Push the snowball ⛄ until it is HUGE. Water melts it!'
     case 'escape':
@@ -656,7 +665,7 @@ export function goalMeterText(s: State, pct: number): string {
     case 'find':
       return `${g.item === 'fedora' ? '🎩' : '🥚'} ${s.found} / ${g.count} ${g.item === 'fedora' ? 'FEDORAS' : 'EGGS'}`
     case 'chase':
-      return `🐔 ${s.found} / ${g.count} CAUGHT`
+      return `🍗 ${s.found} / ${g.count} CHICKEN FINGERS`
     case 'grow':
       return pct === 0 ? '⛄ ROLL THE SNOWBALL' : `⛄ ${pct}% SNOWBALL`
     case 'escape':

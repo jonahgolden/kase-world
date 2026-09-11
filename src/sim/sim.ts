@@ -169,7 +169,7 @@ export const CFG = {
   seenRadius: 9,
   caps: { splats: 220, debris: 700 },
   // level goals
-  king: { taunt: 1.2, run: 2.8, catchCd: 2.5, scale: 1.6 },
+  king: { taunt: 1.2, run: 2.8, catchCd: 2.5, scale: 1.6, fleeDist: 16, crispyTime: 5, crispySpeed: 1.3 },
   snow: { growPerUnit: 0.022, melt: 0.25, push: 1.15, smashSpeed: 1.5, milestones: [1.2, 1.8] },
   stampede: { speed: 3.2, surge: 6.4, surgeTime: 1.2, every: 8, warn: 1.0, behind: 14, damage: 10, shove: 10, hitCd: 1.5, flagR: 2.2 },
   protect: { wave: 5, waveMin: 3.2, grace: 6, drink: 3.0, sip: 0.34, penalty: 20, leaveDist: 15 },
@@ -289,6 +289,7 @@ export function createState(opts: CreateOpts = {}): State {
     aiming: false,
     naps: 0,
     boomerang: false,
+    crispyT: 0,
   }
   const s: State = {
     version: VERSION,
@@ -1026,6 +1027,7 @@ function playerTimers(s: State, input: Input) {
     ['pacifierT', 'pacifier'],
     ['rattleT', 'rattle'],
     ['giantT', 'giant'],
+    ['crispyT', 'finger'],
   ] as const) {
     if (p[key] > 0) {
       p[key] -= DT
@@ -1156,7 +1158,7 @@ function updatePlayer(s: State, input: Input) {
   p.aiming = (input.scream || input.poop) && p.grounded
   p.aimPower = input.aimPower ?? -1
   const slow = (p.aiming ? C.aimModeSpeed : 1) * (p.inLake ? C.lakeSpeed : 1) * (onCloud ? C.cloudSpeed : 1) * (water && p.gy <= 0.05 ? CFG.water.speed : 1)
-  const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * (giant ? CFG.giant.speed : 1) * slow
+  const speed = C.speed * (ride ? ride.speed : 1) * (p.fedora ? CFG.fedora.speed : 1) * (giant ? CFG.giant.speed : 1) * (p.crispyT > 0 ? CFG.king.crispySpeed : 1) * slow
   const accel = C.accel * (ride ? ride.accel : 1)
   p.launchT = Math.max(0, p.launchT - DT)
   if (p.hitstun > 0) {
@@ -1827,6 +1829,17 @@ function collect(s: State, k: Pickup) {
     case 'decoy':
       s.decoy = { x: p.x, z: p.z, t: CFG.decoy.time }
       ev(s, { t: 'decoy', x: p.x, z: p.z, big: 1 })
+      break
+    case 'finger':
+      // the chicken finger is the point: a heart, crispy speed, and one more toward the goal
+      p.hp = Math.min(p.maxHp, p.hp + HEART)
+      p.crispyT = CFG.king.crispyTime
+      if (s.goal.kind === 'chase' && s.phase === 'wreck') {
+        s.found++
+        s.wreck = Math.min(1, s.found / s.goal.count)
+        ev(s, { t: 'found', x: k.x, z: k.z, points: s.found, kind: 'finger' })
+        if (s.found >= s.goal.count) spawnPickup(s, 'pacifier', k.x, k.z, 6)
+      }
       break
     case 'skateboard':
     case 'quad':

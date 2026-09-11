@@ -2,7 +2,7 @@
 // milk thieves, the pigeon race, jelly hunt. Pure data; helpers come from sim.ts (functions only).
 import { closestOnRing } from './geom.ts'
 import { NPC_STATS, PROP_STATS } from './levels.ts'
-import { CFG, DT, addWreck, coastClear, damageProp, dist, ev, hurtPlayer, inCone, moveToward, newId, randomInside, spawnPickup } from './sim.ts'
+import { CFG, DT, addWreck, coastClear, damageProp, dist, ev, farPoint, hurtPlayer, inCone, moveToward, newId, randomInside, spawnPickup } from './sim.ts'
 import type { Npc, State } from './types.ts'
 
 // ---------------------------------------------------------------- level goals
@@ -12,22 +12,33 @@ export function goalCount(s: State): number {
   return g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' || g.kind === 'hunt' ? g.count : g.kind === 'race' ? g.checkpoints : 0
 }
 
-// A catch: touch him, scream him, or poop him. He gets a head start after each one.
+// A catch: touch him, scream him, or poop him. He poofs into a floating chicken finger (grab it: that is
+// the +1) and pops back up far away with a head start. The last catch is the last of him.
 export function kingCaught(s: State, n: Npc) {
-  if (s.goal.kind !== 'chase' || s.phase !== 'wreck' || n.scaredCd > 0 || s.found >= s.goal.count) return
-  s.found++
-  s.wreck = s.found / s.goal.count
-  n.scaredCd = CFG.king.catchCd
-  n.state = 'flee'
-  n.stateT = CFG.king.run
-  const dx = n.x - s.player.x
-  const dz = n.z - s.player.z
-  const d = Math.hypot(dx, dz) || 1
-  n.vx += (dx / d) * 6
-  n.vz += (dz / d) * 6
+  if (s.goal.kind !== 'chase' || s.phase !== 'wreck' || n.scaredCd > 0) return
+  const pending = s.pickups.filter((k) => k.kind === 'finger').length
+  if (s.found + pending >= s.goal.count) return
+  const p = s.player
   addWreck(s, NPC_STATS.king.bonk, n.x, n.z, 'CAUGHT!', 0xffd23f)
-  ev(s, { t: 'found', x: n.x, z: n.z, points: s.found, kind: 'king' })
-  if (s.found >= s.goal.count) spawnPickup(s, 'pacifier', n.x, n.z, 6)
+  ev(s, { t: 'kingPoof', x: n.x, z: n.z, big: 1 })
+  s.pickups.push({ id: newId(s), kind: 'finger', x: n.x, y: 1.1, z: n.z, vy: 0, age: 0, float: true })
+  n.scaredCd = CFG.king.catchCd
+  if (s.found + pending + 1 >= s.goal.count) {
+    // that was his last life: he runs home crying
+    n.hp = -999
+    s.npcs = s.npcs.filter((m) => m !== n)
+    return
+  }
+  const far = farPoint(s, p.x, p.z, 2, 30, (x, z) => dist(x, z, p.x, p.z) > CFG.king.fleeDist)
+  if (far.x !== 0 || far.z !== 0) {
+    n.x = far.x
+    n.z = far.z
+  }
+  n.vx = n.vz = 0
+  n.state = 'wander'
+  n.stateT = CFG.king.taunt
+  n.cover = 0
+  ev(s, { t: 'kingPoof', x: n.x, z: n.z, big: 0 })
 }
 
 export function thiefRepelled(s: State, n: Npc) {

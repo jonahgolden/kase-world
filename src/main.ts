@@ -317,7 +317,7 @@ function pause() {
   if (mode !== 'play') return
   mode = 'paused'
   ui.hideCard()
-  ui.showHelp(true, !audio.muted)
+  ui.showHelp(true, !audio.muted, state ?? undefined)
   audio.play('ui')
 }
 
@@ -480,6 +480,7 @@ function handleEvents(s: State) {
           boomerang: ['BOOMERANG BINKY! Throw it, it comes back', '#ffd23f'],
           giraffe: ['', '#f2c14e'],
           decoy: ['DECOY BABY! They chase it, not you', '#ff8fab'],
+          finger: ['', '#ffd23f'],
         }
         if (e.kind === 'fedora' && s.goal.kind === 'find') break
         if (e.kind === 'wings') {
@@ -513,15 +514,24 @@ function handleEvents(s: State) {
         const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)
         const g = s.goal
         const total = g.kind === 'find' || g.kind === 'chase' || g.kind === 'protect' || g.kind === 'hunt' ? g.count : g.kind === 'race' ? g.checkpoints : '?'
-        const icon = e.kind === 'egg' ? '🥚' : e.kind === 'king' ? '🐔 CAUGHT' : e.kind === 'thief' ? '🍼 SAVED' : e.kind === 'gate' ? '🏁 GATE' : e.kind === 'jelly' ? '🪼 POPPED' : '🎩'
+        const icon = e.kind === 'egg' ? '🥚' : e.kind === 'finger' ? '🍗 CHICKEN FINGER' : e.kind === 'thief' ? '🍼 SAVED' : e.kind === 'gate' ? '🏁 GATE' : e.kind === 'jelly' ? '🪼 POPPED' : '🎩'
         ui.popup(`${icon} ${e.points} / ${total}`, pt.x, pt.y, e.kind === 'egg' ? '#ffd23f' : e.kind === 'gate' || e.kind === 'thief' ? '#4cd137' : '#9b6bff', 1.2)
-        if (e.kind === 'king' && e.points === total) ui.toast('HE DROPPED THE PACIFIER! Grab it!', 2000, 'good')
+        if (e.kind === 'finger' && e.points === total) ui.toast('HE DROPPED THE PACIFIER AND RAN HOME! Grab it!', 2200, 'good')
+        else if (e.kind === 'finger') ui.toast('CRISPY SPEED! Find the king again', 1300, 'good')
         break
       }
       case 'trampled':
         hitstop = Math.max(hitstop, 0.1)
         ui.toast('TRAMPLED! Keep running!', 1200, 'boss')
         break
+      case 'kingPoof': {
+        if ((e.big ?? 0) > 0) {
+          hitstop = Math.max(hitstop, 0.1)
+          const pt = renderer.project(e.x ?? 0, 2.2, e.z ?? 0)
+          ui.popup('POOF! GRAB THE FINGER 🍗', pt.x, pt.y, '#ffd23f', 1.2)
+        }
+        break
+      }
       case 'erupt':
         if ((e.big ?? 0) > 0) ui.toast('POODOOM ERUPTS! 💩🌋', 1300, 'boss')
         else ui.toast('Poodoom is rumbling...', 900)
@@ -733,6 +743,9 @@ function playSound(e: GameEvent) {
       return
     case 'snowMilestone':
       audio.play('win', { vol: 0.4, pitch: 1 + (e.big ?? 0) * 0.4 })
+      return
+    case 'kingPoof':
+      audio.play('chicken', { pitch: (e.big ?? 0) > 0 ? 0.6 : 1.2, vol: 0.9 })
       return
     case 'rockHint':
       audio.play('rockHint', { pitch: 0.7 + (e.big ?? 0) * 0.9, vol: 0.5 + (e.big ?? 0) * 0.5 })

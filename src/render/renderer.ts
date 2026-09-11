@@ -24,6 +24,7 @@ const PICKUP_COLOR: Record<string, number> = {
   boomerang: 0xffd23f,
   giraffe: 0xf2c14e,
   decoy: 0xffd9b8,
+  finger: 0xffd23f,
 }
 import { ASSETS } from './assets.ts'
 import { buildNpc, makeGiraffe, makeHat, makeKacone, makePartModel, makeProp, makeQuad, makeSkateboard, makeWings } from './models.ts'
@@ -807,6 +808,17 @@ export class Renderer {
       const gf = makeGiraffe(this.toonFn)
       gf.scale.setScalar(0.32)
       g.add(gf)
+    } else if (k.kind === 'finger') {
+      const strip = add(new THREE.CapsuleGeometry(0.16, 0.5, 4, 8), 0xd9a066, 0, 0.55)
+      strip.rotation.z = 0.7
+      for (const [x, y] of [
+        [-0.12, 0.42],
+        [0.1, 0.6],
+        [0, 0.72],
+      ]) add(new THREE.SphereGeometry(0.05, 6, 5), 0xb5722f, x, y, 0.16)
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.3 }))
+      glow.position.y = 0.55
+      g.add(glow)
     } else if (k.kind === 'decoy') {
       add(new THREE.CapsuleGeometry(0.16, 0.2, 4, 8), 0xffffff, 0, 0.3)
       add(new THREE.SphereGeometry(0.2, 10, 8), 0xffd9b8, 0, 0.68)
@@ -1202,6 +1214,10 @@ export class Renderer {
         break
       case 'congaSmash':
         this.particles.burst(x, 0.8, z, 10, 0xff8fab, 3, 0.12)
+        break
+      case 'kingPoof':
+        this.particles.burst(x, 0.9, z, (e.big ?? 0) > 0 ? 34 : 14, 0xffffff, 4, 0.16)
+        this.particles.burst(x, 0.7, z, 12, 0xffd23f, 3, 0.12)
         break
       case 'nap':
         this.particles.burst(x, 0.8, z, 30, 0x4aa3ff, 4, 0.18)

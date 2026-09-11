@@ -79,8 +79,12 @@ export function botInput(s: State): Input {
     let tz = 0
     let shout = false
     if (g.kind === 'chase') {
+      const finger = s.pickups.find((k) => k.kind === 'finger')
       const king = s.npcs.find((n) => n.kind === 'king')
-      if (king) {
+      if (finger) {
+        tx = finger.x
+        tz = finger.z
+      } else if (king) {
         tx = king.x
         tz = king.z
         shout = Math.hypot(king.x - p.x, king.z - p.z) < 5

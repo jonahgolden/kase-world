@@ -730,13 +730,27 @@ describe('sim', () => {
     const kx = king.x
     run(s, 1.5)
     expect(Math.hypot(king.x - kx, king.z) > 0.5 || king.state === 'flee').toBe(true)
+    // each catch poofs him into a chicken finger; grabbing it is the +1, and he pops up far away
     for (let i = 0; i < 3; i++) {
-      king.scaredCd = 0
-      p.x = king.x
-      p.z = king.z
+      const k = s.npcs.find((n) => n.kind === 'king')!
+      k.scaredCd = 0
+      p.x = k.x
+      p.z = k.z
       p.y = 0
       step(s, EMPTY_INPUT)
+      const finger = s.pickups.find((q) => q.kind === 'finger')!
+      expect(finger).toBeTruthy()
+      expect(s.found).toBe(i)
+      if (i < 2) expect(Math.hypot(k.x - p.x, k.z - p.z)).toBeGreaterThan(10)
+      else expect(s.npcs.some((n) => n.kind === 'king')).toBe(false)
+      p.x = finger.x
+      p.z = finger.z
+      p.y = finger.y
+      p.hp = 40
+      run(s, 0.4)
       expect(s.found).toBe(i + 1)
+      expect(p.crispyT).toBeGreaterThan(0)
+      expect(p.hp).toBe(60)
     }
     expect(s.pickups.some((k) => k.kind === 'pacifier')).toBe(true)
     run(s, 0.1)

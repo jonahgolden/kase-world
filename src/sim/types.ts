@@ -119,7 +119,7 @@ export interface Debris {
   settled: boolean
 }
 
-export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'egg' | 'nap' | 'boomerang' | 'giraffe' | 'decoy'
+export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'egg' | 'nap' | 'boomerang' | 'giraffe' | 'decoy' | 'finger'
 export type RideKind = 'skateboard' | 'quad' | 'giraffe'
 
 export type GoalItem = 'fedora' | 'egg'
@@ -261,6 +261,7 @@ export interface Player {
   aiming: boolean // holding an attack: arrows turn in place instead of moving
   naps: number // Zzz nap bombs left to throw
   boomerang: boolean // the binky comes back: throws launch it instead of poop
+  crispyT: number // seconds of chicken-finger speed left
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt' | 'stun' | 'lay'
@@ -414,6 +415,7 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'kingPoof'
   | 'rockHint'
   | 'snowMilestone'
   | 'nap'

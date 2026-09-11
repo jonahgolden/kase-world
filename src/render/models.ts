@@ -829,6 +829,11 @@ export function buildNpc(ctx: ModelCtx, n: Npc): NpcView {
       cape.position.set(0, 0.3, -0.3)
       cape.rotation.x = 0.3
       body.add(cape)
+      // a floating crown tag so the king reads from across the continent
+      const tag = ctx.promptSprite('👑')
+      tag.position.y = 1.5
+      tag.scale.setScalar(1.1)
+      g.add(tag)
     }
     const wrap = new THREE.Group()
     wrap.add(body)
