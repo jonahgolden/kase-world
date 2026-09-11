@@ -1228,6 +1228,18 @@ describe('sim', () => {
     expect(s.events.some((e) => e.t === 'playerHurt' && e.label === 'TESTED!')).toBe(true)
   })
 
+  it('research pass 7: a boss retry keeps the wreck clock and the same continent', () => {
+    const a = createState({ seed: 77, levelId: 'north-america' })
+    const layout = a.props.map((p) => [p.kind, Math.round(p.x), Math.round(p.z)].join(':')).join(',')
+    const b = createState({ seed: 77, levelId: 'north-america', timeOffset: 42 })
+    expect(b.time).toBe(42)
+    expect(b.props.map((p) => [p.kind, Math.round(p.x), Math.round(p.z)].join(':')).join(',')).toBe(layout)
+    skipToBoss(b)
+    run(b, CFG.boss.enterTime + 0.3)
+    expect(b.phase).toBe('boss')
+    expect(b.time).toBeGreaterThan(42)
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

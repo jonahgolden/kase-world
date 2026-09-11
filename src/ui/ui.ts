@@ -10,6 +10,7 @@ export interface UiCallbacks {
   onPlay: (name: string, levelId: string | null) => void
   onNext: () => void
   onRestart: () => void
+  onRestartLevel: () => void
   onTitle: () => void
   onResume: () => void
   onPause: () => void
@@ -143,7 +144,7 @@ export class Ui {
       <div id="over" class="screen panel" hidden>
         <h2 id="over-title">KASE NEEDS A NAP</h2>
         <p id="over-sub"></p>
-        <div class="row-btns"><button id="restart" class="cta">TRY AGAIN</button><button id="over-title-btn" class="ghost">TITLE</button></div>
+        <div class="row-btns"><button id="restart" class="cta">TRY AGAIN</button><button id="over-restart-level" class="ghost" hidden>RESTART LEVEL</button><button id="over-title-btn" class="ghost">TITLE</button></div>
       </div>
       <div id="choose" class="screen choose" hidden>
         <div class="choose-card">
@@ -230,6 +231,7 @@ export class Ui {
     this.get('back').addEventListener('click', () => this.cb.onTitle())
     this.get('next').addEventListener('click', () => this.cb.onNext())
     this.get('restart').addEventListener('click', () => this.cb.onRestart())
+    this.get('over-restart-level').addEventListener('click', () => this.cb.onRestartLevel())
     this.get('won-title-btn').addEventListener('click', () => this.cb.onTitle())
     this.get('over-title-btn').addEventListener('click', () => this.cb.onTitle())
     this.get('btn-help').addEventListener('click', () => this.cb.onPause())
@@ -603,10 +605,13 @@ export class Ui {
   showOver(s: State) {
     const lvl = currentLevel(s)
     const pct = Math.floor(s.wreck * 100)
-    this.get('over-sub').textContent =
-      s.phase === 'over' && s.boss
-        ? `${lvl.boss.name} won this time. You got ${s.boss.hits} of ${s.boss.totalHits} hits in.`
-        : `You wrecked ${pct}% of ${lvl.name} in ${fmtClock(s.time)}.`
+    const atBoss = s.phase === 'over' && !!s.boss
+    // failure as a teacher: say how far you got and that it is "not yet", then offer the boss again
+    this.get('over-sub').textContent = atBoss
+      ? `Not yet! ${s.boss!.hits} of ${s.boss!.totalHits} hits on ${lvl.boss.name}. ${lvl.boss.hintShort}.`
+      : `Not yet! ${pct}% of ${lvl.name} wrecked in ${fmtClock(s.time)}.`
+    this.get('restart').textContent = atBoss ? 'TRY THE BOSS AGAIN' : 'TRY AGAIN'
+    this.get('over-restart-level').hidden = !atBoss
     this.show('over')
   }
 

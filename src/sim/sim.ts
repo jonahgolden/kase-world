@@ -193,6 +193,7 @@ export interface CreateOpts {
   runId?: string
   carry?: { levelsCleared: number; runTime: number; stats: State['stats']; hp: number }
   assist?: number // extra hearts after repeated game overs on this level (quiet difficulty help)
+  timeOffset?: number // level clock starts here: a boss retry keeps the wreck-phase time so times stay honest
 }
 
 export function newId(s: State): number {
@@ -300,7 +301,7 @@ export function createState(opts: CreateOpts = {}): State {
     seed,
     rng,
     tick: 0,
-    time: 0,
+    time: Math.max(0, opts.timeOffset ?? 0),
     runTime: opts.carry?.runTime ?? 0,
     levelId: level.id,
     levelIndex,

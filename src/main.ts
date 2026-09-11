@@ -87,6 +87,7 @@ const ui = new Ui(
     onPlay: (n, levelId) => launch(n, levelId ?? LEVELS[0].id),
     onNext: () => nextLevel(),
     onRestart: () => restartLevel(),
+    onRestartLevel: () => restartLevel(true),
     onTitle: () => goTitle(),
     onResume: () => resume(),
     onPause: () => pause(),
@@ -238,11 +239,15 @@ function nextLevel() {
   }, 380)
 }
 
-function restartLevel() {
+// A boss loss retries the boss: same seed (same continent), clock resumed from when he landed.
+function restartLevel(whole = false) {
   if (!state) return
-  const seed = Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
-  state = createState({ seed, levelId: state.levelId, assist: assistFor(state.levelId) })
-  beginLevel(true)
+  const atBoss = !whole && state.phase === 'over' && !!state.boss
+  const seed = atBoss ? state.seed : Number(params.get('seed')) || Math.floor(Math.random() * 1_000_000)
+  const wreckTime = atBoss ? Math.max(0, state.time - state.phaseT) : 0
+  state = createState({ seed, levelId: state.levelId, assist: assistFor(state.levelId), timeOffset: wreckTime })
+  if (atBoss) skipToBoss(state)
+  beginLevel(!atBoss)
 }
 
 // Quiet difficulty help: every game over on a level buys one extra heart next try (max 2), gone on a clear.

@@ -290,3 +290,21 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   **→ applied: short buzzes on Kase hurt (30 ms), boss hit (15), boss down (60), guarded and rate-limited.**
 - Boss camera: keep both fighters framed; top-down helps track fast movers. Ours already blends the target
   two-thirds Kase, one-third boss and pulls back in boss mode. Left alone. ([Game Developer: art of boss design](https://www.gamedeveloper.com/design/tips-from-a-combat-designer-the-art-of-boss-design))
+
+## 2026-09-11 (timer pass 7) — retry loop, i-frames, what kids call fun, failure tone
+
+- Checkpoint before the boss: dying at the boss and replaying the level is the classic frustration; kid-friendly
+  games restart the fight itself, with infinite retries. ([TV Tropes: Checkpoint](https://tvtropes.org/pmwiki/pmwiki.php/Main/Checkpoint),
+  [Access-Ability: checkpoints and save availability](https://access-ability.uk/2022/04/25/checkpoints-save-states-and-save-availability/))
+  **→ applied: a game over during a boss fight offers TRY THE BOSS AGAIN (same seed, same layout, the wreck-phase clock
+  carried over so the time stays honest) and RESTART LEVEL as the second choice.**
+- Mercy invincibility: 0.45 s–3 s across platformers; ours is 1.0 s invulnerable + 0.3 s hitstun. In range, kept.
+  ([TV Tropes: Mercy Invincibility](https://tvtropes.org/pmwiki/pmwiki.php/Main/MercyInvincibility))
+- Kids 8–12 call "hard fun" fun: challenge at the edge of ability, immediate feedback, agency, surprise rewards at
+  milestones, nonsensical humor. ([Harvard GSE: find the fun](https://www.gse.harvard.edu/ideas/usable-knowledge/21/06/find-fun),
+  [3 Pillars: drive for mastery](https://3pillarsparent.substack.com/p/harness-your-kids-drive-for-mastery)) Ours covers all
+  five; humor is the game's spine (poop, screaming, Chicken King, Poodoom).
+- Failure tone: treat failure as a teacher; "not yet" wording, a light sound (the wah-wah trombone), congratulate the try.
+  ([Game Developer: failure by design](https://www.gamedeveloper.com/design/failure-by-design-encouraging-learning-through-failure-with-games-),
+  [SFX Engine: failure sounds](https://sfxengine.com/blog/failure-sound-effects))
+  **→ applied: the nap screen says how far you got and "not yet" instead of a flat loss.**
