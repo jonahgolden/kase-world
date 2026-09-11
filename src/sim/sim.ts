@@ -54,7 +54,7 @@ export const CFG = {
     lakeSpeed: 0.45,
     cloudSpeed: 0.6,
     stepUp: 0.35,
-    aimAssistAngle: 0.9,
+    aimAssistAngle: 0.6,
     airControl: 0.5,
     launchControl: 0.05,
     launchTime: 0.55,
@@ -63,12 +63,12 @@ export const CFG = {
   flight: { rise: 5.5, riseAccel: 40, fuelPerWings: 3.5, maxFuel: 7 },
   fly: {
     speed: 8.5,
-    boostSpeed: 14.5,
-    turnRate: 1.7, // rad/s at full stick (~100 deg/s)
-    turnSmooth: 7,
-    pitchMax: 0.8,
-    pitchIn: 4,
-    autoLevel: 2.2,
+    boostSpeed: 13, // 1.5x, per arcade-flier convention
+    turnRate: 1.4, // rad/s at full stick (~80 deg/s), ramped over ~0.2 s
+    turnSmooth: 5,
+    pitchMax: 0.7, // ~40 degrees
+    pitchIn: 2.5,
+    autoLevel: 2,
     minY: 0.35,
     maxY: 13,
     boostPerWings: 3,

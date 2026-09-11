@@ -49,6 +49,10 @@ export interface PrevSnap {
   poops: Map<number, { x: number; y: number; z: number }>
 }
 
+function speedLinesDue(time: number, dt: number): boolean {
+  return time % 0.08 < dt
+}
+
 function lerpAngle(a: number, b: number, t: number): number {
   let d = b - a
   while (d > Math.PI) d -= Math.PI * 2
@@ -1184,7 +1188,8 @@ export class Renderer {
   }
 
   addShake(v: number) {
-    this.shake = Math.min(1.4, this.shake + v)
+    // shake fights aiming; keep it tiny while flying
+    this.shake = Math.min(1.4, this.shake + v * (this.chase ? 0.25 : 1))
   }
 
   // Torches, a glowing ring and a spotlight: the boss fight gets its own stage.
@@ -1249,7 +1254,7 @@ export class Renderer {
     this.flyTilt += (wantTilt - this.flyTilt) * Math.min(1, dt * 6)
     if (this.playerModel) {
       this.playerModel.rotation.x = -1.25 * this.flyTilt + (p.flying ? -p.pitch * 0.5 : 0)
-      this.playerModel.rotation.z = p.flying ? -p.turnV * 0.7 : 0
+      this.playerModel.rotation.z = p.flying ? -p.turnV * 0.5 : 0
     }
     this.board.visible = riding
     this.quad.visible = quad
@@ -1642,17 +1647,18 @@ export class Renderer {
       let diff = p.facing - this.camYaw
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      this.camYaw += diff * Math.min(1, 4 * dt)
+      this.camYaw += diff * Math.min(1, 3 * dt)
       const fx = Math.sin(this.camYaw)
       const fz = Math.cos(this.camYaw)
       const boost = p.boosting ? 1 : 0
-      this.fovKick += (boost - this.fovKick) * Math.min(1, dt * 4)
+      this.fovKick += (boost - this.fovKick) * Math.min(1, dt * (boost ? 5 : 2))
+      if (p.boosting && speedLinesDue(this.time, dt)) this.particles.burst(p.x - Math.sin(p.facing) * 0.6, p.y + 0.2, p.z - Math.cos(p.facing) * 0.6, 2, 0xffffff, 1.5, 0.07)
       const back = (portrait ? 7 : 6.5) + this.fovKick * 1.2
       const up = (portrait ? 3.2 : 2.6) - p.pitch * 1.2
       this.camTarget.lerp(this.tmpV.set(p.x + fx * 3, p.y + 0.8 + p.pitch * 2, p.z + fz * 3), Math.min(1, 8 * dt))
       const want = this.tmpS.set(p.x - fx * back, p.y + up, p.z - fz * back)
-      const fovBase = portrait ? 62 : 50
-      this.camera.fov = fovBase + this.fovKick * 10
+      const fovBase = portrait ? 70 : 62
+      this.camera.fov = fovBase + this.fovKick * 15
       this.camera.updateProjectionMatrix()
       // never sit inside an island: climb over any platform the camera would enter
       for (const f of s.features) {

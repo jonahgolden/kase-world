@@ -90,8 +90,14 @@ export class InputDriver {
         dx *= JOY_RADIUS / d
         dy *= JOY_RADIUS / d
       }
-      this.joy.x = dx / JOY_RADIUS
-      this.joy.y = dy / JOY_RADIUS
+      // scaled-radial dead zone, then squared magnitude for fine control near the centre
+      const mag = Math.min(1, Math.hypot(dx, dy) / JOY_RADIUS)
+      const dz = 0.15
+      const m = mag < dz ? 0 : ((mag - dz) / (1 - dz)) ** 2
+      const nx = mag > 0 ? dx / (mag * JOY_RADIUS) : 0
+      const ny = mag > 0 ? dy / (mag * JOY_RADIUS) : 0
+      this.joy.x = nx * m
+      this.joy.y = ny * m
       this.knobEl.style.transform = `translate(${dx}px, ${dy}px)`
     })
     const end = (e: PointerEvent) => {
