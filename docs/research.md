@@ -326,3 +326,19 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
 - First seconds of a level: landmarks, sightlines and a clear "that way" cue. ([Level Design Book: wayfinding](https://book.leveldesignbook.com/process/blockout/wayfinding),
   [World of Level Design: guiding the player](https://www.worldofleveldesign.com/categories/level_design_tutorials/alan-wake-guide-the-player.php))
   The objective arrow covers the "that way"; finds already glow with pillars.
+
+## 2026-09-11 (timer pass 9) — guidance as a crutch, music everywhere, results screens, hearts
+
+- Objective markers are fine sparingly; always-on arrows kill looking at the world (Breath of the Wild guides by
+  landmarks and height). ([Goomba Stomp: the mini-map doesn't matter](https://goombastomp.com/the-mini-map-doesnt-matter-how-breath-of-the-wild-was-meant-to-be-played/),
+  [ResetEra: mission markers](https://www.resetera.com/threads/why-do-people-complain-about-mission-markers-arrows-in-rpgs.60517/page-2))
+  **→ applied: the green arrow waits until the objective has been off screen for 3 s, except in boss fights and the
+  timed goals (escape, race) where it shows at once. Pure `arrowVisible()` in ui.ts, tested.**
+- Music: casual players weigh audio aesthetics heavily; curated soundscapes correlate with ~20% better retention;
+  silence reads as dead; adaptive layers should follow intensity. ([MoldStud: background music in mobile games](https://moldstud.com/articles/p-the-importance-of-background-music-in-mobile-game-development-enhancing-player-experience-and-engagement),
+  [G-angle: why background music matters](https://www.g-angle.com/blog/sound/why-background-music-matters-in-game-development/),
+  [Game Wisdom: music and SFX](https://game-wisdom.com/guest/importance-background-music-sound-effects-video-games))
+  **→ applied: procedural music on every level, not just the Sky: `audio.music('play' | 'calm' | 'boss' | 'off')`. Play
+  is an upbeat pentatonic loop; calm is the Sky lullaby; boss adds a bass pulse and a faster step. Volume stays low
+  under the effects; the SOUND toggle still mutes everything.**
+- Results screens and hearts-vs-bars: no usable specifics found this pass. Hearts stay.

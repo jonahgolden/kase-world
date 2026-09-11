@@ -4,7 +4,7 @@ import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
 import { GHOST_DT, ghostAt, packGhost } from '../src/ghost.ts'
-import { goalShort } from '../src/ui/ui.ts'
+import { ARROW_DELAY, arrowVisible, goalShort } from '../src/ui/ui.ts'
 import type { Input, State } from '../src/sim/types.ts'
 import { LEVELS, PROP_STATS } from '../src/sim/levels.ts'
 
@@ -1262,6 +1262,15 @@ describe('sim', () => {
     addWreck(s, 50, 0, 0)
     step(s, EMPTY_INPUT)
     expect(s.progressT).toBeLessThan(1)
+  })
+
+  it('research pass 9: the objective arrow waits unless a boss or the clock is pressing', () => {
+    expect(arrowVisible(0, 'wreck', 'wreck')).toBe(false)
+    expect(arrowVisible(ARROW_DELAY, 'wreck', 'wreck')).toBe(true)
+    expect(arrowVisible(0, 'boss', 'wreck')).toBe(true)
+    expect(arrowVisible(0, 'wreck', 'escape')).toBe(true)
+    expect(arrowVisible(0, 'wreck', 'race')).toBe(true)
+    expect(arrowVisible(1, 'wreck', 'chase')).toBe(false)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

@@ -664,6 +664,14 @@ function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
 
+// The objective arrow is a tool, not a crutch: it waits 3 s off screen, except when the clock or a boss is pressing.
+export const ARROW_DELAY = 3
+export function arrowVisible(offSeconds: number, phase: string, goalKind: string): boolean {
+  if (phase === 'boss') return true
+  if (goalKind === 'escape' || goalKind === 'race') return true
+  return offSeconds >= ARROW_DELAY
+}
+
 // Minimum time a line stays up: an 8-year-old reads about two words a second, plus a beat to notice it.
 export function readMs(text: string, wanted: number): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length

@@ -8,7 +8,7 @@ import type { PrevSnap } from './render/renderer.ts'
 import { Globe } from './render/globe.ts'
 import { InputDriver } from './input/input.ts'
 import { AudioDriver } from './audio/audio.ts'
-import { Ui, goalShort, medalFor } from './ui/ui.ts'
+import { Ui, arrowVisible, goalShort, medalFor } from './ui/ui.ts'
 import { adminCheck, adminClearBoard, adminToken, fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
 import type { TimeRow } from './net/leaderboard.ts'
 import { GHOST_DT, GHOST_MAX, loadGhost, packGhost, saveGhost } from './ghost.ts'
@@ -282,6 +282,7 @@ function clearFails(levelId: string) {
   }
 }
 let thiefWarns = 0
+let arrowOffT = 0
 // collecting streak: pickups close together climb in pitch
 let pickupAt = -10
 let pickupStreak = 0
@@ -304,6 +305,7 @@ function beginLevel(fresh: boolean) {
   endTimer = 0
   ghostRec = []
   ghostNextT = 0
+  arrowOffT = 0
   renderer.setLevel(state)
   if (params.get('ghost') === 'demo') {
     // dev: a synthetic lap so the ghost can be seen without a saved best
@@ -317,7 +319,7 @@ function beginLevel(fresh: boolean) {
   mode = 'play'
   audio.unlock()
   audio.play('levelPhase', { vol: 0.4 })
-  audio.music(!!currentLevel(state).sky)
+  audio.music(currentLevel(state).sky ? 'calm' : 'play')
   if (touch && !bot && !params.has('auto') && !document.fullscreenElement) {
     try {
       document.documentElement.requestFullscreen?.()?.catch(() => {})
@@ -543,6 +545,7 @@ function handleEvents(s: State) {
         ui.toast('TRAMPLED! Keep running!', 1200, 'boss')
         break
       case 'stuckHint':
+        arrowOffT = 99 // stuck: the arrow shows right away
         ui.toast(`${goalShort(s.goal)} · follow the green arrow`, 2600, 'go')
         break
       case 'kingPoof': {
@@ -656,6 +659,7 @@ function handleEvents(s: State) {
         ui.toast('100% WRECKED. BOSS TIME!', 2200, 'boss')
         break
       case 'levelPhase':
+        audio.music('boss')
         if (s.boss) ui.toast(s.boss.def.hintShort, 3200, 'go')
         break
       case 'bossExposed':
@@ -842,13 +846,14 @@ function loop(now: number) {
       ui.updateHud(state, dt)
       if (state.tick % 4 === 0) ui.drawMinimap(state)
       if (state.tick % 3 === 0) {
-        // objective arrow: only when the thing the meter wants is off screen
+        // objective arrow: only once the thing the meter wants has been off screen a while (no crutch)
         const t = goalTarget(state)
         if (t) {
           const pt = renderer.project(t.x, 0.8, t.z)
           const m = 24
           const off = pt.x < m || pt.y < m || pt.x > window.innerWidth - m || pt.y > window.innerHeight - m
-          ui.setArrow(pt.x, pt.y, off)
+          arrowOffT = off ? arrowOffT + DT * 3 : 0
+          ui.setArrow(pt.x, pt.y, off && arrowVisible(arrowOffT, state.phase, state.goal.kind))
         } else ui.setArrow(0, 0, false)
       }
       if (endTimer > 0) {

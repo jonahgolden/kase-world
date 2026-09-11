@@ -12,6 +12,7 @@ export class AudioDriver {
   private voices = 0
   private lastPlay = new Map<string, number>()
   private musicTimer: number | null = null
+  private musicMode: 'off' | 'play' | 'calm' | 'boss' = 'off'
   private musicGain: GainNode | null = null
   private musicStep = 0
   muted = false
@@ -60,49 +61,74 @@ export class AudioDriver {
   }
 
   // A soft looping lullaby-ish arpeggio for the sky. Pentatonic, quiet, no drums.
-  music(on: boolean) {
-    if (!on) {
+  // Procedural music, one loop per mood: play (upbeat), calm (the Sky lullaby), boss (bass pulse, faster), off.
+  music(mode: 'off' | 'play' | 'calm' | 'boss' | boolean) {
+    const want: 'off' | 'play' | 'calm' | 'boss' = mode === true ? 'calm' : mode === false ? 'off' : mode
+    if (want === 'off') {
       if (this.musicTimer !== null) window.clearInterval(this.musicTimer)
       this.musicTimer = null
-      if (this.musicGain && this.ctx) {
-        this.musicGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.8)
-      }
+      this.musicMode = 'off'
+      if (this.musicGain && this.ctx) this.musicGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.8)
       return
     }
-    if (!this.ctx || !this.master || this.musicTimer !== null) return
+    if (!this.ctx || !this.master) return
+    if (this.musicMode === want && this.musicTimer !== null) return
+    if (this.musicTimer !== null) window.clearInterval(this.musicTimer)
+    this.musicTimer = null
+    this.musicMode = want
     const ctx = this.ctx
-    this.musicGain = ctx.createGain()
-    this.musicGain.gain.value = 0.11
-    this.musicGain.connect(this.master)
-    const notes = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3]
-    const pattern = [0, 2, 4, 7, 4, 2, 5, 3, 0, 3, 5, 7, 6, 4, 2, 1]
-    const stepMs = 260
+    if (!this.musicGain) {
+      this.musicGain = ctx.createGain()
+      this.musicGain.connect(this.master)
+    }
+    this.musicGain.gain.cancelScheduledValues(ctx.currentTime)
+    this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, ctx.currentTime)
+    this.musicGain.gain.linearRampToValueAtTime(want === 'boss' ? 0.13 : 0.1, ctx.currentTime + 0.6)
+    // pentatonic keeps every random-ish step consonant; the lullaby is the original diatonic pattern
+    const scale = want === 'calm' ? [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3] : [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3, 784.0]
+    const pattern = want === 'calm' ? [0, 2, 4, 7, 4, 2, 5, 3, 0, 3, 5, 7, 6, 4, 2, 1] : want === 'boss' ? [0, 0, 7, 0, 5, 0, 7, 8, 0, 0, 7, 0, 3, 5, 3, 1] : [0, 4, 7, 4, 5, 7, 8, 7, 4, 2, 4, 7, 5, 4, 2, 0]
+    const stepMs = want === 'calm' ? 260 : want === 'boss' ? 170 : 210
+    const wave: OscillatorType = want === 'calm' ? 'triangle' : 'square'
     this.musicStep = 0
     const tick = () => {
       if (!this.ctx || !this.musicGain || this.muted) return
       const t = this.ctx.currentTime
-      const n = notes[pattern[this.musicStep % pattern.length]]
+      const n = scale[pattern[this.musicStep % pattern.length]]
       const o = this.ctx.createOscillator()
-      o.type = 'triangle'
+      o.type = wave
       o.frequency.value = n
       const g = this.ctx.createGain()
       g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(1, t + 0.04)
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.7)
+      g.gain.exponentialRampToValueAtTime(want === 'calm' ? 1 : 0.55, t + 0.03)
+      g.gain.exponentialRampToValueAtTime(0.001, t + (want === 'calm' ? 0.7 : 0.32))
       o.connect(g).connect(this.musicGain)
       o.start(t)
       o.stop(t + 0.75)
+      // bass on the downbeat: soft pad for calm, a thumping pulse for play/boss
       if (this.musicStep % 4 === 0) {
         const pad = this.ctx.createOscillator()
-        pad.type = 'sine'
-        pad.frequency.value = n / 2
+        pad.type = want === 'calm' ? 'sine' : 'sawtooth'
+        pad.frequency.value = want === 'calm' ? n / 2 : scale[0] / 2
         const pg = this.ctx.createGain()
         pg.gain.setValueAtTime(0.0001, t)
-        pg.gain.exponentialRampToValueAtTime(0.5, t + 0.2)
-        pg.gain.exponentialRampToValueAtTime(0.001, t + 1.0)
+        pg.gain.exponentialRampToValueAtTime(want === 'calm' ? 0.5 : 0.35, t + 0.05)
+        pg.gain.exponentialRampToValueAtTime(0.001, t + (want === 'calm' ? 1.0 : 0.25))
         pad.connect(pg).connect(this.musicGain)
         pad.start(t)
         pad.stop(t + 1.05)
+      }
+      if (want === 'boss' && this.musicStep % 2 === 1) {
+        // off-beat hat
+        const h = this.ctx.createOscillator()
+        h.type = 'square'
+        h.frequency.value = 3200
+        const hg = this.ctx.createGain()
+        hg.gain.setValueAtTime(0.0001, t)
+        hg.gain.exponentialRampToValueAtTime(0.06, t + 0.01)
+        hg.gain.exponentialRampToValueAtTime(0.001, t + 0.06)
+        h.connect(hg).connect(this.musicGain)
+        h.start(t)
+        h.stop(t + 0.08)
       }
       this.musicStep++
     }
