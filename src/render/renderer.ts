@@ -107,6 +107,7 @@ export class Renderer {
   private giraffe!: THREE.Group
   private binky: THREE.Group | null = null // the boomerang binky in flight
   private decoyView: THREE.Group | null = null
+  private skyDeco: THREE.Group | null = null // cloud puffs and birds on the sky level
   private debris: THREE.InstancedMesh
   private splats: THREE.InstancedMesh
   private player: THREE.Group = new THREE.Group()
@@ -415,6 +416,9 @@ export class Renderer {
     this.pickupViews.clear()
     this.removeBoss()
     this.removeGoalViews()
+    if (this.skyDeco) this.scene.remove(this.skyDeco)
+    this.skyDeco = sky ? this.makeSkyDeco(s) : null
+    if (this.skyDeco) this.scene.add(this.skyDeco)
     this.particles.clear()
     for (const r of this.rings) this.scene.remove(r.mesh)
     this.rings = []
@@ -698,6 +702,54 @@ export class Renderer {
     return this.starTex
   }
 
+  // Puffy clouds drifting at many heights, a cloud cushion under every island, and a few birds.
+  private makeSkyDeco(s: State): THREE.Group {
+    const g = new THREE.Group()
+    const puffMat = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: this.gradient, transparent: true, opacity: 0.92 })
+    const puff = (x: number, y: number, z: number, size: number, drift: number) => {
+      const c = new THREE.Group()
+      const n = 3 + Math.floor(Math.random() * 3)
+      for (let i = 0; i < n; i++) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(size * (0.55 + Math.random() * 0.5), 8, 6), puffMat)
+        m.position.set((Math.random() - 0.5) * size * 1.6, (Math.random() - 0.5) * size * 0.5, (Math.random() - 0.5) * size * 1.2)
+        c.add(m)
+      }
+      c.position.set(x, y, z)
+      c.userData.drift = drift
+      c.userData.baseY = y
+      c.name = 'puff'
+      g.add(c)
+    }
+    const A = s.arena
+    for (let i = 0; i < 34; i++) {
+      const x = A.minX - 10 + Math.random() * (A.w + 20)
+      const z = A.minZ - 10 + Math.random() * (A.d + 20)
+      puff(x, -6 + Math.random() * 18, z, 1.2 + Math.random() * 2.2, 0.3 + Math.random() * 0.8)
+    }
+    for (const f of s.features) {
+      if (f.kind !== 'platform') continue
+      puff(f.x, -0.6, f.z, f.r * 0.9, 0)
+    }
+    const birdMat = this.toon(0x333344)
+    for (let i = 0; i < 5; i++) {
+      const b = new THREE.Group()
+      for (const side of [-1, 1]) {
+        const w = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.18), birdMat)
+        w.position.x = side * 0.3
+        w.rotation.y = side * 0.4
+        w.name = 'wing'
+        b.add(w)
+      }
+      b.userData.angle = Math.random() * Math.PI * 2
+      b.userData.radius = 22 + Math.random() * 14
+      b.userData.height = 6 + Math.random() * 6
+      b.userData.speed = 0.15 + Math.random() * 0.15
+      b.name = 'bird'
+      g.add(b)
+    }
+    return g
+  }
+
   private makeSkyFloor(): THREE.Mesh {
     const tex = this.checker(0x7cc4ff, 0x8fd0ff, 2)
     tex.repeat.set(40, 40)
@@ -885,6 +937,37 @@ export class Renderer {
         const icon = this.promptSprite('🎯')
         icon.position.y = 4.4
         icon.scale.setScalar(1.3)
+        g.add(icon)
+        break
+      }
+      case 'nest': {
+        const twig = mat(0x8b5a2b)
+        const ring = add(new THREE.TorusGeometry(1.1, 0.32, 8, 20), twig, 0, 0.35)
+        ring.rotation.x = Math.PI / 2
+        ring.scale.y = 0.7
+        add(new THREE.CylinderGeometry(0.9, 1.0, 0.3, 16), mat(0x6e4520), 0, 0.15)
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2
+          const st = add(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 5), mat(i % 2 ? 0xa0703a : 0x5a3a1a), Math.cos(a) * 1.1, 0.45, Math.sin(a) * 1.1)
+          st.rotation.z = Math.cos(a) * 1.1
+          st.rotation.x = Math.sin(a) * 1.1
+        }
+        for (const [x, z] of [
+          [0.3, 0.1],
+          [-0.35, 0.2],
+          [0.05, -0.4],
+        ]) {
+          const egg = add(new THREE.SphereGeometry(0.28, 10, 8), mat(0xd5f5d0), x, 0.55, z)
+          egg.scale.set(1, 1.25, 1)
+        }
+        const splat = new THREE.Mesh(new THREE.SphereGeometry(1.2, 12, 10), new THREE.MeshToonMaterial({ color: 0x6b3e1e, gradientMap: this.gradient, transparent: true, opacity: 0 }))
+        splat.position.y = 0.5
+        splat.scale.set(1.1, 0.6, 1.1)
+        splat.name = 'cover'
+        g.add(splat)
+        const icon = this.promptSprite('💩')
+        icon.position.y = 2.2
+        icon.scale.setScalar(0.9)
         g.add(icon)
         break
       }
@@ -1696,6 +1779,10 @@ export class Renderer {
         break
       }
       case 'covered':
+        if (e.kind === 'nest') {
+          this.addShake(0.4)
+          this.particles.burst(x, 0.8, z, 30, 0x6b3e1e, 4, 0.18)
+        }
         this.particles.burst(x, 1.4, z, 30, 0x6b3e1e, 4, 0.16)
         break
       case 'bossSlip':
@@ -1871,6 +1958,22 @@ export class Renderer {
     if (this.tube) {
       this.tube.visible = afloat
       this.tube.rotation.z = Math.sin(this.time * 3) * 0.06
+    }
+    if (this.skyDeco) {
+      for (const c of this.skyDeco.children) {
+        if (c.name === 'puff') {
+          c.position.x += c.userData.drift * dt
+          c.position.y = c.userData.baseY + Math.sin(this.time * 0.6 + c.position.z) * 0.25
+          if (c.position.x > s.arena.maxX + 14) c.position.x = s.arena.minX - 14
+        } else if (c.name === 'bird') {
+          c.userData.angle += c.userData.speed * dt
+          const a = c.userData.angle
+          c.position.set(Math.cos(a) * c.userData.radius, c.userData.height + Math.sin(this.time * 2 + a) * 0.4, Math.sin(a) * c.userData.radius)
+          c.rotation.y = -a
+          const flap = Math.sin(this.time * 8 + a) * 0.6
+          for (const w of c.children) w.rotation.z = (w.position.x < 0 ? -1 : 1) * flap
+        }
+      }
     }
     for (const f of s.features) {
       if (f.kind !== 'volcano') continue
@@ -2146,7 +2249,7 @@ export class Renderer {
         v.position.set(pr.x, pr.y, pr.z)
         v.rotation.y = pr.rot
       }
-      if (pr.kind === 'statue' || pr.kind === 'evilbaby') {
+      if (pr.kind === 'statue' || pr.kind === 'evilbaby' || pr.kind === 'nest') {
         const cov = v.getObjectByName('cover') as THREE.Mesh | undefined
         if (cov) (cov.material as THREE.MeshToonMaterial).opacity = pr.cover * 0.95
       }

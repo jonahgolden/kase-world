@@ -27,6 +27,7 @@ export const PROP_STATS: Record<PropKind, PropStat> = {
   evilbaby: { r: 1.6, h: 3.6, hp: 5, mass: 50, points: 400, color: 0xffd9b8 },
   snowball: { r: 0.55, h: 1.1, hp: 99999, mass: 3, points: 0, color: 0xffffff },
   bigmilk: { r: 0.9, h: 2.8, hp: 99999, mass: 80, points: 0, color: 0xffffff },
+  nest: { r: 1.4, h: 1.2, hp: 60, mass: 30, points: 250, color: 0x8b5a2b },
 }
 
 export interface NpcStat {
@@ -152,7 +153,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { chicken: 8 },
     finds: { wings: 6, milk: 2, clock: 2 },
     features: {},
-    boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: NOVA, drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', fight: 'nest', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy.' }),
+    boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: NOVA, drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', fight: 'nest', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy. Poop his NEST to stop the minis.' }),
     theme: { ground: 0xffffff, ground2: 0xeef4ff, sky: 0x7cc4ff, fog: 0xbfe6ff, accent: 0xffd23f },
     sky: true,
   },

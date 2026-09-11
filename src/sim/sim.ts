@@ -150,6 +150,7 @@ export const CFG = {
     enterTime: 1.9,
     ringR: 8.5,
     runnerRingR: 11,
+    nestRingR: 13,
     runSpeed: [7, 8.5, 10],
     slipTime: 2.4,
     coverPoops: 14,
@@ -307,7 +308,7 @@ export function createState(opts: CreateOpts = {}): State {
     features: [],
     bombs: [],
     seen: [],
-    duo: { x: 0, y: 0, z: 0, vx: 0, vz: 0, facing: 0, power: 0, state: 'chase', stateT: 0, peckCd: 2, hitFlash: 0, active: false, layCd: 0 },
+    duo: { x: 0, y: 0, z: 0, vx: 0, vz: 0, facing: 0, power: 0, state: 'chase', stateT: 0, peckCd: 2, hitFlash: 0, active: false, layCd: 0, nestWrecked: false },
     boss: null,
     bossRing: null,
     conga: [],
@@ -1926,13 +1927,21 @@ function damageProp(s: State, pr: Prop, dmg: number, wreckScale = 1, src: Damage
     }
     return
   }
-  if (pr.kind === 'statue') {
+  if (pr.kind === 'statue' || pr.kind === 'nest') {
     if (src === 'poop' || src === 'bomb') {
       pr.cover = Math.min(1, pr.cover + (src === 'bomb' ? 1 : CFG.poop.statueCover))
       pr.hitFlash = 0.25
       if (pr.cover >= 1) {
-        ev(s, { t: 'covered', x: pr.x, z: pr.z, id: pr.id })
-        breakProp(s, pr, wreckScale, 'COVERED!')
+        ev(s, { t: 'covered', x: pr.x, z: pr.z, id: pr.id, kind: pr.kind })
+        if (pr.kind === 'nest') {
+          s.duo.nestWrecked = true
+          for (const n of s.npcs) {
+            if (n.kind !== 'mini') continue
+            n.state = 'cower'
+            n.stateT = 999
+          }
+          addWreck(s, pr.points, pr.x, pr.z, 'NEST WRECKED! NO MORE MINIS', 0x6b3e1e)
+        } else breakProp(s, pr, wreckScale, 'COVERED!')
       } else ev(s, { t: 'propHit', x: pr.x, z: pr.z, big: 0.3, color: 0x6b3e1e })
     } else if (src !== 'boss' && pr.promptCd <= 0) {
       pr.promptCd = 0.8
@@ -2036,7 +2045,7 @@ function updateProps(s: State) {
         const nz = d > 0.001 ? dz / d : 0
         const overlap = minD - d
         const speed = Math.hypot(p.vx, p.vz)
-        const heavy = pr.kind === 'statue' || pr.kind === 'evilbaby' || pr.kind === 'bigmilk' ? 1 : pr.kind === 'snowball' ? 0.7 : pr.mass / (pr.mass + 1)
+        const heavy = pr.kind === 'statue' || pr.kind === 'evilbaby' || pr.kind === 'bigmilk' || pr.kind === 'nest' ? 1 : pr.kind === 'snowball' ? 0.7 : pr.mass / (pr.mass + 1)
         p.x -= nx * overlap * heavy
         p.z -= nz * overlap * heavy
         pr.x += nx * overlap * (1 - heavy)
@@ -2049,7 +2058,7 @@ function updateProps(s: State) {
         } else if (speed > C.smashSpeed) {
           const giant = p.giantT > 0
           const push = ((speed * 1.6) / Math.max(0.6, pr.mass * 0.5)) * (ride ? ride.push : 1) * (giant ? 2 : 1)
-          if (pr.kind !== 'statue' && pr.kind !== 'evilbaby' && pr.kind !== 'bigmilk') {
+          if (pr.kind !== 'statue' && pr.kind !== 'evilbaby' && pr.kind !== 'bigmilk' && pr.kind !== 'nest') {
             pr.vx += nx * push
             pr.vz += nz * push
             pr.angVel += range(s.rng, -6, 6)
@@ -2431,7 +2440,7 @@ function updateDuogringo(s: State) {
         ev(s, { t: 'duoPeck', x: d.x, z: d.z, big: d.power })
       }
       const minis = s.npcs.filter((n) => n.kind === 'mini').length
-      if (d.power >= D.layPower && d.layCd <= 0 && minis < D.maxMinis) {
+      if (d.power >= D.layPower && d.layCd <= 0 && minis < D.maxMinis && !d.nestWrecked) {
         d.state = 'lay'
         d.stateT = 0.8
       }
@@ -2513,14 +2522,14 @@ function spawnBoss(s: State) {
   const def = currentLevel(s).boss
   const p = s.player
   const r = def.scale * 0.32
-  const R = def.fight === 'runner' ? CFG.boss.runnerRingR : def.fight === 'games' ? CFG.boss.gamesRingR : CFG.boss.ringR
+  const R = def.fight === 'runner' ? CFG.boss.runnerRingR : def.fight === 'games' ? CFG.boss.gamesRingR : def.fight === 'nest' ? CFG.boss.nestRingR : CFG.boss.ringR
   const clearOfFeatures = (x: number, z: number) => !featureAt(s, x, z, ['platform', 'lake', 'fan', 'portal'], R * 0.5)
   // fights with a track need the whole ring on land; the others may clip the coast a little
   const onLand = def.fight === 'runner' || def.fight === 'games' || def.fight === 'remix'
   let c = onLand ? farPoint(s, p.x, p.z, R + 0.4, 40, clearOfFeatures) : { x: 0, z: 0 }
   if (c.x === 0 && c.z === 0) c = farPoint(s, p.x, p.z, R * 0.75, 30, clearOfFeatures)
   if (c.x === 0 && c.z === 0) c = farPoint(s, p.x, p.z, R * 0.6, 30)
-  s.bossRing = def.fight === 'nest' ? null : { x: c.x, z: c.z, r: R }
+  s.bossRing = { x: c.x, z: c.z, r: R }
   const b: Boss = {
     def,
     x: c.x,
@@ -2567,23 +2576,27 @@ function spawnBoss(s: State) {
 
 function bossLand(s: State, b: Boss) {
   const ring = s.bossRing
+  if (b.def.fight === 'nest') {
+    // Duogringo lands in his nest; the nest itself is a poop target that ends the minis
+    const d = s.duo
+    d.active = true
+    d.x = b.x
+    d.z = b.z
+    d.y = 0.5
+    d.power = 0.3
+    d.state = 'chase'
+    d.layCd = 1.5
+    d.peckCd = 1.5
+    d.nestWrecked = false
+    const st = PROP_STATS.nest
+    s.props.push({ id: newId(s), kind: 'nest', x: b.x, z: b.z, y: 0, vx: 0, vz: 0, vy: 0, rot: 0, angVel: 0, r: st.r, h: st.h, hp: st.hp, maxHp: st.hp, mass: st.mass, points: st.points, color: st.color, broken: false, hitFlash: 0, drop: null, cover: 0, promptCd: 0 })
+  }
   if (!ring) {
-    if (b.def.fight === 'nest') {
-      const d = s.duo
-      d.active = true
-      d.x = b.x
-      d.z = b.z
-      d.y = 0.5
-      d.power = 0.3
-      d.state = 'chase'
-      d.layCd = 1.5
-      d.peckCd = 1.5
-    }
     ev(s, { t: 'bossLand', x: b.x, z: b.z, big: 0.6 })
     return
   }
   for (const pr of s.props) {
-    if (pr.broken) continue
+    if (pr.broken || pr.kind === 'nest') continue
     const d = dist(ring.x, ring.z, pr.x, pr.z)
     if (d < ring.r + 1) {
       const dx = pr.x - ring.x

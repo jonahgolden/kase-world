@@ -32,6 +32,7 @@ export type PropKind =
   | 'evilbaby' // poop only, from a distance
   | 'snowball' // grow levels: push it and it grows
   | 'bigmilk' // protect levels: the bottle the thieves want
+  | 'nest' // Duogringo's nest: poop-cover it and he cannot lay minis
 
 export interface Prop {
   id: number
@@ -277,6 +278,7 @@ export interface Duogringo {
   hitFlash: number
   active: boolean // only present in his own fight
   layCd: number
+  nestWrecked: boolean // the nest is covered in poop: no more minis
 }
 
 export type BossAttack = 'charge' | 'stomp'

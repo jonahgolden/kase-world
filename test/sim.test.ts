@@ -956,6 +956,25 @@ describe('sim', () => {
     expect(Math.abs(chaser.x - d.decoy!.x)).toBeLessThan(2.5)
   })
 
+  it('nest fight: a cloud ring, a nest that stops the minis once covered in poop', () => {
+    const s = createState({ seed: 5, levelId: 'sky' })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.5)
+    expect(s.bossRing).not.toBeNull()
+    expect(s.bossRing!.r).toBe(CFG.boss.nestRingR)
+    const nest = s.props.find((pr) => pr.kind === 'nest')!
+    expect(nest).toBeTruthy()
+    s.duo.power = 1
+    s.duo.layCd = 0
+    run(s, 2)
+    expect(s.npcs.some((n) => n.kind === 'mini')).toBe(true)
+    for (let i = 0; i < 4; i++) s.poops.push({ id: 8200 + i, x: nest.x, y: 0.5, z: nest.z, vx: 0, vy: -1, vz: 0, r: 0.22, ox: nest.x - 5, oz: nest.z })
+    run(s, 0.2)
+    expect(nest.cover).toBeGreaterThanOrEqual(1)
+    expect(s.duo.nestWrecked).toBe(true)
+    expect(s.npcs.filter((n) => n.kind === 'mini').every((n) => n.state === 'cower')).toBe(true)
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })
