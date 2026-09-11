@@ -363,6 +363,10 @@ function handleEvents(s: State) {
           conga: ['CONGA TIME! Lead them into stuff', '#ff8fab'],
           giant: ['GIANT BABY! Giant poops too', '#4cd137'],
           egg: ['', '#ffd23f'],
+          nap: ['NAP BOMBS ×2! Throw = Zzz', '#4aa3ff'],
+          boomerang: ['BOOMERANG BINKY! Throw it, it comes back', '#ffd23f'],
+          giraffe: ['', '#f2c14e'],
+          decoy: ['DECOY BABY! They chase it, not you', '#ff8fab'],
         }
         if (e.kind === 'fedora' && s.goal.kind === 'find') break
         if (e.kind === 'wings') {
@@ -380,10 +384,17 @@ function handleEvents(s: State) {
         break
       }
       case 'rideOff':
-        ui.toast(e.kind === 'quad' ? 'Quad wrecked! Grab it back!' : 'Lost the skateboard! Grab it back!', 1400)
+        ui.toast(e.kind === 'quad' ? 'Quad wrecked! Grab it back!' : e.kind === 'giraffe' ? 'Fell off the giraffe! Grab it back!' : 'Lost the skateboard! Grab it back!', 1400)
         break
       case 'rideOn':
         if (e.kind === 'quad') ui.toast('QUAD! Smash everything!', 1400, 'good')
+        if (e.kind === 'giraffe') ui.toast('GIRAFFE RIDE! Tall, fast, and the stampede runs under you', 1800, 'good')
+        break
+      case 'nap':
+        ui.toast('Zzz... they are asleep', 1200, 'good')
+        break
+      case 'decoy':
+        if ((e.big ?? 0) === 0) ui.toast('The decoy popped. They are onto you!', 1300)
         break
       case 'found': {
         const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)

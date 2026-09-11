@@ -181,7 +181,7 @@ export const LEVELS: LevelDef[] = [
     singles: 3,
     props: { box: 5, barrel: 4, cone: 4, sign: 3, bench: 2, trash: 2, car: 1 },
     npcs: { adult: 4, dog: 3, chicken: 8 },
-    finds: { milk: 2, clock: 3, skateboard: 1, rattle: 1, goggles: 1 },
+    finds: { milk: 2, clock: 3, skateboard: 1, nap: 1, goggles: 1 },
     features: { platform: 3, tall: 1, fan: 1, portal: 1, lake: 2 },
     boss: boss({ id: 'president-jeff', name: 'President Jeff', drawnBy: NOVA, drawing: 'president-jeff.jpg', speed: 1.7, chargeSpeed: 8, damage: 12, scale: 2.4, taunt: 'As president of Antarctica, I order you to nap.', fight: 'poopcover', hint: 'Screams bounce off ice. Cover him completely in poop.' }),
     theme: { ground: 0xeef6ff, ground2: 0xdbe9f7, sky: 0xcfe6ff, fog: 0xe8f3ff, accent: 0x3b5ba5 },
@@ -224,7 +224,7 @@ export const LEVELS: LevelDef[] = [
     singles: 4,
     props: { tree: 6, box: 4, barrel: 3, cone: 3, bench: 2, trash: 2, sign: 2, car: 1 },
     npcs: { adult: 5, dog: 3, chicken: 10 },
-    finds: { milk: 3, clock: 2, giant: 1, potato: 1, wings: 1 },
+    finds: { milk: 3, clock: 2, giant: 1, potato: 1, giraffe: 1 },
     features: { platform: 3, tall: 2, fan: 2, portal: 1, lake: 2 },
     boss: boss({
       id: 'africa-group',
@@ -281,7 +281,7 @@ export const LEVELS: LevelDef[] = [
     singles: 4,
     props: { ...SUBURB, tree: 4, hydrant: 3 },
     npcs: { adult: 5, dog: 3, chicken: 10 },
-    finds: { milk: 2, clock: 3, quad: 1, pacifier: 1, fedora: 1 },
+    finds: { milk: 2, clock: 3, quad: 1, boomerang: 1, fedora: 1 },
     features: { platform: 3, tall: 2, fan: 2, portal: 1, lake: 2 },
     boss: boss({
       id: 'australia-group',
@@ -310,7 +310,7 @@ export const LEVELS: LevelDef[] = [
     singles: 5,
     props: { ...SUBURB, car: 3, mailbox: 4, sign: 3 },
     npcs: { adult: 6, dog: 3, chicken: 9 },
-    finds: { milk: 2, clock: 3, quad: 1, giant: 1, conga: 1, megaphone: 1 },
+    finds: { milk: 2, clock: 3, quad: 1, giant: 1, conga: 1, decoy: 1 },
     features: { platform: 4, tall: 2, fan: 2, portal: 2, lake: 2 },
     boss: boss({
       id: 'columbus',

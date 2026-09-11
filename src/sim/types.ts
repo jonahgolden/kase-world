@@ -59,7 +59,7 @@ export interface Prop {
 }
 
 export type NpcKind = 'adult' | 'dog' | 'chicken' | 'mini' | 'king' | 'thief' | 'jelly' | 'fly' | 'bigfly'
-export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow' | 'raid' | 'drink'
+export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow' | 'raid' | 'drink' | 'sleep'
 
 export interface Npc {
   id: number
@@ -118,7 +118,8 @@ export interface Debris {
   settled: boolean
 }
 
-export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'egg'
+export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'egg' | 'nap' | 'boomerang' | 'giraffe' | 'decoy'
+export type RideKind = 'skateboard' | 'quad' | 'giraffe'
 
 export type GoalItem = 'fedora' | 'egg'
 export type Goal =
@@ -181,6 +182,18 @@ export interface Bomb {
   vy: number
   vz: number
   fuse: number
+  kind?: 'potato' | 'nap'
+}
+
+export interface Boomerang {
+  x: number
+  y: number
+  z: number
+  vx: number
+  vz: number
+  t: number // seconds left flying out
+  out: boolean
+  hits: number[] // npc ids already hit this flight
 }
 
 export interface Pickup {
@@ -220,7 +233,7 @@ export interface Player {
   jumpHeld: boolean
   pacifierT: number // seconds of mega scream left
   rattleT: number // seconds of poop storm left
-  ride: 'skateboard' | 'quad' | null // lost when hurt (quad takes two hits), can be picked back up
+  ride: RideKind | null // lost when hurt (quad and giraffe take two hits), can be picked back up
   rideHp: number
   megaphone: boolean // level-long scream upgrade
   fedora: boolean // epic mode for the level
@@ -244,6 +257,8 @@ export interface Player {
   boosting: boolean
   aimPower: number // -1 when the hold time decides the throw range
   aiming: boolean // holding an attack: arrows turn in place instead of moving
+  naps: number // Zzz nap bombs left to throw
+  boomerang: boolean // the binky comes back: throws launch it instead of poop
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt' | 'stun' | 'lay'
@@ -395,6 +410,9 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'nap'
+  | 'boomerang'
+  | 'decoy'
   | 'erupt'
   | 'npcPop'
   | 'poopedOn'
@@ -488,6 +506,8 @@ export interface State {
   rival: Rival | null
   milk: number // protect: 0..1 left in the bottle
   waveT: number // protect: seconds until the next thief
+  boomerang: Boomerang | null
+  decoy: { x: number; z: number; t: number } | null // grown-ups chase this instead of Kase
   found: number // goal count: items found, king catches, thieves repelled, checkpoints passed
   wreck: number // 0..1 progress toward the boss
   wreckPoints: number

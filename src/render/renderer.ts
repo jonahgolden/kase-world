@@ -20,6 +20,10 @@ const PICKUP_COLOR: Record<string, number> = {
   conga: 0xff8fab,
   giant: 0x4cd137,
   egg: 0xffd23f,
+  nap: 0x4aa3ff,
+  boomerang: 0xffd23f,
+  giraffe: 0xf2c14e,
+  decoy: 0xffd9b8,
 }
 import { ASSETS } from './assets.ts'
 import { Particles } from './particles.ts'
@@ -100,6 +104,9 @@ export class Renderer {
   private herd: THREE.Group | null = null // stampede front
   private pigeon: THREE.Group | null = null // race rival
   private tube: THREE.Mesh | null = null // Kase's inner tube on the water level
+  private giraffe!: THREE.Group
+  private binky: THREE.Group | null = null // the boomerang binky in flight
+  private decoyView: THREE.Group | null = null
   private debris: THREE.InstancedMesh
   private splats: THREE.InstancedMesh
   private player: THREE.Group = new THREE.Group()
@@ -223,6 +230,9 @@ export class Renderer {
     this.quad = this.makeQuad()
     this.quad.visible = false
     this.scene.add(this.quad)
+    this.giraffe = this.makeGiraffe()
+    this.giraffe.visible = false
+    this.scene.add(this.giraffe)
     this.hat = this.makeHat()
     this.hat.visible = false
     this.player.add(this.hat)
@@ -561,6 +571,60 @@ export class Renderer {
     obj.position.set(f.x, 0, f.z)
     this.featureViews.set(f.id, obj)
     this.scene.add(obj)
+  }
+
+  // A rideable giraffe: Kase sits on its back, high above stampedes.
+  private makeGiraffe(): THREE.Group {
+    const g = new THREE.Group()
+    const yellow = this.toon(0xf2c14e)
+    const brown = this.toon(0x8b5a2b)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 1.4), yellow)
+    body.position.y = 1.15
+    body.castShadow = true
+    g.add(body)
+    for (const [x, z] of [
+      [-0.28, 0.5],
+      [0.28, 0.5],
+      [-0.28, -0.5],
+      [0.28, -0.5],
+    ]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.9, 8), yellow)
+      leg.position.set(x, 0.45, z)
+      leg.name = 'leg'
+      g.add(leg)
+    }
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.3, 8), yellow)
+    neck.position.set(0, 1.95, 0.75)
+    neck.rotation.x = -0.35
+    g.add(neck)
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.3, 0.55), yellow)
+    head.position.set(0, 2.6, 1.05)
+    g.add(head)
+    for (const x of [-0.1, 0.1]) {
+      const horn = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 6), brown)
+      horn.position.set(x, 2.85, 0.95)
+      g.add(horn)
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
+      eye.position.set(x * 1.8, 2.68, 1.3)
+      g.add(eye)
+    }
+    for (const [x, y, z] of [
+      [0.41, 1.2, 0.3],
+      [-0.41, 1.05, -0.2],
+      [0.41, 1.0, -0.45],
+      [-0.41, 1.3, 0.45],
+      [0, 1.46, 0.1],
+    ]) {
+      const spot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 6, 5), brown)
+      spot.position.set(x, y, z)
+      spot.scale.set(0.5, 1, 1)
+      g.add(spot)
+    }
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.02, 0.5, 5), brown)
+    tail.position.set(0, 1.1, -0.8)
+    tail.rotation.x = 0.5
+    g.add(tail)
+    return g
   }
 
   private makeQuad(): THREE.Group {
@@ -1211,6 +1275,29 @@ export class Renderer {
       pot.scale.set(1.3, 0.9, 1)
       add(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 6), 0x1b1b2f, 0.1, 0.75)
       add(new THREE.SphereGeometry(0.06, 6, 6), 0xff5c5c, 0.1, 0.9)
+    } else if (k.kind === 'nap') {
+      const pillow = add(new THREE.BoxGeometry(0.6, 0.22, 0.42), 0x4aa3ff, 0, 0.4)
+      pillow.rotation.z = 0.15
+      const z = this.promptSprite('💤')
+      z.position.y = 0.95
+      z.scale.setScalar(0.8)
+      g.add(z)
+    } else if (k.kind === 'boomerang') {
+      add(new THREE.TorusGeometry(0.22, 0.06, 8, 16), 0xffd23f, 0, 0.45, 0, Math.PI / 2)
+      add(new THREE.SphereGeometry(0.12, 10, 8), 0xff8fab, 0, 0.45, 0.14)
+      for (const side of [-1, 1]) {
+        const w = add(new THREE.PlaneGeometry(0.4, 0.22), 0xffffff, side * 0.36, 0.5, 0)
+        w.rotation.y = side * 0.5
+      }
+    } else if (k.kind === 'giraffe') {
+      const gf = this.makeGiraffe()
+      gf.scale.setScalar(0.32)
+      g.add(gf)
+    } else if (k.kind === 'decoy') {
+      add(new THREE.CapsuleGeometry(0.16, 0.2, 4, 8), 0xffffff, 0, 0.3)
+      add(new THREE.SphereGeometry(0.2, 10, 8), 0xffd9b8, 0, 0.68)
+      add(new THREE.TorusGeometry(0.07, 0.025, 6, 12), 0xffd23f, 0, 0.62, 0.18)
+      add(new THREE.ConeGeometry(0.05, 0.16, 5), 0x8b5a2b, 0, 0.92)
     }
     // beacon: a light pillar plus a star so finds read from far away
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.32, 5, 10, 1, true), new THREE.MeshBasicMaterial({ color: PICKUP_COLOR[k.kind] ?? 0xffffff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }))
@@ -1624,6 +1711,17 @@ export class Renderer {
       case 'congaSmash':
         this.particles.burst(x, 0.8, z, 10, 0xff8fab, 3, 0.12)
         break
+      case 'nap':
+        this.particles.burst(x, 0.8, z, 30, 0x4aa3ff, 4, 0.18)
+        this.particles.burst(x, 1.2, z, 12, 0xffffff, 2, 0.12)
+        if (e.range) this.ring(x, z, 0, e.range, 0x4aa3ff, 0.5, false)
+        break
+      case 'boomerang':
+        this.particles.burst(x, 0.9, z, 8, 0xffd23f, 2, 0.1)
+        break
+      case 'decoy':
+        this.particles.burst(x, 0.8, z, (e.big ?? 0) > 0 ? 16 : 10, 0xffffff, 3, 0.14)
+        break
       case 'erupt':
         if ((e.big ?? 0) > 0) {
           this.addShake(0.7)
@@ -1756,7 +1854,8 @@ export class Renderer {
     // player
     const riding = p.ride === 'skateboard'
     const quad = p.ride === 'quad'
-    this.player.position.set(px, py + (riding ? 0.16 : quad ? 0.55 : p.inLake ? -0.3 : 0), pz)
+    const giraffe = p.ride === 'giraffe'
+    this.player.position.set(px, py + (riding ? 0.16 : quad ? 0.55 : giraffe ? 1.45 : p.inLake ? -0.3 : 0), pz)
     this.player.rotation.y = pf
     const afloat = isWater(s) && p.gy <= 0.05 && p.y <= 0.05
     if (afloat && !this.tube) {
@@ -1807,6 +1906,77 @@ export class Renderer {
     }
     this.board.visible = riding
     this.quad.visible = quad
+    this.giraffe.visible = giraffe
+    if (giraffe) {
+      this.giraffe.position.set(px, py, pz)
+      this.giraffe.rotation.y = pf
+      const sp = Math.hypot(p.vx, p.vz)
+      let li = 0
+      for (const c of this.giraffe.children) {
+        if (c.name !== 'leg') continue
+        c.rotation.x = Math.sin(this.time * 10 + (li % 2) * Math.PI) * 0.45 * Math.min(1, sp / 3)
+        li++
+      }
+      this.giraffe.rotation.z = Math.sin(this.time * 5) * 0.03 * Math.min(1, sp / 3)
+    }
+    // boomerang binky in flight
+    if (s.boomerang) {
+      if (!this.binky) {
+        const g = new THREE.Group()
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.06, 8, 16), this.toon(0xffd23f))
+        ring.rotation.x = Math.PI / 2
+        const nub = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), this.toon(0xff8fab))
+        nub.position.z = 0.14
+        for (const side of [-1, 1]) {
+          const w = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.22), new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: this.gradient, side: THREE.DoubleSide }))
+          w.position.set(side * 0.36, 0.05, 0)
+          g.add(w)
+        }
+        g.add(ring, nub)
+        this.binky = g
+        this.scene.add(g)
+      }
+      const b = s.boomerang
+      this.binky.position.set(b.x, b.y, b.z)
+      this.binky.rotation.y += dt * 25
+      this.binky.visible = true
+    } else if (this.binky) {
+      this.binky.visible = false
+    }
+    // the decoy baby
+    if (s.decoy) {
+      if (!this.decoyView) {
+        const g = new THREE.Group()
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.3, 4, 8), this.toon(0xffffff))
+        body.position.y = 0.42
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), this.toon(0xffd9b8))
+        head.position.y = 0.95
+        const binky = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.03, 6, 12), this.toon(0xffd23f))
+        binky.position.set(0, 0.88, 0.26)
+        const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 5), this.toon(0x8b5a2b))
+        tuft.position.y = 1.28
+        tuft.rotation.z = 0.3
+        for (const x of [-0.1, 0.1]) {
+          const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
+          e.position.set(x, 1.0, 0.24)
+          g.add(e)
+        }
+        body.castShadow = head.castShadow = true
+        g.add(body, head, binky, tuft)
+        const sign = this.promptSprite('🍼')
+        sign.position.y = 1.8
+        sign.scale.setScalar(0.9)
+        g.add(sign)
+        this.decoyView = g
+        this.scene.add(g)
+      }
+      this.decoyView.visible = true
+      this.decoyView.position.set(s.decoy.x, 0, s.decoy.z)
+      this.decoyView.rotation.z = Math.sin(this.time * 6) * 0.12
+      this.decoyView.scale.setScalar(Math.min(1, s.decoy.t * 3))
+    } else if (this.decoyView) {
+      this.decoyView.visible = false
+    }
     this.hat.visible = p.fedora
     this.wings.visible = p.wings
     if (this.hats.children.length !== p.hats) {
@@ -2036,6 +2206,20 @@ export class Renderer {
         if (n.cover >= 0.95) v.body.rotation.z = Math.sin(this.time * 40) * 0.04
       }
       if (n.state === 'follow') v.body.rotation.z = Math.sin(this.time * 10 + n.id) * 0.25
+      let zzz = v.getObjectByName('zzz') as THREE.Sprite | undefined
+      if (n.state === 'sleep') {
+        v.body.rotation.z = 1.35
+        v.body.rotation.x = 0
+        v.body.position.y = -0.1
+        if (!zzz) {
+          zzz = this.promptSprite('💤')
+          zzz.name = 'zzz'
+          zzz.position.y = 1.2
+          v.add(zzz)
+        }
+        zzz.visible = true
+        zzz.position.y = 1.0 + Math.sin(this.time * 3 + n.id) * 0.2
+      } else if (zzz) zzz.visible = false
       if (n.kind === 'jelly') {
         v.body.position.y = 0.05 + Math.sin(this.time * 2.2 + n.id) * 0.12
         v.body.rotation.x = 0

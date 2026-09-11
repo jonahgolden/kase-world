@@ -102,7 +102,7 @@ export class Ui {
         <h2>HOW TO PLAY</h2>
         <p class="goal-line">Every continent has its own goal on the meter up top: wreck it, find things, catch the Chicken King, roll a snowball, outrun a stampede, guard the milk, race the pigeon, pop the jellies. Fill the meter and the boss shows up. Each boss has one trick; the card tells you what it is.</p>
         <div class="ctls">${controls}</div>
-        <p class="goal-line small">🔊 glass things only break from screams · 💩 statues only get covered by poop · Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
+        <p class="goal-line small">🔊 glass things only break from screams · 💩 statues only get covered by poop · Finds glow with a light pillar. 💤 nap bombs put grown-ups to sleep · 🪃 boomerang binky bonks things out and back · 🦒 giraffe ride = tall and fast · 🍼 decoy baby = grown-ups chase it instead of you · ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
         <div class="row-btns">
           <button id="help-resume" class="cta">RESUME</button>
           <button id="help-restart" class="ghost">RESTART LEVEL</button>
@@ -412,6 +412,9 @@ export class Ui {
     if (p.rattleT > 0) powers.push(`<span class="chip brown">POOP STORM ${Math.ceil(p.rattleT)}</span>`)
     if (p.ride === 'skateboard') powers.push('<span class="chip pink">🛹</span>')
     if (p.ride === 'quad') powers.push(`<span class="chip red">🏍${'♥'.repeat(p.rideHp)}</span>`)
+    if (p.ride === 'giraffe') powers.push(`<span class="chip gold">🦒${'♥'.repeat(p.rideHp)}</span>`)
+    if (p.naps > 0) powers.push(`<span class="chip blue">💤×${p.naps}</span>`)
+    if (p.boomerang) powers.push('<span class="chip gold">🪃 binky</span>')
     if (p.megaphone) powers.push('<span class="chip red">📣</span>')
     if (p.fedora) powers.push('<span class="chip purple">🎩 EPIC</span>')
     if (p.flying) powers.push(`<span class="chip blue">🚀 BOOST ${Math.ceil(p.boostFuel)}</span>`)

@@ -84,7 +84,11 @@ export const CFG = {
   ride: {
     skateboard: { speed: 1.7, accel: 0.55, smash: 1.8, push: 1.5, hp: 1 },
     quad: { speed: 2.2, accel: 0.5, smash: 2.6, push: 2.2, hp: 2 },
+    giraffe: { speed: 1.5, accel: 0.45, smash: 2.0, push: 1.8, hp: 2 }, // tall: the stampede runs under you
   },
+  nap: { count: 2, radius: 4.2, time: 7, fuse: 0.9 },
+  boomerang: { speed: 13, outTime: 0.5, outPerPower: 0.5, back: 15, catchR: 0.9, stun: 1.6, propDamage: 45 },
+  decoy: { time: 12 },
   fedora: { speed: 1.25, range: 1.3 },
   megaphone: { range: 1.4, charge: 0.7 },
   scream: {
@@ -274,6 +278,8 @@ export function createState(opts: CreateOpts = {}): State {
     boosting: false,
     aimPower: -1,
     aiming: false,
+    naps: 0,
+    boomerang: false,
   }
   const s: State = {
     version: VERSION,
@@ -313,6 +319,8 @@ export function createState(opts: CreateOpts = {}): State {
     rival: null,
     milk: 1,
     waveT: 0,
+    boomerang: null,
+    decoy: null,
     found: 0,
     wreck: 0,
     wreckPoints: 0,
@@ -898,6 +906,14 @@ export function step(s: State, input: Input) {
   updateScream(s, input)
   updatePoops(s, input)
   updateBombs(s)
+  updateBoomerang(s)
+  if (s.decoy) {
+    s.decoy.t -= DT
+    if (s.decoy.t <= 0) {
+      ev(s, { t: 'decoy', x: s.decoy.x, z: s.decoy.z, big: 0 })
+      s.decoy = null
+    }
+  }
   updateProps(s)
   updateNpcs(s)
   updateConga(s)
@@ -1471,15 +1487,28 @@ function throwPoop(s: State, power: number) {
     const a = assistAim(s, 9)
     if (a !== null) p.facing = a
   }
-  if (p.potatoes > 0) {
-    p.potatoes--
+  if (p.boomerang) {
+    if (s.boomerang) return
+    const fx = Math.sin(p.facing)
+    const fz = Math.cos(p.facing)
+    const B = CFG.boomerang
+    s.boomerang = { x: p.x + fx * 0.6, y: 0.9 + p.y, z: p.z + fz * 0.6, vx: fx * B.speed, vz: fz * B.speed, t: B.outTime + B.outPerPower * power, out: true, hits: [] }
+    p.poopCd = CFG.player.poopCooldown
+    p.poopHoldT = 0
+    ev(s, { t: 'boomerang', x: p.x, z: p.z, big: power })
+    return
+  }
+  if (p.naps > 0 || p.potatoes > 0) {
+    const nap = p.naps > 0
+    if (nap) p.naps--
+    else p.potatoes--
     const fx = Math.sin(p.facing)
     const fz = Math.cos(p.facing)
     const speed = P.speed + P.speedPerPower * power
-    s.bombs.push({ id: newId(s), x: p.x + fx * 0.5, y: 0.9 + p.y, z: p.z + fz * 0.5, vx: fx * speed + p.vx * 0.4, vy: P.upV + P.upPerPower * power, vz: fz * speed + p.vz * 0.4, fuse: CFG.potato.fuse })
+    s.bombs.push({ id: newId(s), x: p.x + fx * 0.5, y: 0.9 + p.y, z: p.z + fz * 0.5, vx: fx * speed + p.vx * 0.4, vy: P.upV + P.upPerPower * power, vz: fz * speed + p.vz * 0.4, fuse: nap ? CFG.nap.fuse : CFG.potato.fuse, kind: nap ? 'nap' : 'potato' })
     p.poopCd = CFG.player.poopCooldown
     p.poopHoldT = 0
-    ev(s, { t: 'poopThrow', x: p.x, z: p.z, big: power, kind: 'potato' })
+    ev(s, { t: 'poopThrow', x: p.x, z: p.z, big: power, kind: nap ? 'nap' : 'potato' })
     return
   }
   const n = p.rattleT > 0 ? 3 : 1
@@ -1651,6 +1680,70 @@ function explode(s: State, x: number, z: number) {
   }
 }
 
+// Zzz: every grown-up, dog, thief or king nearby falls asleep on the spot.
+function napCloud(s: State, x: number, z: number) {
+  const R = CFG.nap.radius
+  ev(s, { t: 'nap', x, z, big: 1, range: R })
+  for (const n of s.npcs) {
+    if (n.kind === 'chicken' || n.kind === 'jelly' || n.kind === 'fly' || n.kind === 'bigfly') continue
+    if (n.state === 'cower' || n.state === 'follow') continue
+    if (dist(x, z, n.x, n.z) < R + n.r) {
+      n.state = 'sleep'
+      n.stateT = CFG.nap.time
+      n.vx = n.vz = 0
+      n.hitFlash = 0.2
+      addWreck(s, Math.round(NPC_STATS[n.kind].scare * 0.6), n.x, n.z, 'Zzz', 0x4aa3ff)
+    }
+  }
+}
+
+// The binky flies out, then homes back to Kase, bonking everything on both legs of the trip.
+function updateBoomerang(s: State) {
+  const b = s.boomerang
+  if (!b) return
+  const p = s.player
+  const B = CFG.boomerang
+  if (b.out) {
+    b.t -= DT
+    if (b.t <= 0) b.out = false
+  } else {
+    const dx = p.x - b.x
+    const dz = p.z - b.z
+    const d = Math.hypot(dx, dz) || 1
+    b.vx = (dx / d) * B.back
+    b.vz = (dz / d) * B.back
+    if (d < B.catchR) {
+      s.boomerang = null
+      ev(s, { t: 'boomerang', x: p.x, z: p.z, big: 0 })
+      return
+    }
+  }
+  b.x += b.vx * DT
+  b.z += b.vz * DT
+  b.y = 0.9 + p.y
+  if (clampArena(s, b, 0.3, false)) b.out = false
+  for (const pr of s.props) {
+    if (pr.broken || pr.y > 1.2) continue
+    if (dist(b.x, b.z, pr.x, pr.z) < 0.35 + pr.r) {
+      if (pr.kind !== 'statue' && pr.kind !== 'evilbaby' && pr.kind !== 'bigmilk' && pr.kind !== 'snowball') {
+        pr.vx += b.vx * 0.2
+        pr.vz += b.vz * 0.2
+        pr.angVel += range(s.rng, -6, 6)
+      }
+      damageProp(s, pr, B.propDamage, 1, 'bump')
+    }
+  }
+  for (const n of s.npcs) {
+    if (b.hits.includes(n.id) || n.state === 'cower') continue
+    if (dist(b.x, b.z, n.x, n.z) < 0.35 + n.r) {
+      b.hits.push(n.id)
+      n.vx += b.vx * 0.3
+      n.vz += b.vz * 0.3
+      hitNpcWithProjectile(s, n, 'BINKY BONK!', B.stun, false)
+    }
+  }
+}
+
 function updateBombs(s: State) {
   for (let i = s.bombs.length - 1; i >= 0; i--) {
     const b = s.bombs[i]
@@ -1675,7 +1768,8 @@ function updateBombs(s: State) {
       if (s.duo.active && dist(b.x, b.z, s.duo.x, s.duo.z) < 0.3 + duoRadius(s.duo)) contact = true
     }
     if (b.fuse <= 0 || contact) {
-      explode(s, b.x, b.z)
+      if (b.kind === 'nap') napCloud(s, b.x, b.z)
+      else explode(s, b.x, b.z)
       s.bombs.splice(i, 1)
     }
   }
@@ -1711,8 +1805,19 @@ function collect(s: State, k: Pickup) {
     case 'clock':
       addTimeBonus(s, CFG.time.clock, k.x, k.z, `-${CFG.time.clock}s`)
       break
+    case 'nap':
+      p.naps += CFG.nap.count
+      break
+    case 'boomerang':
+      p.boomerang = true
+      break
+    case 'decoy':
+      s.decoy = { x: p.x, z: p.z, t: CFG.decoy.time }
+      ev(s, { t: 'decoy', x: p.x, z: p.z, big: 1 })
+      break
     case 'skateboard':
     case 'quad':
+    case 'giraffe':
       if (p.ride && p.ride !== k.kind) spawnPickup(s, p.ride, p.x - Math.sin(p.facing) * 1.5, p.z - Math.cos(p.facing) * 1.5, 4)
       p.ride = k.kind
       p.rideHp = CFG.ride[k.kind].hp
@@ -2053,7 +2158,11 @@ function updateNpcs(s: State) {
     const sp = (frozen ? 0 : 1 - covered * 0.85) / (n.kind === 'king' ? 1 : Math.sqrt(n.scale))
     n.stateT -= DT
     n.scaredCd = Math.max(0, n.scaredCd - DT)
-    const dp = dist(n.x, n.z, p.x, p.z)
+    // grown-ups and dogs fall for the decoy baby
+    const fooled = !!s.decoy && (n.kind === 'adult' || n.kind === 'dog')
+    const cx = fooled ? s.decoy!.x : p.x
+    const cz = fooled ? s.decoy!.z : p.z
+    const dp = dist(n.x, n.z, cx, cz)
     if (p.giantT > 0 && dp < CFG.giant.scare && (n.state === 'wander' || n.state === 'chase' || n.state === 'recoil')) {
       scareNpc(s, n, p.x, p.z, 4, 'GIANT!')
     }
@@ -2093,17 +2202,33 @@ function updateNpcs(s: State) {
       }
       case 'chase': {
         const wob = n.kind === 'fly' || n.kind === 'bigfly' ? Math.sin(s.time * 11 + n.id) * 1.6 : 0
-        moveToward(n, p.x + wob, p.z - wob, st.chaseSpeed * sp, 6)
-        if (dp > st.detect + 4 || p.y > 0.9 || p.inLake) {
+        moveToward(n, cx + wob, cz - wob, st.chaseSpeed * sp, 6)
+        if (dp > st.detect + 4 || (!fooled && (p.y > 0.9 || p.inLake))) {
           n.state = 'wander'
           n.stateT = 0
         } else if (dp < n.r + p.r + 0.1) {
-          if (hurtPlayer(s, st.damage, n.x, n.z, 0.4)) {
+          if (fooled) {
+            // hugs the decoy, confused
+            n.state = 'recoil'
+            n.stateT = 1.2
+            n.vx = -(cx - n.x) * 2
+            n.vz = -(cz - n.z) * 2
+          } else if (hurtPlayer(s, st.damage, n.x, n.z, 0.4)) {
             n.state = 'recoil'
             n.stateT = 0.7
             n.vx = -(p.x - n.x) * 2
             n.vz = -(p.z - n.z) * 2
           }
+        }
+        break
+      }
+      case 'sleep': {
+        n.vx *= 1 - 8 * DT
+        n.vz *= 1 - 8 * DT
+        if (n.stateT <= 0) {
+          n.state = 'wander'
+          n.stateT = 0
+          n.scaredCd = 1
         }
         break
       }
@@ -3647,7 +3772,7 @@ function updateGoal(s: State) {
         n.vz += st.dirZ * 6
       }
     }
-    if (pp < st.front && p.y < 0.9 && st.hitCd <= 0) {
+    if (pp < st.front && p.y < 0.9 && p.ride !== 'giraffe' && st.hitCd <= 0) {
       st.hitCd = S.hitCd
       hurtPlayer(s, S.damage, p.x - st.dirX * 2, p.z - st.dirZ * 2, 0.9)
       p.vx += st.dirX * S.shove

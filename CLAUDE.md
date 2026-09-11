@@ -100,6 +100,13 @@ v0.7.1: controls memo applied: holding SCREAM/POOP enters aim mode (arrows turn 
 movement), view facing lerps (~0.07 s), facing arrow always visible, auto-aim acquires within 60° and
 ignores targets under 1 unit with a gold ring on the chosen target, dashed arc + landing ring while
 holding poop, touch drag distance sets range, "ready" ding at full charge.
-Next session: start from `~/.claude/kase-world-next-session.md` (prioritized backlog). Summary: sky fans,
-distinct fights for Khan/animal groups/Columbus, chase goal,
-Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.
+v0.8 (in progress, 2026-09-10 late session, autonomous): sky fans launch hovering Kase; four new boss
+fights (Khan horse-spook parry = scream mid-charge; African Animal Group = four UV-cropped cards from one
+drawing, lion poop / giraffe charged scream / rhino wall daze / elephant potatoes; Outback Games = kangaroo
+sumo ring-out, emu lap race with a skateboard on the track, hidden rockfish; Columbus = remix of charge,
+runner, poopcover per phase). `BossDef.parts`, `fightOf(b)`, `activePart(b)`, `Boss.status` HUD line.
+Five goal shapes (`Goal` union): chase (Chicken King, S. America), grow (snowball, Antarctica), escape
+(stampede + flag, Africa), protect (milk thieves, Australia), race (pigeon + gates, Europe), plus hunt
+(The Deep). New level `the-deep` (Louie's water level, `LevelDef.water`): tube float, scream jet, 15 Kelly
+Jellies, Poodoom volcano feature, flies, Kacone = first fully 3D boss (`makeKacone`). Credits: Louie for
+his three, Nova for the rest. Research log lives in `docs/research.md`.

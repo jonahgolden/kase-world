@@ -886,6 +886,76 @@ describe('sim', () => {
     expect(s.boss!.attack).toBe('stomp')
   })
 
+  it('toys: nap bombs put grown-ups to sleep, the binky comes back, the giraffe rides over the stampede, the decoy draws chasers', () => {
+    // nap
+    const s = createState({ seed: 5, levelId: 'antarctica' })
+    s.features = []
+    const adult = s.npcs.find((n) => n.kind === 'adult')!
+    s.npcs = [adult]
+    const p = s.player
+    p.invuln = 99
+    adult.x = p.x + 2
+    adult.z = p.z
+    adult.state = 'wander'
+    p.naps = 2
+    p.facing = Math.PI / 2
+    p.hasAim = true
+    run(s, 0.05, { ...EMPTY_INPUT, poop: true })
+    run(s, 0.05)
+    expect(s.bombs.length).toBe(1)
+    expect(s.bombs[0].kind).toBe('nap')
+    run(s, CFG.nap.fuse + 0.3)
+    expect(adult.state).toBe('sleep')
+    expect(p.naps).toBe(1)
+
+    // boomerang
+    const b = createState({ seed: 5, levelId: 'australia' })
+    b.features = []
+    const dog = b.npcs.find((n) => n.kind === 'dog')!
+    b.npcs = [dog]
+    b.player.invuln = 99
+    b.player.boomerang = true
+    b.player.facing = 0
+    b.player.hasAim = true
+    dog.x = b.player.x
+    dog.z = b.player.z + 4
+    dog.state = 'wander'
+    run(b, 0.05, { ...EMPTY_INPUT, poop: true })
+    run(b, 0.05)
+    expect(b.boomerang).not.toBeNull()
+    expect(b.boomerang!.out).toBe(true)
+    run(b, 0.5)
+    expect(dog.state).toBe('stunned')
+    run(b, 1.5)
+    expect(b.boomerang).toBeNull()
+
+    // giraffe over the stampede
+    const g = createState({ seed: 5, levelId: 'africa' })
+    const st = g.stampede!
+    g.player.invuln = 0
+    g.player.ride = 'giraffe'
+    g.player.rideHp = 2
+    g.player.x = st.dirX * (st.front - 1)
+    g.player.z = st.dirZ * (st.front - 1)
+    const hp = g.player.hp
+    run(g, 0.2)
+    expect(g.player.hp).toBe(hp)
+
+    // decoy
+    const d = createState({ seed: 5, levelId: 'europe' })
+    d.features = []
+    const chaser = d.npcs.find((n) => n.kind === 'adult')!
+    d.npcs = [chaser]
+    d.player.invuln = 99
+    d.decoy = { x: chaser.x + 3, z: chaser.z, t: 10 }
+    chaser.state = 'wander'
+    d.player.x = chaser.x - 30
+    run(d, 1.5)
+    const st2: string = chaser.state
+    expect(st2 === 'chase' || st2 === 'recoil').toBe(true)
+    expect(Math.abs(chaser.x - d.decoy!.x)).toBeLessThan(2.5)
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })
