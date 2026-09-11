@@ -11,7 +11,10 @@ Live: https://kase-world.kase-world.workers.dev · Repo: github.com/jonahgolden/
 ## Architecture rule
 
 `src/sim/` is the whole game as pure data: no DOM, no three.js, deterministic given seed + inputs.
-`step(state, input)` advances one 60 Hz tick and fills `state.events`. Everything else is a thin
+`step(state, input)` advances one 60 Hz tick and fills `state.events`. `sim.ts` holds the world,
+player, verbs, props and creatures; `boss.ts` every boss fight; `goals.ts` the level goals that need
+per-tick work. `boss.ts`/`goals.ts` import helpers from `sim.ts` (functions only) and `sim.ts`
+re-exports the boss API, so import from `sim/sim.ts` as before. Everything else is a thin
 driver that reads state and events: `render/` (three.js), `input/` (keyboard + touch), `audio/`
 (Web Audio, manifest + synth fallback), `ui/` (HTML overlay), `net/` (leaderboard client),
 `worker/` (Cloudflare Worker: static assets + `/api/scores` on D1). Keep it that way. New gameplay
