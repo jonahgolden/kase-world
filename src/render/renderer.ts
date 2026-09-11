@@ -318,8 +318,10 @@ export class Renderer {
     const wrap = new THREE.Group()
     wrap.add(model)
     wrap.rotation.y = ASSETS.yaw.baby
+    // swap the placeholder for the model but keep everything Kase wears: hat, wings, hat stack, tube
     this.player.clear()
-    this.player.add(wrap)
+    this.player.add(wrap, this.hat, this.wings, this.hats)
+    if (this.tube) this.player.add(this.tube)
     this.playerModel = wrap
     this.playerMixer = new THREE.AnimationMixer(model)
     for (const clip of g.animations) this.playerActions[clip.name] = this.playerMixer.clipAction(clip)
