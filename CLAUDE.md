@@ -1,8 +1,10 @@
 # Kase World
 
-Browser game for phones first, then iPad, then laptop. You are Kase, a baby wrecking a continent
-for 75 s, then fighting that continent's boss. Bosses are Nova's and Louie's drawings. Score chains
-a multiplier; runs go on a global leaderboard by name.
+Browser game for phones first, then iPad, then laptop. You are Kase, a baby with a different goal on
+every continent (wreck it, find things, catch the Chicken King, roll a snowball, outrun a stampede,
+guard the milk, race a pigeon, pop the jellies), then a boss fight with one trick each. Bosses are
+Nova's and Louie's drawings (cards now, 3D models as the end state; Kacone is the first). Runs go on
+a global time leaderboard by name, with a household board per device.
 
 Live: https://kase-world.kase-world.workers.dev · Repo: github.com/jonahgolden/kase-world (`main`)
 
@@ -20,7 +22,8 @@ goes in `sim/` with a test; new visuals go in `render/renderer.ts`.
 - `pnpm dev` game on :5173 · `pnpm dev:api` worker on :8787 (vite proxies `/api`)
 - `pnpm test` sim tests · `pnpm typecheck` game + worker
 - `pnpm shot [--mobile] [--only=wreck|boss|title]` headless bot playtest, PNGs in `shots/` (needs `pnpm dev` running)
-- `pnpm deploy` build + `wrangler deploy` · `pnpm db:migrate` apply `worker/schema.sql` to remote D1
+- `pnpm run deploy` build + `wrangler deploy` (bare `pnpm deploy` is pnpm's own command and fails) · `pnpm db:migrate` apply `worker/schema.sql` to remote D1
+- `node scripts/icons.ts scripts/icon.html` regenerates the PWA icons in `public/icons/`
 - `node scripts/build-continents.ts` regenerates `src/sim/continents.ts` + `public/continents.geojson`
   from `data/continents.geojson` (Natural Earth 110m, dissolved + simplified with mapshaper)
 
@@ -100,7 +103,7 @@ v0.7.1: controls memo applied: holding SCREAM/POOP enters aim mode (arrows turn 
 movement), view facing lerps (~0.07 s), facing arrow always visible, auto-aim acquires within 60° and
 ignores targets under 1 unit with a gold ring on the chosen target, dashed arc + landing ring while
 holding poop, touch drag distance sets range, "ready" ding at full charge.
-v0.8 (in progress, 2026-09-10 late session, autonomous): sky fans launch hovering Kase; four new boss
+v0.8 (2026-09-10/11, autonomous session, deployed): sky fans launch hovering Kase; four new boss
 fights (Khan horse-spook parry = scream mid-charge; African Animal Group = four UV-cropped cards from one
 drawing, lion poop / giraffe charged scream / rhino wall daze / elephant potatoes; Outback Games = kangaroo
 sumo ring-out, emu lap race with a skateboard on the track, hidden rockfish; Columbus = remix of charge,
@@ -109,4 +112,7 @@ Five goal shapes (`Goal` union): chase (Chicken King, S. America), grow (snowbal
 (stampede + flag, Africa), protect (milk thieves, Australia), race (pigeon + gates, Europe), plus hunt
 (The Deep). New level `the-deep` (Louie's water level, `LevelDef.water`): tube float, scream jet, 15 Kelly
 Jellies, Poodoom volcano feature, flies, Kacone = first fully 3D boss (`makeKacone`). Credits: Louie for
-his three, Nova for the rest. Research log lives in `docs/research.md`.
+his three, Nova for the rest. Toys per level: nap bomb, boomerang binky, giraffe ride, decoy baby. Nest
+fight has a ring + poop-able nest. Sky: cloud puffs, cushions, birds. Per-level medal pars (`LevelDef.par`),
+household board (🏠 rows + "beat X by N s"), PWA manifest + icons, synth sounds for every new event.
+Research log lives in `docs/research.md`. Next session: `~/.claude/kase-world-next-session.md`.
