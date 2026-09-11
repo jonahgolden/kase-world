@@ -38,6 +38,10 @@ const scenes: [string, string, number[]][] = [
   ['boss', '/?bot=1&mute=1&seed=3&skip=boss', [5, 10, 18]],
   ['europe', '/?bot=1&mute=1&seed=4&level=europe', [3, 14]],
   ['asia', '/?bot=1&mute=1&seed=3&level=asia', [3, 20]],
+  ['sky', '/?bot=1&mute=1&seed=3&level=sky', [3, 16]],
+  ['jeff', '/?bot=1&mute=1&seed=3&level=antarctica&skip=boss', [6, 14]],
+  ['bolt', '/?bot=1&mute=1&seed=3&level=south-america&skip=boss', [6, 14]],
+  ['nest', '/?bot=1&mute=1&seed=3&level=sky&skip=boss', [6, 14]],
 ]
 const only = args.find((a) => a.startsWith('--only='))?.slice(7)
 for (const [name, path, times] of scenes) {

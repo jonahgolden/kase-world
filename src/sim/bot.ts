@@ -32,7 +32,7 @@ export function botInput(s: State): Input {
   for (const k of s.pickups) {
     if (k.y > 1.5) continue // tall platforms need a fan; the bot is not that clever
     const d = Math.hypot(k.x - p.x, k.z - p.z)
-    const want = s.goal.kind === 'find' && k.kind === 'lantern' ? 999 : 6
+    const want = s.goal.kind === 'find' && k.kind === s.goal.item ? 999 : 6
     if (d < want && (!pickup || d < pickup.d)) pickup = { x: k.x, z: k.z, d, y: k.y }
   }
   if (s.goal.kind === 'find' && !pickup) {

@@ -6,7 +6,9 @@ export interface Input {
   mz: number // -1..1, +z toward camera (down on screen)
   scream: boolean // hold to charge, release to fire
   poop: boolean // tap to throw, hold to lob further
-  jump: boolean // tap
+  jump: boolean // tap; hold with wings to fly
+  aimX?: number // optional world-space aim direction (mouse). Without it the sim aim-assists.
+  aimZ?: number
 }
 
 export const EMPTY_INPUT: Input = { mx: 0, mz: 0, scream: false, poop: false, jump: false }
@@ -24,6 +26,8 @@ export type PropKind =
   | 'trash'
   | 'gift'
   | 'crate'
+  | 'glass' // scream only
+  | 'statue' // poop only: cover it
 
 export interface Prop {
   id: number
@@ -46,9 +50,11 @@ export interface Prop {
   broken: boolean
   hitFlash: number
   drop: PickupKind | null
+  cover: number // 0..1 poop coverage (statues)
+  promptCd: number
 }
 
-export type NpcKind = 'adult' | 'dog' | 'chicken'
+export type NpcKind = 'adult' | 'dog' | 'chicken' | 'mini'
 export type NpcState = 'wander' | 'chase' | 'flee' | 'stunned' | 'recoil' | 'cower' | 'follow'
 
 export interface Npc {
@@ -68,6 +74,7 @@ export interface Npc {
   scaredCd: number
   color: number
   hitFlash: number
+  scale: number
 }
 
 export interface Poop {
@@ -103,9 +110,10 @@ export interface Debris {
   settled: boolean
 }
 
-export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'lantern'
+export type PickupKind = 'milk' | 'pacifier' | 'rattle' | 'clock' | 'skateboard' | 'megaphone' | 'fedora' | 'quad' | 'wings' | 'goggles' | 'potato' | 'conga' | 'giant' | 'egg'
 
-export type Goal = { kind: 'wreck'; pct: number } | { kind: 'find'; count: number }
+export type GoalItem = 'fedora' | 'egg'
+export type Goal = { kind: 'wreck'; pct: number } | { kind: 'find'; count: number; item: GoalItem }
 
 export type FeatureKind = 'platform' | 'fan' | 'portal' | 'lake'
 
@@ -142,6 +150,7 @@ export interface Pickup {
   z: number
   vy: number
   age: number
+  float: boolean // stays in the air (sky wings, eggs)
 }
 
 export interface Player {
@@ -183,9 +192,12 @@ export interface Player {
   baseR: number
   congaT: number // seconds of conga line left
   giantT: number // seconds of giant mode left
+  wingFuel: number // seconds of powered flight left
+  hasAim: boolean // true when the input supplied an aim direction this tick
+  hats: number // goal fedoras stacked on the head
 }
 
-export type DuoState = 'chase' | 'peck' | 'hurt'
+export type DuoState = 'chase' | 'peck' | 'hurt' | 'stun' | 'lay'
 
 export interface Duogringo {
   x: number
@@ -199,9 +211,12 @@ export interface Duogringo {
   stateT: number
   peckCd: number
   hitFlash: number
+  active: boolean // only present in his own fight
+  layCd: number
 }
 
 export type BossAttack = 'charge' | 'stomp'
+export type BossFight = 'charge' | 'poopcover' | 'runner' | 'nest'
 export type BossState =
   | 'enter'
   | 'idle'
@@ -224,6 +239,8 @@ export interface BossDef {
   damage: number
   scale: number // card height in world units
   taunt: string
+  fight: BossFight
+  hint: string // one line shown when the fight starts
 }
 
 export interface Boss {
@@ -246,6 +263,8 @@ export interface Boss {
   exposedLeft: number
   hitFlash: number
   everExposed: boolean
+  cover: number // poopcover fights: 0..1
+  lap: number // runner fights: angle along the track
 }
 
 export type EventType =
@@ -272,6 +291,12 @@ export type EventType =
   | 'splash'
   | 'congaSmash'
   | 'found'
+  | 'needScream'
+  | 'needPoop'
+  | 'covered'
+  | 'bossSlip'
+  | 'flap'
+  | 'miniHatch'
   | 'goalReached'
   | 'bossEnter'
   | 'bossTelegraph'

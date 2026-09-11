@@ -13,7 +13,7 @@ const NAME_TO_ID: Record<string, string> = {
   Oceania: 'australia',
   Europe: 'europe',
 }
-const TARGET_AREA = 1400 // square game units, about a 37 x 37 arena
+const TARGET_AREA = 2400 // square game units, about a 49 x 49 arena
 
 type Pt = [number, number]
 

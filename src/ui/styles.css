@@ -188,3 +188,5 @@ canvas#c { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
 .chip.blue { background: #bfe6ff; }
 .chip.green { background: var(--green); }
 @media (max-width: 640px) { #bosscard-img { width: 76px; height: 92px; } .boss-box { gap: 10px; } }
+#boss-fill.cover { background: #6b3e1e; }
+#bosscard-hint { font-size: 0.85rem; margin-top: 8px; color: var(--gold); }

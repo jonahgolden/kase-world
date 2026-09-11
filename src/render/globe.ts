@@ -199,10 +199,14 @@ export class Globe {
     return sp
   }
 
+  private lonLat(id: string): [number, number] {
+    return CONTINENTS[id]?.lonLat ?? [-45, 20]
+  }
+
   private addMarker(id: string) {
     const lvl = LEVELS.find((l) => l.id === id)!
-    const c = CONTINENTS[id]
-    const dir = lonLatToVec(c.lonLat[0], c.lonLat[1], 1).normalize()
+    const ll = this.lonLat(id)
+    const dir = lonLatToVec(ll[0], ll[1], 1).normalize()
     const g = new THREE.Group()
     g.position.copy(dir).multiplyScalar(this.R * 1.04)
     const pin = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 8), new THREE.MeshLambertMaterial({ color: lvl.theme.accent }))
@@ -211,8 +215,13 @@ export class Globe {
     g.add(pin)
     const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.cardTexture(lvl.boss.drawing), transparent: true }))
     card.scale.set(1.6, 2.0, 1)
-    card.position.copy(dir).multiplyScalar(1.45)
+    card.position.copy(dir).multiplyScalar(lvl.sky ? 2.4 : 1.45)
     g.add(card)
+    if (lvl.sky) {
+      const cloud = this.textSprite('☁️', 2.2)
+      cloud.position.copy(dir).multiplyScalar(1.3)
+      g.add(cloud)
+    }
     const lock = this.textSprite('🔒', 1.1)
     lock.position.copy(dir).multiplyScalar(1.5)
     g.add(lock)
@@ -239,8 +248,8 @@ export class Globe {
       }
     })
     if (currentId) {
-      const c = CONTINENTS[currentId]
-      const dir = lonLatToVec(c.lonLat[0], c.lonLat[1], 1).normalize()
+      const ll = this.lonLat(currentId)
+      const dir = lonLatToVec(ll[0], ll[1], 1).normalize()
       this.baby.position.copy(dir).multiplyScalar(this.R * 1.04).add(new THREE.Vector3(-0.9, 0.6, 0))
       this.baby.visible = true
     } else {
@@ -249,9 +258,9 @@ export class Globe {
   }
 
   private orientationFor(id: string): THREE.Quaternion {
-    const c = CONTINENTS[id]
-    const lat = THREE.MathUtils.degToRad(c.lonLat[1])
-    const theta = THREE.MathUtils.degToRad(c.lonLat[0] + 90)
+    const ll = this.lonLat(id)
+    const lat = THREE.MathUtils.degToRad(ll[1])
+    const theta = THREE.MathUtils.degToRad(ll[0] + 90)
     const e = new THREE.Euler(lat - ELEV, -theta, 0, 'XYZ')
     return new THREE.Quaternion().setFromEuler(e)
   }

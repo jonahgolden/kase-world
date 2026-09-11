@@ -8,7 +8,8 @@ export class InputDriver {
   private keys = new Set<string>()
   private joy = { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 }
   private held = { scream: false, poop: false, jump: false }
-  private mouse = { poop: false, scream: false }
+  private mouse = { poop: false, scream: false, x: 0, y: 0, movedAt: -1e9 }
+  aimProvider: ((sx: number, sy: number) => { x: number; z: number } | null) | null = null
   private joyEl: HTMLElement
   private knobEl: HTMLElement
   private zoneEl: HTMLElement
@@ -31,6 +32,12 @@ export class InputDriver {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code))
     window.addEventListener('blur', () => this.clear())
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return
+      this.mouse.x = e.clientX
+      this.mouse.y = e.clientY
+      this.mouse.movedAt = performance.now()
+    })
     canvas.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'mouse') return
       if (e.button === 0) this.mouse.poop = true
@@ -53,7 +60,8 @@ export class InputDriver {
   clear() {
     this.keys.clear()
     this.held = { scream: false, poop: false, jump: false }
-    this.mouse = { poop: false, scream: false }
+    this.mouse.poop = false
+    this.mouse.scream = false
   }
 
   private bindJoystick() {
@@ -136,12 +144,21 @@ export class InputDriver {
       mx /= len
       mz /= len
     }
-    return {
+    const out: Input = {
       mx,
       mz,
       scream: this.held.scream || this.mouse.scream || this.key('Space', 'KeyJ'),
       poop: this.held.poop || this.mouse.poop || this.key('KeyE', 'KeyF', 'KeyK', 'Enter'),
       jump: this.held.jump || this.key('ShiftLeft', 'ShiftRight', 'KeyL', 'KeyQ'),
     }
+    // mouse aim: the baby faces the cursor for a few seconds after it moves
+    if (!this.touch && this.aimProvider && performance.now() - this.mouse.movedAt < 4000) {
+      const a = this.aimProvider(this.mouse.x, this.mouse.y)
+      if (a) {
+        out.aimX = a.x
+        out.aimZ = a.z
+      }
+    }
+    return out
   }
 }

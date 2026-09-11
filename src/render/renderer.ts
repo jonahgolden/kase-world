@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js'
 import type { Boss, Feature, GameEvent, Npc, Pickup, Prop, PropKind, State } from '../sim/types.ts'
-import { bossPhase, currentLevel, duoRadius, screamRange } from '../sim/sim.ts'
+import { bossPhase, currentLevel, duoRadius, isSky, screamRange } from '../sim/sim.ts'
 
 const PICKUP_COLOR: Record<string, number> = {
   milk: 0xffffff,
@@ -19,7 +19,7 @@ const PICKUP_COLOR: Record<string, number> = {
   potato: 0xd9a066,
   conga: 0xff8fab,
   giant: 0x4cd137,
-  lantern: 0xff3b3b,
+  egg: 0xffd23f,
 }
 import { ASSETS } from './assets.ts'
 import { Particles } from './particles.ts'
@@ -70,8 +70,12 @@ export class Renderer {
   private tmpC = new THREE.Color()
   private quad: THREE.Group
   private hat: THREE.Group
+  private hats: THREE.Group
   private wings: THREE.Group
   private starTex: THREE.Texture | null = null
+  private promptTex = new Map<string, THREE.Texture>()
+  private prompts: { sprite: THREE.Sprite; life: number }[] = []
+  private track: THREE.Mesh | null = null
   private debris: THREE.InstancedMesh
   private splats: THREE.InstancedMesh
   private player: THREE.Group = new THREE.Group()
@@ -167,6 +171,9 @@ export class Renderer {
     this.wings = this.makeWings()
     this.wings.visible = false
     this.player.add(this.wings)
+    this.hats = new THREE.Group()
+    this.hats.position.y = 1.02
+    this.player.add(this.hats)
     this.player.add(this.placeholderBaby())
     this.duo.add(this.placeholderBird())
     this.resize()
@@ -295,14 +302,18 @@ export class Renderer {
     if (this.ground) this.scene.remove(this.ground)
     if (this.sand) this.scene.remove(this.sand)
     if (this.water) this.scene.remove(this.water)
-    this.ground = this.makeContinent(s.arena.ring, 1, 0.7, th.ground, th.ground2, true)
-    this.ground.position.y = -0.7
+    const sky = isSky(s)
+    this.ground = this.makeContinent(s.arena.ring, 1, sky ? 1.6 : 0.7, th.ground, th.ground2, !sky)
+    this.ground.position.y = sky ? -1.6 : -0.7
     this.scene.add(this.ground)
-    this.sand = this.makeContinent(s.arena.ring, 1.045, 0.5, 0xe8d59a, 0xe0c98a, false)
-    this.sand.position.y = -1.05
+    this.sand = this.makeContinent(s.arena.ring, 1.045, 0.5, sky ? 0xffffff : 0xe8d59a, sky ? 0xf4f8ff : 0xe0c98a, false)
+    this.sand.position.y = sky ? -2.4 : -1.05
     this.scene.add(this.sand)
-    this.water = this.makeWater()
+    this.water = sky ? this.makeSkyFloor() : this.makeWater()
     this.scene.add(this.water)
+    if (this.track) this.scene.remove(this.track)
+    this.track = null
+    this.hats.clear()
     this.themeSky.set(th.sky)
     this.themeFog.set(th.fog)
     this.bossMode = 0
@@ -311,7 +322,7 @@ export class Renderer {
     this.spot.intensity = 0
     for (const v of this.featureViews.values()) this.scene.remove(v)
     this.featureViews.clear()
-    for (const f of s.features) this.addFeature(f, th.ground2)
+    for (const f of s.features) this.addFeature(f, sky ? 0x7ec850 : th.ground2)
     for (const v of this.bombViews.values()) this.scene.remove(v)
     this.bombViews.clear()
     for (const v of this.propViews.values()) this.scene.remove(v)
@@ -517,6 +528,34 @@ export class Renderer {
     return this.starTex
   }
 
+  private makeSkyFloor(): THREE.Mesh {
+    const tex = this.checker(0x7cc4ff, 0x8fd0ff, 2)
+    tex.repeat.set(40, 40)
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshBasicMaterial({ map: tex }))
+    mesh.rotation.x = -Math.PI / 2
+    mesh.position.y = -14
+    return mesh
+  }
+
+  private promptSprite(text: string): THREE.Sprite {
+    let tex = this.promptTex.get(text)
+    if (!tex) {
+      const cv = document.createElement('canvas')
+      cv.width = 96
+      cv.height = 96
+      const ctx = cv.getContext('2d')!
+      ctx.font = '64px serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(text, 48, 52)
+      tex = new THREE.CanvasTexture(cv)
+      this.promptTex.set(text, tex)
+    }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }))
+    sp.scale.setScalar(1.3)
+    return sp
+  }
+
   private makeSkateboard(): THREE.Group {
     const g = new THREE.Group()
     const deck = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 1.1), this.toon(0xff8fab))
@@ -622,6 +661,35 @@ export class Renderer {
         add(new THREE.CylinderGeometry(0.32, 0.28, 0.85, 10), mat(color), 0, 0.43)
         add(new THREE.CylinderGeometry(0.36, 0.36, 0.1, 10), mat(0x333344), 0, 0.9)
         break
+      case 'glass': {
+        const gm = new THREE.MeshToonMaterial({ color: 0xbfe6ff, gradientMap: this.gradient, transparent: true, opacity: 0.55 })
+        g.mats.push(gm)
+        add(new THREE.CylinderGeometry(0.45, 0.35, 0.16, 12), mat(0x556677), 0, 0.08)
+        const vase = add(new THREE.SphereGeometry(0.42, 12, 10), gm, 0, 0.75)
+        vase.scale.set(1, 1.5, 1)
+        add(new THREE.CylinderGeometry(0.18, 0.28, 0.35, 10), gm, 0, 1.45)
+        const icon = this.promptSprite('🔊')
+        icon.position.y = 2.15
+        icon.scale.setScalar(0.9)
+        g.add(icon)
+        break
+      }
+      case 'statue': {
+        add(new THREE.BoxGeometry(1.1, 0.35, 1.1), mat(0x8a8a9a), 0, 0.18)
+        add(new THREE.CylinderGeometry(0.3, 0.4, 1.0, 10), mat(color), 0, 0.85)
+        add(new THREE.SphereGeometry(0.32, 12, 10), mat(color), 0, 1.6)
+        add(new THREE.BoxGeometry(0.9, 0.12, 0.3), mat(color), 0, 1.2)
+        const splat = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshToonMaterial({ color: 0x6b3e1e, gradientMap: this.gradient, transparent: true, opacity: 0 }))
+        splat.position.y = 1.0
+        splat.scale.set(1.1, 1.6, 1.1)
+        splat.name = 'cover'
+        g.add(splat)
+        const icon = this.promptSprite('💩')
+        icon.position.y = 2.5
+        icon.scale.setScalar(0.9)
+        g.add(icon)
+        break
+      }
       case 'crate':
         add(new THREE.BoxGeometry(0.95, 0.85, 0.95), mat(color), 0, 0.43)
         add(new THREE.BoxGeometry(1.0, 0.1, 1.0), mat(0xffd23f), 0, 0.85)
@@ -671,6 +739,32 @@ export class Renderer {
       }
       g.eyes = eyes
       body.add(eyes)
+    } else if (n.kind === 'mini') {
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), mat(0x2e9e3a))
+      body.position.y = 0.34
+      const hatb = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.22, 10), mat(0xf2c14e))
+      hatb.position.y = 0.66
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 6), mat(0xffb020))
+      beak.rotation.x = Math.PI / 2
+      beak.position.set(0, 0.34, 0.3)
+      body.castShadow = true
+      const wrap = new THREE.Group()
+      wrap.add(body, hatb, beak)
+      const eyes = new THREE.Group()
+      for (const x of [-0.09, 0.09]) {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }))
+        e.position.set(x, 0.42, 0.24)
+        const pu = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }))
+        pu.position.set(x, 0.42, 0.28)
+        eyes.add(e, pu)
+      }
+      wrap.add(eyes)
+      g.eyes = eyes
+      g.body = wrap
+      g.add(wrap)
+      this.npcViews.set(n.id, g)
+      this.scene.add(g)
+      return g
     } else if (n.kind === 'chicken') {
       const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), mat(0xffffff))
       body.position.y = 0.34
@@ -820,12 +914,12 @@ export class Renderer {
       add(new THREE.CylinderGeometry(0.1, 0.12, 0.2, 8), 0x1b1b2f, 0, 0.8)
       add(new THREE.SphereGeometry(0.07, 8, 6), 0xbfffbf, 0.12, 0.55)
       add(new THREE.SphereGeometry(0.05, 8, 6), 0xbfffbf, -0.1, 0.4)
-    } else if (k.kind === 'lantern') {
-      add(new THREE.CylinderGeometry(0.22, 0.22, 0.42, 10), 0xff3b3b, 0, 0.5)
-      add(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 10), 0xffd23f, 0, 0.74)
-      add(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 10), 0xffd23f, 0, 0.26)
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff1a8 }))
+    } else if (k.kind === 'egg') {
+      const egg = add(new THREE.SphereGeometry(0.3, 12, 10), 0xffd23f, 0, 0.5)
+      egg.scale.set(1, 1.3, 1)
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.36, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.35 }))
       glow.position.y = 0.5
+      glow.scale.set(1, 1.3, 1)
       g.add(glow)
     } else if (k.kind === 'potato') {
       const pot = add(new THREE.SphereGeometry(0.28, 10, 8), 0xc49a6c, 0, 0.45)
@@ -980,8 +1074,30 @@ export class Renderer {
         this.particles.burst(x, 0.3, z, 14, 0xffffff, 2, 0.1)
         break
       case 'found':
-        this.particles.burst(x, 1.2, z, 30, 0xff3b3b, 4, 0.14)
+        this.particles.burst(x, 1.2, z, 30, e.kind === 'egg' ? 0xffd23f : 0x2b2b3a, 4, 0.14)
         this.particles.burst(x, 1.2, z, 12, 0xffd23f, 3, 0.12)
+        break
+      case 'needScream':
+      case 'needPoop': {
+        const sp = this.promptSprite(e.t === 'needScream' ? '🔊' : '💩')
+        sp.position.set(x, 2.4, z)
+        sp.scale.setScalar(1.8)
+        this.scene.add(sp)
+        this.prompts.push({ sprite: sp, life: 0.8 })
+        break
+      }
+      case 'covered':
+        this.particles.burst(x, 1.4, z, 30, 0x6b3e1e, 4, 0.16)
+        break
+      case 'bossSlip':
+        this.particles.burst(x, 0.5, z, 24, 0x6b3e1e, 4, 0.16)
+        this.addShake(0.5)
+        break
+      case 'flap':
+        this.particles.burst(x, e.y ?? 1, z, 3, 0xffffff, 1.2, 0.08)
+        break
+      case 'miniHatch':
+        this.particles.burst(x, 0.8, z, 16, 0xffd23f, 3, 0.12)
         break
       case 'congaSmash':
         this.particles.burst(x, 0.8, z, 10, 0xff8fab, 3, 0.12)
@@ -1100,6 +1216,16 @@ export class Renderer {
     this.quad.visible = quad
     this.hat.visible = p.fedora
     this.wings.visible = p.wings
+    if (this.hats.children.length !== p.hats) {
+      this.hats.clear()
+      for (let i = 0; i < p.hats; i++) {
+        const h = this.makeHat()
+        h.position.y = i * 0.22
+        h.rotation.z = (i % 2 ? 1 : -1) * 0.08
+        this.hats.add(h)
+      }
+    }
+    if (p.wings && !p.grounded) this.wings.rotation.z = Math.sin(this.time * (p.wingFuel > 0 ? 24 : 10)) * 0.6
     if (riding) {
       this.board.position.set(p.x, p.y, p.z)
       this.board.rotation.y = p.facing
@@ -1216,6 +1342,7 @@ export class Renderer {
 
     // duogringo
     const d = s.duo
+    this.duo.visible = d.active
     const dr = duoRadius(d)
     const dh = (dr / 0.45) * 1.05
     this.duo.position.set(d.x, d.y + Math.abs(Math.sin(this.time * 9)) * 0.08 * (1 + d.power), d.z)
@@ -1244,6 +1371,10 @@ export class Renderer {
       v.visible = true
       v.position.set(pr.x, pr.y, pr.z)
       v.rotation.y = pr.rot
+      if (pr.kind === 'statue') {
+        const cov = v.getObjectByName('cover') as THREE.Mesh | undefined
+        if (cov) (cov.material as THREE.MeshToonMaterial).opacity = pr.cover * 0.95
+      }
       const tilt = Math.min(0.5, Math.hypot(pr.vx, pr.vz) * 0.08)
       v.rotation.z = -pr.vx * 0.04 * tilt * 5
       v.rotation.x = pr.vz * 0.04 * tilt * 5
@@ -1257,6 +1388,7 @@ export class Renderer {
       const v = this.ensureNpc(n)
       v.position.set(n.x, 0, n.z)
       v.rotation.y = n.facing
+      if (n.scale !== 1) v.scale.setScalar(n.scale)
       const sp = Math.hypot(n.vx, n.vz)
       const bob = Math.abs(Math.sin(this.time * (n.kind === 'dog' ? 16 : 11) + n.id)) * Math.min(1, sp / 2) * 0.12
       v.body.position.y = bob
@@ -1336,7 +1468,7 @@ export class Renderer {
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true
 
     // boss
-    if (s.boss) {
+    if (s.boss && s.boss.def.fight !== 'nest') {
       void this.ensureBoss(s.boss)
       const b = s.boss
       const bv = this.boss
@@ -1387,6 +1519,28 @@ export class Renderer {
       this.removeBoss()
     }
 
+    for (let i = this.prompts.length - 1; i >= 0; i--) {
+      const pr = this.prompts[i]
+      pr.life -= dt
+      pr.sprite.position.y += dt * 1.2
+      ;(pr.sprite.material as THREE.SpriteMaterial).opacity = Math.min(1, pr.life * 2)
+      if (pr.life <= 0) {
+        this.scene.remove(pr.sprite)
+        this.prompts.splice(i, 1)
+      }
+    }
+    if (s.boss?.def.fight === 'runner' && s.bossRing && !this.track) {
+      const ring = s.bossRing
+      const geo = new THREE.RingGeometry(ring.r - 2.3, ring.r - 0.5, 48)
+      geo.rotateX(-Math.PI / 2)
+      this.track = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x333344, transparent: true, opacity: 0.35, depthWrite: false }))
+      this.track.position.set(ring.x, 0.04, ring.z)
+      this.scene.add(this.track)
+    }
+    if (this.track && (!s.boss || s.phase !== 'boss')) {
+      this.scene.remove(this.track)
+      this.track = null
+    }
     // rings
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i]
@@ -1445,6 +1599,17 @@ export class Renderer {
     this.camera.lookAt(this.camTarget.x + this.shakeX, this.camTarget.y, this.camTarget.z + this.shakeZ)
     this.sun.position.set(this.camTarget.x + 12, 22, this.camTarget.z + 8)
     this.sun.target.position.set(this.camTarget.x, 0, this.camTarget.z)
+  }
+
+  // Screen point -> world point on the horizontal plane at height y (for mouse aim).
+  groundPoint(sx: number, sy: number, y: number): { x: number; z: number } | null {
+    const ndc = new THREE.Vector2((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1)
+    const ray = new THREE.Raycaster()
+    ray.setFromCamera(ndc, this.camera)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)
+    const hit = new THREE.Vector3()
+    if (!ray.ray.intersectPlane(plane, hit)) return null
+    return { x: hit.x, z: hit.z }
   }
 
   project(x: number, y: number, z: number): { x: number; y: number } {

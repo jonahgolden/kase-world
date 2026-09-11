@@ -47,11 +47,12 @@ export class Ui {
   constructor(root: HTMLElement, private cb: UiCallbacks, private touch: boolean, dev: boolean) {
     this.root = root
     const controls = this.touch
-      ? `<div class="ctl"><b>MOVE</b><span>drag anywhere on the left half</span></div>
+      ? `<div class="ctl"><b>MOVE</b><span>drag anywhere on the left half. Screams and poop auto-aim at what is ahead</span></div>
          <div class="ctl"><b>SCREAM</b><span>hold the red button. Longer hold = bigger scream</span></div>
          <div class="ctl"><b>💩 POOP</b><span>tap to throw, hold to throw further</span></div>
          <div class="ctl"><b>JUMP</b><span>tap. Jump over the boss stomp</span></div>`
       : `<div class="ctl"><b>MOVE</b><span>WASD or arrow keys</span></div>
+         <div class="ctl"><b>AIM</b><span>Kase faces the mouse. Screams and poop go where you point</span></div>
          <div class="ctl"><b>SCREAM</b><span>hold SPACE (or right mouse). Longer hold = bigger scream</span></div>
          <div class="ctl"><b>POOP</b><span>click, or E. Hold to throw further</span></div>
          <div class="ctl"><b>JUMP</b><span>SHIFT. Jump over the boss stomp</span></div>
@@ -87,7 +88,7 @@ export class Ui {
       <div id="bosscard" class="screen card" hidden>
         <div class="card-box boss-box">
           <img id="bosscard-img" alt="">
-          <div><div id="bosscard-name">BOSS</div><div id="bosscard-by">drawn by</div><div id="bosscard-taunt"></div></div>
+          <div><div id="bosscard-name">BOSS</div><div id="bosscard-by">drawn by</div><div id="bosscard-taunt"></div><div id="bosscard-hint"></div></div>
         </div>
       </div>
       <div id="card" class="screen card" hidden>
@@ -100,7 +101,7 @@ export class Ui {
         <h2>HOW TO PLAY</h2>
         <p class="goal-line">Fill the <b>WRECK</b> meter by smashing stuff and scaring grown-ups. The boss shows up at 100%. Dodge its attacks, then hit it while the <b class="green">green ring</b> is on.</p>
         <div class="ctls">${controls}</div>
-        <p class="goal-line small">Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
+        <p class="goal-line small">🔊 glass things only break from screams · 💩 statues only get covered by poop · Finds glow with a light pillar. ⏱ clock = 5 s off your time · 🛹 skateboard and 🏍 quad = fast and smashy, lost when hit · 🎩 fedora = EPIC mode · 🪽 wings = hold JUMP to glide · 🥽 goggles = every find on the map · 🥔 hot potatoes = boom · 💃 conga rattle = grown-ups follow you and smash what they bump · 🧪 giant formula = huge and unhurtable for 8 s · 📣 megaphone · 🍼 milk = a heart · 🎁 gifts hide a surprise · 🐦 Duogringo grows every time you scream. Scream <i>at</i> him to shrink him. Fans launch you, portals teleport you, lakes are safe from grown-ups.</p>
         <div class="row-btns">
           <button id="help-resume" class="cta">RESUME</button>
           <button id="help-restart" class="ghost">RESTART LEVEL</button>
@@ -241,7 +242,12 @@ export class Ui {
   showCard(s: State) {
     const lvl = currentLevel(s)
     this.get('card-name').textContent = lvl.name.toUpperCase()
-    this.get('card-goal').textContent = lvl.goal.kind === 'find' ? `Find ${lvl.goal.count} lanterns 🏮 (red crates hide some)` : `Wreck ${Math.round(lvl.goal.pct * 100)}% of it`
+    this.get('card-goal').textContent =
+      lvl.goal.kind === 'find'
+        ? lvl.goal.item === 'fedora'
+          ? `Find ${lvl.goal.count} fedoras 🎩 (red hat boxes hide some)`
+          : `Fly and find ${lvl.goal.count} golden eggs 🥚`
+        : `Wreck ${Math.round(lvl.goal.pct * 100)}% of it`
     ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
     this.get('card-boss-name').textContent = lvl.boss.name
     const card = this.screens.card
@@ -266,6 +272,7 @@ export class Ui {
     this.get('bosscard-name').textContent = b.def.name.toUpperCase()
     this.get('bosscard-by').textContent = `drawn by ${b.def.drawnBy}`
     this.get('bosscard-taunt').textContent = `"${b.def.taunt}"`
+    this.get('bosscard-hint').textContent = b.def.hint
     const card = this.screens.bosscard
     card.hidden = false
     card.classList.remove('out')
@@ -378,7 +385,7 @@ export class Ui {
     if (p.ride === 'quad') powers.push(`<span class="chip red">🏍${'♥'.repeat(p.rideHp)}</span>`)
     if (p.megaphone) powers.push('<span class="chip red">📣</span>')
     if (p.fedora) powers.push('<span class="chip purple">🎩 EPIC</span>')
-    if (p.wings) powers.push('<span class="chip blue">🪽</span>')
+    if (p.wings) powers.push(`<span class="chip blue">🪽 ${p.wingFuel > 0 ? Math.ceil(p.wingFuel) : 'glide'}</span>`)
     if (p.goggles) powers.push('<span class="chip green">🥽</span>')
     if (p.potatoes > 0) powers.push(`<span class="chip brown">🥔×${p.potatoes}</span>`)
     if (p.congaT > 0) powers.push(`<span class="chip pink">💃 CONGA ${Math.ceil(p.congaT)}</span>`)
@@ -394,7 +401,7 @@ export class Ui {
       const pct = Math.floor(s.wreck * 100)
       if (pct !== this.lastPct) {
         this.get('goal-fill').style.width = `${pct}%`
-        if (s.goal.kind === 'find') this.get('goal-text').textContent = `🏮 ${s.found} / ${s.goal.count} LANTERNS`
+        if (s.goal.kind === 'find') this.get('goal-text').textContent = `${s.goal.item === 'fedora' ? '🎩' : '🥚'} ${s.found} / ${s.goal.count} ${s.goal.item === 'fedora' ? 'FEDORAS' : 'EGGS'}`
         else this.get('goal-text').textContent = pct === 0 ? 'WRECK IT!' : `${pct}% WRECKED`
         this.get('goal-wrap').classList.toggle('almost', pct >= 85)
         this.lastPct = pct
@@ -410,7 +417,9 @@ export class Ui {
       this.get('goal-wrap').hidden = true
       this.get('boss-wrap').hidden = false
       const b = s.boss
-      this.get('boss-fill').style.width = `${(1 - b.hits / b.totalHits) * 100}%`
+      const pc = b.def.fight === 'poopcover'
+      this.get('boss-fill').style.width = `${pc ? b.cover * 100 : (1 - b.hits / b.totalHits) * 100}%`
+      this.get('boss-fill').classList.toggle('cover', pc)
       const segs = this.get('boss-segs')
       if (segs.childElementCount !== b.def.phases) {
         segs.innerHTML = Array.from({ length: b.def.phases }, () => '<i></i>').join('')

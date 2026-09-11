@@ -70,5 +70,15 @@ end dizzy), Giant Formula (2.4x baby, unhurtable, smashes on touch, scares every
 second goal shape: Asia is a FIND level (7 lanterns, 3 in red crates in the wreck spots, 4 on
 platforms/islands/far coast; meter shows the count). `LevelDef.goal` is `{kind:'wreck',pct}` or
 `{kind:'find',count}`. Bot handles find levels and hops onto low platforms.
-Next: family playtest → tune; then chase goal (S. America, Duogringo steals the pacifier) and
-per-continent boss attacks; unbuilt string ideas: Zzz nap bomb, decoy baby, boomerang binky, giraffe.
+v0.6 (deployed): parent feedback round 3. Slower, more skillful: mouse aim on desktop (Kase faces the
+cursor; screams/poop go there), aim assist on touch, fewer random finds (thematic set per level, one
+gift, no random drops), continents 70% bigger, more chickens in sizes. Scream-only glass and
+poop-only statues with 🔊/💩 prompts. Wings = real flight (hold JUMP, fuel refilled by more wings,
+glide when empty). New SKY level between N. America and S. America: floating islands, fans, wings
+in the air, 5 golden eggs, boss = Duogringo's nest (grows with screams, lays mini-Duogringos, shrink
+him to stun, then poop him). Duogringo no longer roams other levels. Boss fights differ: charge ring
+(Rump, Khan, groups, Columbus), runner (Bolt laps a track, poop makes him slip), poop-cover (Jeff:
+14 poops, screams do nothing), nest. Asia hunts fedoras (stacked on Kase's head). Giant mode throws
+giant poops. `BossDef.fight` + `hint`; `LevelDef.sky`.
+Next: family playtest; remaining: distinct fights for Khan/animal groups/Columbus, chase goal,
+Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.

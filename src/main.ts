@@ -76,6 +76,16 @@ const ui = new Ui(
 )
 const input = new InputDriver(uiRoot, canvas)
 const renderer = new Renderer(canvas, touch)
+input.aimProvider = (sx, sy) => {
+  if (!state) return null
+  const hit = renderer.groundPoint(sx, sy, state.player.y)
+  if (!hit) return null
+  const dx = hit.x - state.player.x
+  const dz = hit.z - state.player.z
+  const d = Math.hypot(dx, dz)
+  if (d < 0.6) return null
+  return { x: dx / d, z: dz / d }
+}
 const globe = new Globe()
 
 ui.setName(params.get('name') ?? playerName.get())
@@ -328,8 +338,13 @@ function handleEvents(s: State) {
           goggles: ['SPY GOGGLES! Map shows every find', '#4cd137'],
           potato: ['HOT POTATOES ×3', '#d9a066'],
           conga: ['CONGA TIME! Lead them into stuff', '#ff8fab'],
-          giant: ['GIANT BABY!', '#4cd137'],
-          lantern: ['', '#ff3b3b'],
+          giant: ['GIANT BABY! Giant poops too', '#4cd137'],
+          egg: ['', '#ffd23f'],
+        }
+        if (e.kind === 'fedora' && s.goal.kind === 'find') break
+        if (e.kind === 'wings') {
+          ui.popup('WINGS! Hold JUMP to fly', pt.x, pt.y, '#bfe6ff', 0.8)
+          break
         }
         const [label, color] = labels[e.kind ?? ''] ?? ['', '#fff']
         if (label) ui.popup(label, pt.x, pt.y, color, 0.8)
@@ -349,9 +364,23 @@ function handleEvents(s: State) {
         break
       case 'found': {
         const pt = renderer.project(e.x ?? 0, 2, e.z ?? 0)
-        ui.popup(`🏮 ${e.points} / ${s.goal.kind === 'find' ? s.goal.count : '?'}`, pt.x, pt.y, '#ff3b3b', 1.2)
+        ui.popup(`${e.kind === 'egg' ? '🥚' : '🎩'} ${e.points} / ${s.goal.kind === 'find' ? s.goal.count : '?'}`, pt.x, pt.y, e.kind === 'egg' ? '#ffd23f' : '#9b6bff', 1.2)
         break
       }
+      case 'needScream':
+      case 'needPoop': {
+        const pt = renderer.project(e.x ?? 0, 2.6, e.z ?? 0)
+        ui.popup(e.t === 'needScream' ? 'SCREAM IT!' : 'POOP IT!', pt.x, pt.y - 20, '#ffffff', 0.5)
+        break
+      }
+      case 'bossSlip': {
+        const pt = renderer.project(e.x ?? 0, 2.5, e.z ?? 0)
+        ui.popup('SLIPPED! HIT HIM!', pt.x, pt.y, '#4cd137', 1)
+        break
+      }
+      case 'miniHatch':
+        ui.toast('Mini Duogringo hatched!', 900)
+        break
       case 'congaSmash': {
         const pt = renderer.project(e.x ?? 0, 1.4, e.z ?? 0)
         ui.popup('CONGA SMASH!', pt.x, pt.y, '#ff8fab', 0.6)
@@ -373,6 +402,7 @@ function handleEvents(s: State) {
         ui.toast('100% WRECKED. BOSS TIME!', 2200, 'boss')
         break
       case 'levelPhase':
+        if (s.boss) ui.toast(s.boss.def.hint, 3200, 'go')
         break
       case 'bossExposed':
         if ((e.big ?? 0) > 0) ui.toast('NOW! SCREAM OR POOP AT HIM!', 1800, 'go')
@@ -397,8 +427,8 @@ function handleEvents(s: State) {
         else if (s.duo.power > 0.33 && s.duo.power - 0.16 <= 0.33) ui.toast('Duogringo is growing...', 1200)
         break
       case 'bossBlocked': {
-        const pt = renderer.project(s.boss?.x ?? 0, 2.5, s.boss?.z ?? 0)
-        ui.popup('WAIT FOR THE GREEN RING', pt.x, pt.y, '#ffffff', 0.25)
+        const pt = renderer.project(e.x ?? s.boss?.x ?? 0, 2.5, e.z ?? s.boss?.z ?? 0)
+        ui.popup(e.label ?? 'WAIT FOR THE GREEN RING', pt.x, pt.y, '#ffffff', 0.3)
         break
       }
       case 'gameOver':
@@ -432,6 +462,19 @@ function playSound(e: GameEvent) {
       return
     case 'found':
       audio.play('win', { vol: 0.45, pitch: 1.3 })
+      return
+    case 'needScream':
+    case 'needPoop':
+      audio.play('bossBlocked')
+      return
+    case 'flap':
+      audio.play('fan', { vol: 0.25, pitch: 1.6 })
+      return
+    case 'miniHatch':
+      audio.play('chicken', { pitch: 0.7 })
+      return
+    case 'bossSlip':
+      audio.play('splat', { vol: 1.2 })
       return
     case 'congaSmash':
       audio.play('smash', { big: 0.4 })
