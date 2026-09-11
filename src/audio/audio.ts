@@ -1,5 +1,10 @@
 // Web Audio driver. Files from /assets/audio/manifest.json win; anything missing is synthesized.
 import type { EventType } from '../sim/types.ts'
+import { musicStep, stepMs } from './music.ts'
+import type { MusicMode } from './music.ts'
+
+// Sounds that duck the music for a beat so they cut through the mix.
+const DUCKERS = new Set(['scream', 'bossHurt', 'bossDead', 'playerHurt', 'explode', 'bossLand', 'win', 'levelPhase'])
 
 type Manifest = Record<string, string[] | string>
 
@@ -84,16 +89,18 @@ export class AudioDriver {
     this.musicGain.gain.cancelScheduledValues(ctx.currentTime)
     this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, ctx.currentTime)
     this.musicGain.gain.linearRampToValueAtTime(want === 'boss' ? 0.13 : 0.1, ctx.currentTime + 0.6)
-    // pentatonic keeps every random-ish step consonant; the lullaby is the original diatonic pattern
-    const scale = want === 'calm' ? [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3] : [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3, 784.0]
-    const pattern = want === 'calm' ? [0, 2, 4, 7, 4, 2, 5, 3, 0, 3, 5, 7, 6, 4, 2, 1] : want === 'boss' ? [0, 0, 7, 0, 5, 0, 7, 8, 0, 0, 7, 0, 3, 5, 3, 1] : [0, 4, 7, 4, 5, 7, 8, 7, 4, 2, 4, 7, 5, 4, 2, 0]
-    const stepMs = want === 'calm' ? 260 : want === 'boss' ? 170 : 210
+    const scale = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3, 784.0]
+    const mm: MusicMode = want
+    const period = stepMs(mm)
     const wave: OscillatorType = want === 'calm' ? 'triangle' : 'square'
     this.musicStep = 0
     const tick = () => {
       if (!this.ctx || !this.musicGain || this.muted) return
       const t = this.ctx.currentTime
-      const n = scale[pattern[this.musicStep % pattern.length]]
+      const cell = musicStep(mm, this.musicStep)
+      this.musicStep++
+      if (cell.note < 0) return // a rest is part of the tune
+      const n = scale[cell.note] * (cell.octave ? 2 : 1)
       const o = this.ctx.createOscillator()
       o.type = wave
       o.frequency.value = n
@@ -105,7 +112,7 @@ export class AudioDriver {
       o.start(t)
       o.stop(t + 0.75)
       // bass on the downbeat: soft pad for calm, a thumping pulse for play/boss
-      if (this.musicStep % 4 === 0) {
+      if (cell.downbeat) {
         const pad = this.ctx.createOscillator()
         pad.type = want === 'calm' ? 'sine' : 'sawtooth'
         pad.frequency.value = want === 'calm' ? n / 2 : scale[0] / 2
@@ -117,7 +124,7 @@ export class AudioDriver {
         pad.start(t)
         pad.stop(t + 1.05)
       }
-      if (want === 'boss' && this.musicStep % 2 === 1) {
+      if (want === 'boss' && this.musicStep % 2 === 0) {
         // off-beat hat
         const h = this.ctx.createOscillator()
         h.type = 'square'
@@ -130,13 +137,25 @@ export class AudioDriver {
         h.start(t)
         h.stop(t + 0.08)
       }
-      this.musicStep++
     }
     tick()
-    this.musicTimer = window.setInterval(tick, stepMs)
+    this.musicTimer = window.setInterval(tick, period)
+  }
+
+  // Drop the music under a big sound for a beat, then ease back.
+  private duck() {
+    if (!this.ctx || !this.musicGain || this.musicMode === 'off') return
+    const g = this.musicGain.gain
+    const t = this.ctx.currentTime
+    const base = this.musicMode === 'boss' ? 0.13 : 0.1
+    g.cancelScheduledValues(t)
+    g.setValueAtTime(g.value, t)
+    g.linearRampToValueAtTime(base * 0.35, t + 0.05)
+    g.linearRampToValueAtTime(base, t + 0.6)
   }
 
   play(event: EventType | string, opts: { vol?: number; pitch?: number; big?: number } = {}) {
+    if (DUCKERS.has(String(event))) this.duck()
     if (!this.ctx || !this.master || this.muted) return
     const now = this.ctx.currentTime
     const last = this.lastPlay.get(event) ?? -1

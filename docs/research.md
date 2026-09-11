@@ -342,3 +342,22 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   is an upbeat pentatonic loop; calm is the Sky lullaby; boss adds a bass pulse and a faster step. Volume stays low
   under the effects; the SOUND toggle still mutes everything.**
 - Results screens and hearts-vs-bars: no usable specifics found this pass. Hearts stay.
+
+## 2026-09-11 (timer pass 10, covering two queued prompts) — colorblind cues, loop fatigue, ducking, siblings
+
+- 8–10% of boys confuse red and green; never carry a meaning by color alone, add shape/pattern/text.
+  ([Game Accessibility Guidelines: colour alone](https://gameaccessibilityguidelines.com/ensure-no-essential-information-is-conveyed-by-a-fixed-colour-alone/),
+  [Colorblind.io design guide](https://colorblind.io/guides/designing-for-color-blindness))
+  **→ applied: the red danger decal now carries an X inside the ring and chevrons along a charge strip; the green
+  "hit him now" ring is a plain thick ring. Different shapes, not just different colors.**
+- Loops register as repetition after ~90–120 s of unchanged material; combat loops 15–30 s, exploration 30–60 s;
+  four-note motifs, layers, and strategic rests beat a longer melody. ([Sorceress: game music loops](https://sorceress.games/blog/layer-how-to-make-good-video-game-music-ai-loops-2026),
+  [A Sound Effect: repetition and listening fatigue](https://www.asoundeffect.com/game-audio-immersion/),
+  [Ludoharmonics: looping music](https://www.ludoharmonics.com/why-is-looping-music-hard/))
+  **→ applied: music is now bar-structured (A A B A C A B A′) with rests and an octave lift: play loops ~27 s, boss
+  ~22 s, calm ~33 s instead of 3–4 s. `musicStep()` in `src/audio/music.ts`, pure and tested.**
+- Ducking: drop the music under important sounds so they cut through. ([Game Developer: audio ducking](https://www.gamedeveloper.com/audio/game-audio-theory-ducking))
+  **→ applied: screams, boss hits, boss down, Kase hurt, explosions and the win jingle duck the music to 35% for 0.6 s.**
+- Siblings on one phone: shared devices need a clear turn-taking token; kids are more engaged co-located than alone.
+  ([Project IRL, co-located mobile play](https://arxiv.org/pdf/2201.02558)) Ours: the name field + household board is the
+  token ("your turn, type your name"). Left as is.

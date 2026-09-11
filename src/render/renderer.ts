@@ -999,10 +999,24 @@ export class Renderer {
       this.decalRing = new THREE.Mesh(new THREE.RingGeometry(0.7, 1, 40), new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }))
       this.decalRing.rotation.x = -Math.PI / 2
       this.decalRing.visible = false
+      // an X inside the ring: danger reads by shape for red/green colorblind kids, not by color alone
+      for (const a of [Math.PI / 4, -Math.PI / 4]) {
+        const bar = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.12), (this.decalRing.material as THREE.Material))
+        bar.rotation.z = a
+        this.decalRing.add(bar)
+      }
       this.scene.add(this.decalRing)
       this.decalLine = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }))
       this.decalLine.rotation.x = -Math.PI / 2
       this.decalLine.visible = false
+      // chevrons along the strip: "this way, fast" without relying on the color
+      for (let i = 0; i < 5; i++) {
+        const chev = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }))
+        chev.position.set(0, -0.4 + i * 0.2, 0.001)
+        chev.scale.set(1, 0.18, 1)
+        chev.rotation.z = Math.PI / 4
+        this.decalLine.add(chev)
+      }
       this.scene.add(this.decalLine)
     }
     const ring = this.decalRing

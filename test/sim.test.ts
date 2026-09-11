@@ -5,6 +5,7 @@ import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
 import { GHOST_DT, ghostAt, packGhost } from '../src/ghost.ts'
 import { ARROW_DELAY, arrowVisible, goalShort } from '../src/ui/ui.ts'
+import { LOOP_STEPS, musicStep, stepMs } from '../src/audio/music.ts'
 import type { Input, State } from '../src/sim/types.ts'
 import { LEVELS, PROP_STATS } from '../src/sim/levels.ts'
 
@@ -1271,6 +1272,21 @@ describe('sim', () => {
     expect(arrowVisible(0, 'wreck', 'escape')).toBe(true)
     expect(arrowVisible(0, 'wreck', 'race')).toBe(true)
     expect(arrowVisible(1, 'wreck', 'chase')).toBe(false)
+  })
+
+  it('research pass 10: music loops run past 20 s with bars that differ, rests in the beat, an octave lift', () => {
+    for (const mode of ['play', 'calm', 'boss'] as const) {
+      expect((LOOP_STEPS * stepMs(mode)) / 1000).toBeGreaterThan(20)
+      const bars = Array.from({ length: 8 }, (_, b) => Array.from({ length: 16 }, (_, i) => musicStep(mode, b * 16 + i).note).join(','))
+      expect(new Set(bars).size).toBeGreaterThanOrEqual(3)
+      expect(musicStep(mode, 7 * 16).octave).toBe(1)
+      expect(musicStep(mode, 0).octave).toBe(0)
+      expect(musicStep(mode, LOOP_STEPS).note).toBe(musicStep(mode, 0).note)
+    }
+    const playNotes = Array.from({ length: LOOP_STEPS }, (_, i) => musicStep('play', i).note)
+    expect(playNotes.some((n) => n < 0)).toBe(true)
+    const calmNotes = Array.from({ length: LOOP_STEPS }, (_, i) => musicStep('calm', i).note)
+    expect(calmNotes.every((n) => n >= 0)).toBe(true)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
