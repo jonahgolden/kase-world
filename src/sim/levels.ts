@@ -367,3 +367,9 @@ export function parFor(board: string): [number, number, number] {
 }
 
 export const LEVEL_IDS: string[] = LEVELS.map((l) => l.id)
+
+// Anything faster than 30% of gold par is not a run, it is a bug or a skip. 15 s floor for unknown boards.
+export function minPlausibleMs(board: string): number {
+  const [gold] = parFor(board)
+  return Math.max(15_000, Math.round(gold * 0.3))
+}

@@ -377,3 +377,20 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   nothing to trim without dropping the fixed step. ([Springer: are 100 ms fast enough?](https://link.springer.com/chapter/10.1007/978-3-319-58475-1_4))
 - Boss bars: segmented bars that show phases are the readable form; ours already segments per phase and turns
   angry from phase 2. ([Godot forum: segmented boss bars](https://forum.godotengine.org/t/how-might-i-implement-a-segmented-health-bar-boss-phases/5845))
+
+## 2026-09-11 (timer pass 12) — real leaderboard data, destruction feel, health economy, attract mode
+
+- Live boards (2026-09-11 22:30): North America 127.8 s and 134.2 s from two first-time players after the v0.8 rework
+  (silver on a 100/150/240 par), Sky 152–188 s (silver/bronze on 120/180/280), South America 198 s (bronze on
+  110/160/260). Nothing past Antarctica yet. Entries under 45 s from 09-10 22:45–01:30 are pre-rework builds or
+  skip-to-boss tests. Pars hold: a clean first run lands bronze/silver, as the medal research said.
+  **→ applied: practice runs (skip-to-boss, admin jump) never post to the boards or save a personal best; the worker
+  rejects any level time under 30% of its gold par (`minPlausibleMs()` in levels.ts, tested).**
+- Destruction satisfaction = agency + instant feedback + physics that leaves a mark; debris should stay.
+  ([Glide In: why destruction games are satisfying](https://glidein.cc/blog/why-destruction-games-satisfying-science-smashing))
+  Ours: debris persists (cap 700), splats persist, smash hit-stop scales with mass. Kept.
+- Health economy: casual kids' action games run 3–5 hearts with damage that reads one heart at a time.
+  ([Wikipedia: health in games](https://en.wikipedia.org/wiki/Health_(game_terminology))) Ours: 5 hearts, hits of
+  half to one heart, plus assist hearts after losses. Kept.
+- Attract mode: idle title shows a demo and the mechanics. ([TV Tropes: Attract Mode](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode))
+  Ours: the globe crowd of pooping babies; a real gameplay demo on idle is a candidate for a later pass.

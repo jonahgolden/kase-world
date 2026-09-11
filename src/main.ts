@@ -268,6 +268,11 @@ function saveFails(f: Record<string, number>) {
     /* ignore */
   }
 }
+// An admin jumping straight to a locked continent is testing, not playing.
+function unlockedFairly(levelIndex: number): boolean {
+  return levelIndex <= loadUnlocked()
+}
+
 function assistFor(levelId: string): number {
   return Math.min(2, loadFails()[levelId] ?? 0)
 }
@@ -410,7 +415,9 @@ function showChoice() {
 async function onLevelCleared(s: State) {
   clearFails(s.levelId)
   const timeMs = Math.round(s.clearTime * 1000)
-  const isBest = saveLocalBest(s.levelId, timeMs)
+  // a skipped-to-boss or admin run is practice: it never touches the boards or the personal best
+  const practice = s.goalDone || (admin && runStartIndex !== 0 && !unlockedFairly(s.levelIndex))
+  const isBest = practice ? false : saveLocalBest(s.levelId, timeMs)
   if (isBest && !bot && ghostRec.length > 10) saveGhost(s.levelId, packGhost(ghostRec))
   if (s.levelIndex + 1 > unlocked) {
     unlocked = Math.min(LEVELS.length - 1, s.levelIndex + 1)
@@ -420,12 +427,13 @@ async function onLevelCleared(s: State) {
   mode = 'won'
   ui.showWon(s, hasNext, timeMs, isBest)
   const levelId = s.levelId
-  const res = bot
-    ? { ok: false as const, error: 'bot' }
-    : await submitTime({ name, kind: 'level', level: levelId, timeMs, levelsCleared: s.levelsCleared, version: VERSION, stats: { ...s.stats } })
-  let sub = res.ok ? `World rank #${res.rank} for ${currentLevel(s).name}` : `Time kept on this device (${res.error ?? 'offline'})`
+  const res =
+    bot || practice
+      ? { ok: false as const, error: practice ? 'practice' : 'bot' }
+      : await submitTime({ name, kind: 'level', level: levelId, timeMs, levelsCleared: s.levelsCleared, version: VERSION, stats: { ...s.stats } })
+  let sub = res.ok ? `World rank #${res.rank} for ${currentLevel(s).name}` : practice ? 'Practice run (skipped ahead): not on the board' : `Time kept on this device (${res.error ?? 'offline'})`
   if (isBest) sub = 'NEW PERSONAL BEST! ' + sub
-  if (!hasNext && runStartIndex === 0 && s.levelsCleared >= LEVELS.length && !bot) {
+  if (!hasNext && runStartIndex === 0 && s.levelsCleared >= LEVELS.length && !bot && !practice) {
     const runMs = Math.round(s.runTime * 1000)
     saveLocalBest('world', runMs)
     const w = await submitTime({ name, kind: 'world', level: 'world', timeMs: runMs, levelsCleared: s.levelsCleared, version: VERSION, stats: { ...s.stats } })

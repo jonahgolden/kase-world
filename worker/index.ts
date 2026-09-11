@@ -1,4 +1,4 @@
-import { LEVEL_IDS } from '../src/sim/levels.ts'
+import { LEVEL_IDS, minPlausibleMs } from '../src/sim/levels.ts'
 
 interface RateLimit {
   limit(opts: { key: string }): Promise<{ success: boolean }>
@@ -91,7 +91,7 @@ async function postTime(req: Request, env: Env): Promise<Response> {
   if (!name) return json({ error: 'bad name' }, 400)
   if (kind === 'level' && !LEVEL_IDS.includes(level)) return json({ error: 'bad level' }, 400)
   if (kind === 'world' && levelsCleared < LEVEL_IDS.length) return json({ error: 'world run incomplete' }, 400)
-  const minMs = kind === 'world' ? MIN_LEVEL_MS * LEVEL_IDS.length : MIN_LEVEL_MS
+  const minMs = kind === 'world' ? minPlausibleMs('world') : Math.max(MIN_LEVEL_MS, minPlausibleMs(level))
   const maxMs = kind === 'world' ? MAX_LEVEL_MS * LEVEL_IDS.length : MAX_LEVEL_MS
   if (timeMs < minMs || timeMs > maxMs) return json({ error: 'implausible time' }, 400)
 

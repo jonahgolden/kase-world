@@ -8,7 +8,7 @@ import { ARROW_DELAY, arrowVisible, goalShort } from '../src/ui/ui.ts'
 import { LOOP_STEPS, musicStep, stepMs } from '../src/audio/music.ts'
 import { QUALITY_DOWN_MS, QUALITY_UP_MS, nextQuality } from '../src/render/quality.ts'
 import type { Input, State } from '../src/sim/types.ts'
-import { LEVELS, PROP_STATS } from '../src/sim/levels.ts'
+import { LEVELS, PROP_STATS, minPlausibleMs, parFor } from '../src/sim/levels.ts'
 
 function run(s: State, seconds: number, input: Input | ((s: State) => Input) = EMPTY_INPUT) {
   const n = Math.round(seconds / DT)
@@ -1305,6 +1305,18 @@ describe('sim', () => {
     expect(nextQuality('mid', QUALITY_UP_MS - 2)).toBe('high')
     expect(nextQuality('high', QUALITY_UP_MS - 2)).toBe('high')
     expect(nextQuality('mid', (QUALITY_DOWN_MS + QUALITY_UP_MS) / 2)).toBe('mid')
+  })
+
+  it('research pass 12: implausible times are floored at 30% of gold par, skips mark a practice run', () => {
+    for (const lvl of LEVELS) {
+      expect(minPlausibleMs(lvl.id)).toBe(Math.max(15_000, Math.round(parFor(lvl.id)[0] * 0.3)))
+      expect(minPlausibleMs(lvl.id)).toBeLessThan(parFor(lvl.id)[0])
+    }
+    expect(minPlausibleMs('world')).toBeGreaterThan(minPlausibleMs('north-america') * 5)
+    const s = createState({ seed: 5 })
+    expect(s.goalDone).toBe(false)
+    skipToBoss(s)
+    expect(s.goalDone).toBe(true)
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
