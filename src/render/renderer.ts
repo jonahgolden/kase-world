@@ -30,6 +30,8 @@ import { ASSETS } from './assets.ts'
 import { buildNpc, makeGiraffe, makeHat, makeKacone, makePartModel, makeProp, makeQuad, makeSkateboard, makeWings } from './models.ts'
 import type { Flashable, ModelCtx, NpcView } from './models.ts'
 import { ghostAt } from '../ghost.ts'
+import { pixelRatioFor, shadowMapFor } from './quality.ts'
+import type { Quality } from './quality.ts'
 
 // One animal of a group boss: a 3D primitive build when we have one, else a cropped card.
 interface PartView {
@@ -113,6 +115,7 @@ export class Renderer {
   private tube: THREE.Mesh | null = null // Kase's inner tube on the water level
   private ghost: THREE.Group | null = null // translucent Kase replaying the personal best
   private decalRing: THREE.Mesh | null = null // where the telegraphed stomp/hop/pounce lands
+  quality: Quality = 'high'
   private decalLine: THREE.Mesh | null = null // the path of a telegraphed charge
   private ghostTrack: number[] | null = null
   private giraffe!: THREE.Group
@@ -990,6 +993,24 @@ export class Renderer {
       this.ghost = g
     }
     this.ghost.visible = true
+  }
+
+  // Adaptive quality: pixel ratio and shadows step down on a struggling phone, back up when it has headroom.
+  setQuality(q: Quality) {
+    if (q === this.quality) return
+    this.quality = q
+    this.gl.setPixelRatio(pixelRatioFor(q, this.lowEnd))
+    const size = shadowMapFor(q, this.lowEnd)
+    this.gl.shadowMap.enabled = size > 0
+    this.sun.castShadow = size > 0
+    if (size > 0) {
+      this.sun.shadow.mapSize.set(size, size)
+      if (this.sun.shadow.map) {
+        this.sun.shadow.map.dispose()
+        this.sun.shadow.map = null
+      }
+    }
+    this.gl.setSize(window.innerWidth, window.innerHeight, false)
   }
 
   // Red ground decal under a boss wind-up: a ring where the hit lands, a strip along a charge.

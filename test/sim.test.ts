@@ -6,6 +6,7 @@ import { EMPTY_INPUT } from '../src/sim/types.ts'
 import { GHOST_DT, ghostAt, packGhost } from '../src/ghost.ts'
 import { ARROW_DELAY, arrowVisible, goalShort } from '../src/ui/ui.ts'
 import { LOOP_STEPS, musicStep, stepMs } from '../src/audio/music.ts'
+import { QUALITY_DOWN_MS, QUALITY_UP_MS, nextQuality } from '../src/render/quality.ts'
 import type { Input, State } from '../src/sim/types.ts'
 import { LEVELS, PROP_STATS } from '../src/sim/levels.ts'
 
@@ -1294,6 +1295,16 @@ describe('sim', () => {
     expect(playNotes.some((n) => n < 0)).toBe(true)
     const calmNotes = Array.from({ length: LOOP_STEPS }, (_, i) => musicStep('calm', i).note)
     expect(calmNotes.every((n) => n >= 0)).toBe(true)
+  })
+
+  it('research pass 11: quality steps down on slow frames, up on fast ones, never flaps in the band', () => {
+    expect(nextQuality('high', QUALITY_DOWN_MS + 5)).toBe('mid')
+    expect(nextQuality('mid', QUALITY_DOWN_MS + 5)).toBe('low')
+    expect(nextQuality('low', QUALITY_DOWN_MS + 5)).toBe('low')
+    expect(nextQuality('low', QUALITY_UP_MS - 2)).toBe('mid')
+    expect(nextQuality('mid', QUALITY_UP_MS - 2)).toBe('high')
+    expect(nextQuality('high', QUALITY_UP_MS - 2)).toBe('high')
+    expect(nextQuality('mid', (QUALITY_DOWN_MS + QUALITY_UP_MS) / 2)).toBe('mid')
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

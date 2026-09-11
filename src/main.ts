@@ -12,6 +12,8 @@ import { Ui, arrowVisible, goalShort, medalFor } from './ui/ui.ts'
 import { adminCheck, adminClearBoard, adminToken, fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
 import type { TimeRow } from './net/leaderboard.ts'
 import { GHOST_DT, GHOST_MAX, loadGhost, packGhost, saveGhost } from './ghost.ts'
+import { QUALITY_WINDOW, nextQuality } from './render/quality.ts'
+import type { Quality } from './render/quality.ts'
 import type { GhostPoint } from './ghost.ts'
 
 const params = new URLSearchParams(location.search)
@@ -283,6 +285,23 @@ function clearFails(levelId: string) {
 }
 let thiefWarns = 0
 let arrowOffT = 0
+// adaptive quality: a 30-frame average of frame time, evaluated once per window
+const pinnedQuality = (['high', 'mid', 'low'] as Quality[]).find((q) => q === params.get('quality')) ?? null
+let frameAcc = 0
+let frameN = 0
+function watchFrame(dtSec: number) {
+  if (pinnedQuality) {
+    renderer.setQuality(pinnedQuality)
+    return
+  }
+  frameAcc += dtSec * 1000
+  frameN++
+  if (frameN < QUALITY_WINDOW) return
+  const avg = frameAcc / frameN
+  frameAcc = 0
+  frameN = 0
+  renderer.setQuality(nextQuality(renderer.quality, avg))
+}
 // collecting streak: pickups close together climb in pitch
 let pickupAt = -10
 let pickupStreak = 0
@@ -811,6 +830,7 @@ function loop(now: number) {
   requestAnimationFrame(loop)
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
+  if (mode === 'play') watchFrame(dt)
   const globeMode = GLOBE_MODES.includes(mode) && !(mode === 'help' && helpFromGame)
   if (globeMode) {
     globe.resize(renderer.camera.aspect)

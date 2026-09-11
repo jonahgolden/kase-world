@@ -361,3 +361,19 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
 - Siblings on one phone: shared devices need a clear turn-taking token; kids are more engaged co-located than alone.
   ([Project IRL, co-located mobile play](https://arxiv.org/pdf/2201.02558)) Ours: the name field + household board is the
   token ("your turn, type your name"). Left as is.
+
+## 2026-09-11 (timer pass 11) — phone performance, adaptive quality, input latency, boss bars
+
+- Mobile three.js: cap pixel ratio (one line can double frame rate), shadow maps cost a full extra pass and can halve
+  mobile frame rate, keep draw calls under ~50–100, and phones throttle after 5–10 minutes so a quick test lies.
+  Adaptive quality: watch a rolling frame-time window; if it averages over ~20 ms for ~30 frames, step quality down;
+  step back up only after a sustained good stretch (hysteresis). ([Utsubo: 100 three.js tips](https://www.utsubo.com/blog/threejs-best-practices-100-tips),
+  [Codrops: efficient three.js scenes](https://tympanus.net/codrops/2025/02/11/building-efficient-three-js-scenes-optimize-performance-while-maintaining-quality/),
+  [Wayline: adaptive resolution scaling](https://www.wayline.io/blog/adaptive-resolution-scaling-mobile-gaming))
+  **→ applied: three quality tiers (high / mid / low: pixel ratio 1.75→1.25→1, shadow map 1024→512→off). A pure
+  `nextQuality()` policy (`src/render/quality.ts`, tested) steps down when the 30-frame average exceeds 22 ms and up
+  when it stays under 13 ms; `?quality=low|mid|high` pins it for testing. The HUD is untouched.**
+- Input latency: direct touch shows effects from ~25–50 ms. Our path is one 16.7 ms sim tick plus render interpolation;
+  nothing to trim without dropping the fixed step. ([Springer: are 100 ms fast enough?](https://link.springer.com/chapter/10.1007/978-3-319-58475-1_4))
+- Boss bars: segmented bars that show phases are the readable form; ours already segments per phase and turns
+  angry from phase 2. ([Godot forum: segmented boss bars](https://forum.godotengine.org/t/how-might-i-implement-a-segmented-health-bar-boss-phases/5845))
