@@ -349,6 +349,9 @@ export class AudioDriver {
         this.tone('square', 660, 880, 0.12, 0.12 * v, 0.12)
         this.tone('square', 880, 880, 0.18, 0.1 * v, 0.26, 'lin')
         break
+      case 'rockHint':
+        this.tone('sine', 520 * p, 780 * p, 0.09, 0.14 * v)
+        break
       case 'covered':
         this.tone('sine', 190, 55, 0.3, 0.6 * v)
         this.burst(0.25, 0.35 * v, 'lowpass', 700)

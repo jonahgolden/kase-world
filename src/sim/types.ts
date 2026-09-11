@@ -414,6 +414,7 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'rockHint'
   | 'snowMilestone'
   | 'nap'
   | 'boomerang'

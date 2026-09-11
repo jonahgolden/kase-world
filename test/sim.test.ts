@@ -1028,6 +1028,64 @@ describe('sim', () => {
     expect(big).toBe(1)
   })
 
+  it('research pass 3: early screams still spook the horse, the rockfish bubbles faster up close, three flies max, breather order', () => {
+    const s = createState({ seed: 5, levelId: 'asia' })
+    skipToBoss(s)
+    run(s, CFG.boss.enterTime + 0.5)
+    const b = s.boss!
+    const p = s.player
+    p.invuln = 99
+    b.state = 'attack'
+    b.stateT = 1.5
+    b.x = p.x
+    b.z = p.z + 8
+    b.dirX = 0
+    b.dirZ = -1
+    p.facing = 0
+    p.hasAim = true
+    fireScream(s, 0.3) // range ~4.6: he is out of reach, no direct hit
+    expect(b.hits).toBe(0)
+    expect(b.roundT).toBeGreaterThan(0)
+    run(s, 0.4)
+    expect(b.hits).toBe(1)
+
+    const d = createState({ seed: 5, levelId: 'australia' })
+    skipToBoss(d)
+    run(d, CFG.boss.enterTime + 0.3)
+    const db = d.boss!
+    db.hits = 6 // rockfish phase
+    d.player.invuln = 99
+    run(d, CFG.boss.phaseChangeTime + 0.3)
+    const count = (dist: number) => {
+      d.player.x = db.x + dist
+      d.player.z = db.z
+      db.roundT = 0
+      let n = 0
+      for (let i = 0; i < 180; i++) {
+        step(d, EMPTY_INPUT)
+        n += d.events.filter((e) => e.t === 'rockHint').length
+        d.player.x = db.x + dist
+        d.player.z = db.z
+      }
+      return n
+    }
+    expect(count(1.5)).toBeGreaterThan(count(8))
+
+    const f = createState({ seed: 5, levelId: 'the-deep' })
+    const vol = f.features.find((x) => x.kind === 'volcano')!
+    f.npcs = f.npcs.filter((n) => n.kind === 'fly' || n.kind === 'bigfly')
+    for (let i = 0; i < 6; i++) f.npcs.push({ ...f.npcs[0], id: 9500 + i, x: vol.x + i * 0.3, z: vol.z + 1 })
+    f.player.x = vol.x
+    f.player.z = vol.z + 3
+    f.player.invuln = 99
+    run(f, 1.5, () => ({ ...EMPTY_INPUT }))
+    expect(f.npcs.filter((n) => (n.kind === 'fly' || n.kind === 'bigfly') && n.state === 'chase').length).toBeLessThanOrEqual(CFG.volcano.maxChasing)
+
+    const ids = LEVELS.map((l) => l.id)
+    expect(ids.indexOf('asia')).toBe(ids.indexOf('the-deep') + 1)
+    expect(ids.indexOf('australia')).toBe(ids.indexOf('asia') + 1)
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

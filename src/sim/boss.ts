@@ -722,6 +722,12 @@ function updateHorse(s: State, b: Boss, ph: number) {
       const sp = b.def.chargeSpeed * B.chargeMult[ph]
       b.vx = b.dirX * sp
       b.vz = b.dirZ * sp
+      b.roundT = Math.max(0, b.roundT - DT)
+      if (b.roundT > 0 && dist(b.x, b.z, p.x, p.z) < H.earlyRange) {
+        b.roundT = 0
+        bossHit(s, 'scream', false, 1)
+        break
+      }
       chargeSmash(s, b, b.def.damage)
       break
     }
@@ -1136,6 +1142,14 @@ function updateGames(s: State, b: Boss, ph: number) {
   b.state = 'idle'
   b.hideT -= DT
   if (b.hideT <= 0) rockfishHide(s, b)
+  // hot and cold: a bubble sound, faster and higher the closer Kase is
+  const dd = dist(b.x, b.z, p.x, p.z)
+  b.roundT -= DT
+  if (dd < K.hintRange && b.roundT <= 0) {
+    const near = 1 - dd / K.hintRange
+    b.roundT = K.hintMin + (1 - near) * (K.hintMax - K.hintMin)
+    ev(s, { t: 'rockHint', x: p.x, z: p.z, big: near })
+  }
   if (p.y < 0.5 && p.invuln <= 0 && dist(b.x, b.z, p.x, p.z) < b.r + p.r) {
     hurtPlayer(s, K.spike, b.x, b.z, 0.6)
     b.hitFlash = K.reveal

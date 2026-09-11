@@ -674,6 +674,9 @@ function playSound(e: GameEvent) {
     case 'snowMilestone':
       audio.play('win', { vol: 0.4, pitch: 1 + (e.big ?? 0) * 0.4 })
       return
+    case 'rockHint':
+      audio.play('rockHint', { pitch: 0.7 + (e.big ?? 0) * 0.9, vol: 0.5 + (e.big ?? 0) * 0.5 })
+      return
     case 'smash':
     case 'splat':
     case 'propHit':

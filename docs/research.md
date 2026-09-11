@@ -184,3 +184,30 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
 - Knockback: separate force from duration, keep motion fluid with a small bounce-back on collision, low
   friction so nobody gets stuck. ([G2A: knockback](https://www.g2a.com/news/glossary/what-is-knockback-in-gaming-meaning-example-and-how-it-works-in-games/))
   **→ applied: the kangaroo bounces back a little when its punch lands, so bouts stay fluid.**
+
+## 2026-09-11 (timer pass 3) — parry windows, hot/cold, enemy density, thumb zones, sawtooth pacing
+
+- Parry windows: Souls uses 6 frames (200 ms) and it is famously punishing; casual-friendly games widen
+  the window or add a forgiving variant. ([What goes into a good parry system](https://www.gamedeveloper.com/design/what-goes-into-a-good-parry-system-),
+  [Parry Everything: taxonomy of a parry](https://parryeverything.com/2021/11/05/fromsoft-and-the-taxonomy-of-a-parry/))
+  **→ applied: Khan's parry forgives an early scream: a scream fired during his charge while he is still
+  out of range arms a 0.35 s window; if he closes to 3.5 units inside it, the horse spooks anyway.**
+- Hide and seek: hot/cold cues that get more frantic near the target keep the search fair and fun; hide
+  cleverly, never impossibly. ([Hot and Cold rules](https://hotandcold.app/hot-and-cold-game-rules),
+  [Early Impact Learning: hide and seek variations](https://earlyimpactlearning.com/15-hide-and-seek-variations-twists-on-the-classic-game/))
+  **→ applied: the rockfish blows a bubble sound whose interval shrinks and pitch rises as Kase gets
+  closer (within 10 units), so the search reads by ear without giving the spot away.**
+- Enemy density: keep the *near* group small (a few real threats), the rest hang back; crowding makes
+  fights unreadable. ([Enemy design and AI for melee](https://www.gamedeveloper.com/design/enemy-design-and-enemy-ai-for-melee-combat-systems),
+  [Level Design Book: enemy design](https://book.leveldesignbook.com/process/combat/enemy))
+  **→ applied: at most three flies chase Kase at once in The Deep; the rest buzz around Poodoom.**
+- Thumb zones: primary actions in the bottom 30–40% of a portrait screen, HUD anchored to safe-area
+  insets, targets ≥ 44 px. ([Parachute: thumb zone](https://parachutedesign.ca/blog/thumb-zone-ux/),
+  [Cursa: mobile safe areas](https://cursa.app/en/page/mobile-screen-resolution-aspect-ratios-and-safe-areas))
+  Ours: buttons sit bottom-right, joystick floats bottom-left; checked the HUD for safe-area padding.
+- Sawtooth pacing: alternate intense levels with breathers so tension can rebuild.
+  ([Level Design Book: pacing](https://book.leveldesignbook.com/process/preproduction/pacing),
+  [Tropedia: breather level](https://tropedia.fandom.com/wiki/Breather_Level))
+  **→ applied: Asia (find the fedoras, calm) now sits between The Deep and Australia, so the run goes
+  chase → snowball → fedora hunt? no: chase → snowball (breather) → stampede → jellies → fedoras
+  (breather) → milk defense → the final race. Saved unlock indices shift by one for existing devices.**

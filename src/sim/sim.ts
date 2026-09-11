@@ -159,11 +159,11 @@ export const CFG = {
     coverPoops: 14,
     bombPoops: 4, // a potato counts as this many poops of cover
     gamesRingR: 9.5,
-    horse: { chargeTime: 1.6, thrown: 0.6, down: 1.6, rechargeTelegraph: 0.4 },
+    horse: { chargeTime: 1.6, thrown: 0.6, down: 1.6, rechargeTelegraph: 0.4, earlyParry: 0.45, earlyRange: 4.4 },
     group: { giraffeCharge: 0.6, pounceTime: 0.45, pounceMax: 7, pounceR: 1.8, kickR: 3.2, stompR: 3.8, rhinoCharge: 1.4, dazed: 2.6, potatoes: 3, potatoRespawn: 2.5 },
     sumo: { shove: 6, shovePerCharge: 10, friction: [3, 3.6, 4.2], hopTime: 0.5, hopDist: 5, crouch: 0.45, out: 1.5, punchR: 1.7, punch: 10 },
     race: { speed: [6, 7, 8], countdown: 1.5, band: 1.8, trip: 2.4, kick: 10, boardAhead: 0.9 },
-    rock: { r: 0.9, hideEvery: 6, revealNear: 2.5, reveal: 1.4, spike: 10 },
+    rock: { r: 0.9, hideEvery: 6, revealNear: 2.5, reveal: 1.4, spike: 10, hintRange: 10, hintMin: 0.22, hintMax: 1.5 },
   },
   seenRadius: 9,
   caps: { splats: 220, debris: 700 },
@@ -175,7 +175,7 @@ export const CFG = {
   assist: { maxHearts: 2 },
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2, distractLead: 2, distractEvery: 4, distractFor: 1.5 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
-  volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, r: 1.6 },
+  volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, maxChasing: 3, r: 1.6 },
   pop: { jelly: 400, fly: 120, bigfly: 300 },
 }
 
@@ -1463,6 +1463,9 @@ export function fireScream(s: State, charge: number) {
   const b = s.boss
   if (b && b.def.fight !== 'nest' && inCone(p.x, p.z, p.facing, b.x, b.z, b.r, rangeLen, S.halfAngle)) {
     bossHit(s, 'scream', false, charge)
+  } else if (b && fightOf(b) === 'horse' && b.state === 'attack' && inCone(p.x, p.z, p.facing, b.x, b.z, b.r, 99, S.halfAngle)) {
+    // aimed at him but screamed a beat early: the horse still spooks if it closes in within the grace window
+    b.roundT = CFG.boss.horse.earlyParry
   }
 }
 
@@ -2217,6 +2220,8 @@ function updateNpcs(s: State) {
             n.stateT = n.kind === 'king' ? CFG.king.run : 1.5
           } else if (n.kind === 'thief') {
             // thieves have one thing on their mind
+          } else if ((n.kind === 'fly' || n.kind === 'bigfly') && s.npcs.filter((m) => (m.kind === 'fly' || m.kind === 'bigfly') && m.state === 'chase').length >= CFG.volcano.maxChasing) {
+            // only a few flies dive at once; the rest keep buzzing the volcano
           } else {
             n.state = 'chase'
             n.stateT = 0
