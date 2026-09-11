@@ -40,6 +40,7 @@ const scenes: [string, string, number[]][] = [
   ['asia', '/?bot=1&mute=1&seed=3&level=asia', [3, 20]],
   ['sky', '/?bot=1&mute=1&seed=3&level=sky', [3, 16]],
   ['jeff', '/?bot=1&mute=1&seed=3&level=antarctica&skip=boss', [6, 14]],
+  ['ghost', '/?bot=1&mute=1&seed=3&ghost=demo', [3, 8]],
   ['bolt', '/?bot=1&mute=1&seed=3&level=south-america&skip=boss', [6, 14]],
   ['nest', '/?bot=1&mute=1&seed=3&level=sky&skip=boss', [6, 14]],
   ['chase', '/?bot=1&mute=1&seed=3&level=south-america', [4, 14]],

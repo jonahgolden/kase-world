@@ -11,6 +11,8 @@ import { AudioDriver } from './audio/audio.ts'
 import { Ui, medalFor } from './ui/ui.ts'
 import { fetchBoard, fmtMs, householdNames, localBests, playerName, rememberName, saveLocalBest, submitTime } from './net/leaderboard.ts'
 import type { TimeRow } from './net/leaderboard.ts'
+import { GHOST_DT, GHOST_MAX, loadGhost, packGhost, saveGhost } from './ghost.ts'
+import type { GhostPoint } from './ghost.ts'
 
 const params = new URLSearchParams(location.search)
 const dev = params.has('dev')
@@ -229,6 +231,9 @@ function clearFails(levelId: string) {
   }
 }
 let thiefWarns = 0
+// personal-best ghost: this run's path, sampled every GHOST_DT
+let ghostRec: GhostPoint[] = []
+let ghostNextT = 0
 
 function beginLevel(fresh: boolean) {
   if (!state) return
@@ -237,7 +242,15 @@ function beginLevel(fresh: boolean) {
   acc = 0
   hitstop = 0
   endTimer = 0
+  ghostRec = []
+  ghostNextT = 0
   renderer.setLevel(state)
+  if (params.get('ghost') === 'demo') {
+    // dev: a synthetic lap so the ghost can be seen without a saved best
+    const demo: GhostPoint[] = []
+    for (let i = 0; i < 600; i++) demo.push({ x: Math.cos(i * 0.05) * 8, y: 0, z: Math.sin(i * 0.05) * 8 })
+    renderer.setGhost(packGhost(demo))
+  } else renderer.setGhost(bot ? null : loadGhost(state.levelId))
   ui.show('hud')
   ui.updateHud(state, 0)
   ui.showCard(state)
@@ -317,6 +330,7 @@ async function onLevelCleared(s: State) {
   clearFails(s.levelId)
   const timeMs = Math.round(s.clearTime * 1000)
   const isBest = saveLocalBest(s.levelId, timeMs)
+  if (isBest && !bot && ghostRec.length > 10) saveGhost(s.levelId, packGhost(ghostRec))
   if (s.levelIndex + 1 > unlocked) {
     unlocked = Math.min(LEVELS.length - 1, s.levelIndex + 1)
     saveUnlocked(unlocked)
@@ -710,6 +724,12 @@ function loop(now: number) {
           snapshot(state)
           step(state, inp)
           handleEvents(state)
+          if (state.phase === 'wreck' || state.phase === 'boss') {
+            if (state.time >= ghostNextT && ghostRec.length < GHOST_MAX) {
+              ghostRec.push({ x: state.player.x, y: state.player.y, z: state.player.z })
+              ghostNextT += GHOST_DT
+            }
+          }
           acc -= DT
           n++
         }

@@ -3,6 +3,7 @@ import { CFG, DT, HEART, activePart, addWreck, bossHit, createState, fightOf, fi
 import { closestOnRing, pointInRing } from '../src/sim/geom.ts'
 import { botInput } from '../src/sim/bot.ts'
 import { EMPTY_INPUT } from '../src/sim/types.ts'
+import { GHOST_DT, ghostAt, packGhost } from '../src/ghost.ts'
 import type { Input, State } from '../src/sim/types.ts'
 import { LEVELS, PROP_STATS } from '../src/sim/levels.ts'
 
@@ -1087,6 +1088,30 @@ describe('sim', () => {
     const ids = LEVELS.map((l) => l.id)
     expect(ids.indexOf('asia')).toBe(ids.indexOf('the-deep') + 1)
     expect(ids.indexOf('australia')).toBe(ids.indexOf('asia') + 1)
+  })
+
+  it('research pass 4: telegraphs never under 0.6 s, last-heart screams charge faster, ghost tracks interpolate', () => {
+    expect(Math.min(...CFG.boss.telegraph)).toBeGreaterThanOrEqual(0.6)
+    const a = createState({ seed: 1 })
+    a.duo.x = -15
+    a.duo.z = -15
+    run(a, 0.5, { ...EMPTY_INPUT, scream: true })
+    const normal = a.player.screamCharge
+    const b = createState({ seed: 1 })
+    b.duo.x = -15
+    b.duo.z = -15
+    b.player.hp = HEART
+    run(b, 0.5, { ...EMPTY_INPUT, scream: true })
+    expect(b.player.screamCharge).toBeGreaterThan(normal)
+    const track = packGhost([
+      { x: 0, y: 0, z: 0 },
+      { x: 1, y: 0, z: 0 },
+      { x: 2, y: 1, z: 0 },
+    ])
+    expect(ghostAt(track, 0)).toEqual({ x: 0, y: 0, z: 0 })
+    expect(ghostAt(track, GHOST_DT * 0.5)!.x).toBeCloseTo(0.5, 5)
+    expect(ghostAt(track, GHOST_DT * 1.5)!.y).toBeCloseTo(0.5, 5)
+    expect(ghostAt(track, GHOST_DT * 9)).toBeNull()
   })
 
   it('sky fans launch a hovering baby, even while JUMP is held', () => {

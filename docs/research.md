@@ -211,3 +211,26 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   **→ applied: Asia (find the fedoras, calm) now sits between The Deep and Australia, so the run goes
   chase → snowball → fedora hunt? no: chase → snowball (breather) → stampede → jellies → fedoras
   (breather) → milk defense → the final race. Saved unlock indices shift by one for existing devices.**
+
+## 2026-09-11 (timer pass 4) — kids' reaction time, coverage feel, PB ghost, comeback
+
+- Simple reaction time: ~300–340 ms at 8–9, ~270–310 ms at 10–12; choice reactions add well over 100 ms,
+  and a thumb still has to travel. ([Case study: reaction time of children by age](https://www.sciencedirect.com/science/article/pii/S1877705817319239),
+  [Player Benchmark: reaction time by age](https://playerbenchmark.com/blog/good-reaction-time-by-age))
+  **→ applied: boss telegraph floor raised from 0.5 s to 0.6 s in the last phase (0.9 / 0.7 / 0.6), kangaroo
+  crouch 0.45 → 0.5 s, Khan's second-charge warning 0.4 → 0.5 s.**
+- Splatoon: covering things in color is satisfying because the mark is visible, cumulative and permanent.
+  ([Mile Zero: Spilled Ink](http://www.milezero.org/index.php/gaming/software/splatoon/spilled_ink.html),
+  [Source Gaming: the ink of Splatoon](https://sourcegaming.info/2016/08/26/holism-the-ink-of-splatoon/))
+  **→ applied: poop-cover bosses (Jeff, Columbus phase 3) show the cover on the card itself: a brown wash
+  that grows with `b.cover`, on top of the bar.**
+- Replayability for short levels: a personal-best ghost to race beats collectibles; kids race each other.
+  ([Perceptive Creators: replayability](https://perceptivecreators.com/game-design/level-design/replayability-good-levels-make-players-want-to-play-them-again/),
+  [Best Time Slime, dev ghost](https://certified-bozo.itch.io/best-time-slime))
+  **→ applied: the device records Kase's path at 10 Hz; the personal-best run replays as a translucent ghost
+  Kase with a PB tag on later attempts (`kw.ghost.<level>` in localStorage, driver-only, no sim change).**
+- Comeback mechanics: give the trailing side an opportunity that still needs skill; never negate the
+  leader. ([Bugnet: how to design a comeback mechanic](https://bugnet.io/blog/how-to-design-a-comeback-mechanic),
+  [TV Tropes: Comeback Mechanic](https://tvtropes.org/pmwiki/pmwiki.php/Main/ComebackMechanic))
+  **→ applied: at one heart or less, screams charge 30% faster ("last-heart lungs"); nothing else changes.**
+- Flight feel: nothing new found; the family already said hover flight feels good. Left alone.

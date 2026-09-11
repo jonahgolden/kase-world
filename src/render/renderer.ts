@@ -28,6 +28,7 @@ const PICKUP_COLOR: Record<string, number> = {
 import { ASSETS } from './assets.ts'
 import { buildNpc, makeGiraffe, makeHat, makeKacone, makePartModel, makeProp, makeQuad, makeSkateboard, makeWings } from './models.ts'
 import type { Flashable, ModelCtx, NpcView } from './models.ts'
+import { ghostAt } from '../ghost.ts'
 
 // One animal of a group boss: a 3D primitive build when we have one, else a cropped card.
 interface PartView {
@@ -109,6 +110,8 @@ export class Renderer {
   private herd: THREE.Group | null = null // stampede front
   private pigeon: THREE.Group | null = null // race rival
   private tube: THREE.Mesh | null = null // Kase's inner tube on the water level
+  private ghost: THREE.Group | null = null // translucent Kase replaying the personal best
+  private ghostTrack: number[] | null = null
   private giraffe!: THREE.Group
   private binky: THREE.Group | null = null // the boomerang binky in flight
   private decoyView: THREE.Group | null = null
@@ -943,6 +946,36 @@ export class Renderer {
     m.needsUpdate = true
   }
 
+  // A see-through Kase with a PB tag that replays the saved best path; null clears it.
+  setGhost(track: number[] | null) {
+    this.ghostTrack = track
+    if (!track) {
+      if (this.ghost) this.ghost.visible = false
+      return
+    }
+    if (!this.ghost) {
+      const g = new THREE.Group()
+      const mat = new THREE.MeshToonMaterial({ color: 0xbfe6ff, gradientMap: this.gradient, transparent: true, opacity: 0.38, depthWrite: false })
+      const body = new THREE.Group()
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.3, 4, 10), mat)
+      torso.position.y = 0.48
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mat)
+      head.position.y = 1.0
+      const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.24, 5), mat)
+      tuft.position.y = 1.34
+      tuft.rotation.z = 0.3
+      body.add(torso, head, tuft)
+      body.name = 'gbody'
+      const tag = this.promptSprite('👻')
+      tag.position.y = 1.9
+      tag.scale.setScalar(0.8)
+      g.add(body, tag)
+      this.scene.add(g)
+      this.ghost = g
+    }
+    this.ghost.visible = true
+  }
+
   // ------------------------------------------------------------ level goals
 
   private removeGoalViews() {
@@ -1314,7 +1347,7 @@ export class Renderer {
     const giraffe = p.ride === 'giraffe'
     this.player.position.set(px, py + (riding ? 0.16 : quad ? 0.55 : giraffe ? 1.45 : p.inLake ? -0.3 : 0), pz)
     this.player.rotation.y = pf
-    const afloat = isWater(s) && p.gy <= 0.05 && p.y <= 0.05
+    const afloat = isWater(s) && p.gy <= 0.05
     if (afloat && !this.tube) {
       const tube = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.2, 10, 20), this.toon(0xffd23f))
       tube.rotation.x = Math.PI / 2
@@ -1326,8 +1359,23 @@ export class Renderer {
       this.player.add(tube)
     }
     if (this.tube) {
+      // the baby model loads async and rebuilds the player group: keep the tube attached
+      if (this.tube.parent !== this.player) this.player.add(this.tube)
       this.tube.visible = afloat
       this.tube.rotation.z = Math.sin(this.time * 3) * 0.06
+    }
+    if (this.ghost && this.ghostTrack) {
+      const gp = s.phase === 'wreck' || s.phase === 'boss' ? ghostAt(this.ghostTrack, s.time) : null
+      this.ghost.visible = !!gp
+      if (gp) {
+        const gx = this.ghost.position.x
+        const gz = this.ghost.position.z
+        this.ghost.position.set(gp.x, gp.y, gp.z)
+        const mv = Math.hypot(gp.x - gx, gp.z - gz)
+        if (mv > 0.01) this.ghost.rotation.y = Math.atan2(gp.x - gx, gp.z - gz)
+        const body = this.ghost.getObjectByName('gbody')
+        if (body) body.position.y = Math.abs(Math.sin(this.time * 12)) * Math.min(1, mv * 40) * 0.08
+      }
     }
     if (this.skyDeco) {
       for (const c of this.skyDeco.children) {
@@ -1924,8 +1972,9 @@ export class Renderer {
         bv.card.position.y = hidden ? 0.08 : (bv.h / 2) * sy + (b.state === 'attack' && b.attack === 'stomp' && (fight === 'charge' || fight === 'stomper') ? Math.max(0, b.stateT) * 3 : 0)
         bv.overlay.position.y = bv.card.position.y
         const om = bv.overlay.material as THREE.MeshBasicMaterial
-        om.opacity = hidden ? (b.hitFlash > 0 ? 0.5 : 0) : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : b.hitFlash > 0 ? 0.6 : b.state === 'phaseChange' ? 0.3 : 0
-        om.color.set(b.hitFlash > 0 ? 0xffffff : 0xff3030)
+        const covering = fight === 'poopcover' && b.cover > 0 && b.hitFlash <= 0 && b.state !== 'telegraph'
+        om.opacity = hidden ? (b.hitFlash > 0 ? 0.5 : 0) : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : b.hitFlash > 0 ? 0.6 : covering ? 0.15 + b.cover * 0.65 : b.state === 'phaseChange' ? 0.3 : 0
+        om.color.set(b.hitFlash > 0 ? 0xffffff : covering ? 0x6b3e1e : 0xff3030)
         const rm = bv.ring.material as THREE.MeshBasicMaterial
         const open = b.state === 'exposed' && (fight === 'charge' || fight === 'horse' || fight === 'runner' || part?.def.weakness === 'wall')
         rm.opacity = open ? 0.55 + Math.sin(this.time * 10) * 0.3 : 0
