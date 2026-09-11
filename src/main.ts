@@ -644,7 +644,7 @@ function handleEvents(s: State) {
         ui.toast('100% WRECKED. BOSS TIME!', 2200, 'boss')
         break
       case 'levelPhase':
-        if (s.boss) ui.toast(s.boss.def.hint, 3200, 'go')
+        if (s.boss) ui.toast(s.boss.def.hintShort, 3200, 'go')
         break
       case 'bossExposed':
         if ((e.big ?? 0) > 0) {
@@ -749,7 +749,7 @@ function playSound(e: GameEvent) {
       return
     case 'npcScared':
       if ((e.kind === 'thief' || e.kind === 'pigeon') && (e.big ?? 0) === 0) return
-      audio.play(e.kind === 'chicken' ? 'chicken' : 'npcScared')
+      audio.play(e.kind === 'chicken' ? 'chicken' : 'npcScared', { pitch: vary() })
       return
     case 'snowMilestone':
       audio.play('win', { vol: 0.4, pitch: 1 + (e.big ?? 0) * 0.4 })
@@ -766,8 +766,13 @@ function playSound(e: GameEvent) {
       audio.play(e.t, { big: e.big, pitch: 0.92 + Math.random() * 0.16 })
       return
     default:
-      audio.play(e.t, { big: e.big })
+      audio.play(e.t, { big: e.big, pitch: vary() })
   }
+}
+
+// ±6% on every repeated cue so a hundred smashes never sound like one sample on loop
+function vary(): number {
+  return 0.94 + Math.random() * 0.12
 }
 
 function loop(now: number) {

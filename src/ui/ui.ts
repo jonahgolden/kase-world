@@ -352,12 +352,12 @@ export class Ui {
     this.get('bosscard-name').textContent = b.def.name.toUpperCase()
     this.get('bosscard-by').textContent = `drawn by ${b.def.drawnBy}`
     this.get('bosscard-taunt').textContent = `"${b.def.taunt}"`
-    this.get('bosscard-hint').textContent = b.def.hint
+    this.get('bosscard-hint').textContent = b.def.hintShort
     const card = this.screens.bosscard
     card.hidden = false
     card.classList.remove('out')
-    window.setTimeout(() => card.classList.add('out'), 2600)
-    window.setTimeout(() => (card.hidden = true), 3100)
+    window.setTimeout(() => card.classList.add('out'), 4500)
+    window.setTimeout(() => (card.hidden = true), 5000)
   }
 
   // Continent outline, the player, remembered finds, features and the boss ring.
@@ -572,8 +572,9 @@ export class Ui {
     el.style.top = `${y}px`
     el.style.color = color
     el.style.fontSize = `${Math.min(3.2, 1.0 + size)}rem`
+    el.style.animationDuration = `${readMs(text, 900)}ms`
     this.popups.appendChild(el)
-    setTimeout(() => el.remove(), 900)
+    setTimeout(() => el.remove(), readMs(text, 900))
   }
 
   toast(text: string, ms = 1400, cls = '') {
@@ -581,7 +582,7 @@ export class Ui {
     t.textContent = text
     t.className = 'show ' + cls
     clearTimeout((t as unknown as { _t: number })._t)
-    ;(t as unknown as { _t: number })._t = window.setTimeout(() => (t.className = ''), ms)
+    ;(t as unknown as { _t: number })._t = window.setTimeout(() => (t.className = ''), readMs(text, ms))
   }
 
   showWon(s: State, hasNext: boolean, timeMs: number, isBest: boolean) {
@@ -634,6 +635,12 @@ export class Ui {
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
+}
+
+// Minimum time a line stays up: an 8-year-old reads about two words a second, plus a beat to notice it.
+export function readMs(text: string, wanted: number): number {
+  const words = text.trim().split(/\s+/).filter(Boolean).length
+  return Math.max(wanted, 600 + words * 500)
 }
 
 export function goalCardText(g: Goal): string {

@@ -128,7 +128,7 @@ export const CFG = {
     rPerPower: 0.9,
     baseSpeed: 1.4,
     speedPerPower: 2.8,
-    peckTime: 0.45,
+    peckTime: 0.6, // telegraph floor: 0.6 s everywhere
     peckCd: 1.4,
     growPerScream: 0.06,
     growPerCharge: 0.12,
@@ -160,9 +160,9 @@ export const CFG = {
     coverPoops: 14,
     bombPoops: 4, // a potato counts as this many poops of cover
     gamesRingR: 9.5,
-    horse: { chargeTime: 1.6, thrown: 0.6, down: 1.6, rechargeTelegraph: 0.5, earlyParry: 0.45, earlyRange: 4.4 },
+    horse: { chargeTime: 1.6, thrown: 0.6, down: 1.6, rechargeTelegraph: 0.6, earlyParry: 0.45, earlyRange: 4.4 },
     group: { giraffeCharge: 0.6, pounceTime: 0.45, pounceMax: 7, pounceR: 1.8, kickR: 3.2, stompR: 3.8, rhinoCharge: 1.4, dazed: 2.6, potatoes: 3, potatoRespawn: 2.5 },
-    sumo: { shove: 6, shovePerCharge: 10, friction: [3, 3.6, 4.2], hopTime: 0.5, hopDist: 5, crouch: 0.5, out: 1.5, punchR: 1.7, punch: 10 },
+    sumo: { shove: 6, shovePerCharge: 10, friction: [3, 3.6, 4.2], hopTime: 0.5, hopDist: 5, crouch: 0.6, out: 1.5, punchR: 1.7, punch: 10 },
     race: { speed: [6, 7, 8], countdown: 1.5, band: 1.8, trip: 2.4, kick: 10, boardAhead: 0.9 },
     rock: { r: 0.9, hideEvery: 6, revealNear: 2.5, reveal: 1.4, spike: 10, hintRange: 10, hintMin: 0.22, hintMax: 1.5 },
   },
@@ -176,6 +176,7 @@ export const CFG = {
   assist: { maxHearts: 2 },
   comeback: { hearts: 1, chargeMult: 0.7 }, // last-heart lungs: screams charge faster when nearly out
   magnet: { r: 1.6, speed: 9 }, // pickups this close drift to Kase: no fiddly positioning
+  crowd: { maxChasing: 3 }, // grown-ups and dogs: a small near group, the rest keep wandering
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2, distractLead: 2, distractEvery: 4, distractFor: 1.5 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
   volcano: { every: 8, warn: 1.2, poops: 7, upV: [6, 10], outV: [2.5, 7], hotDamage: 10, maxFlies: 8, maxChasing: 3, r: 1.6 },
@@ -2247,6 +2248,8 @@ function updateNpcs(s: State) {
             // thieves have one thing on their mind
           } else if ((n.kind === 'fly' || n.kind === 'bigfly') && s.npcs.filter((m) => (m.kind === 'fly' || m.kind === 'bigfly') && m.state === 'chase').length >= CFG.volcano.maxChasing) {
             // only a few flies dive at once; the rest keep buzzing the volcano
+          } else if ((n.kind === 'adult' || n.kind === 'dog') && s.npcs.filter((m) => (m.kind === 'adult' || m.kind === 'dog') && m.state === 'chase').length >= CFG.crowd.maxChasing) {
+            // crowding makes a fight unreadable: three chasers max
           } else {
             n.state = 'chase'
             n.stateT = 0

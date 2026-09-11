@@ -254,3 +254,20 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
 - Race starts: kids' racers use a visible 3-2-1; real sports randomize the gap so GO cannot be guessed.
   ([Mario Kart wiki: pre-race countdown](https://mariokart.fandom.com/wiki/Pre-race_countdown))
   **→ applied: the emu dash reads READY… SET… GO! with the SET beat at the midpoint (kids' version, fixed).**
+
+## 2026-09-11 — audit: every finding applied everywhere it applies (user request)
+
+| Finding | Where it now applies |
+| --- | --- |
+| Kids read ~2 words/s; cards ≤10 words | `readMs()` in ui.ts: every toast and popup stays up ≥ 0.6 s + 0.5 s/word, game-wide. Level card ≤6 words, 3.6 s. Boss card 4.5 s with a ≤8-word `hintShort`; every part hint ≤8 words; the full rule lives on the pause screen. |
+| Telegraph ≥ 0.6 s (reaction time) | `CFG.boss.telegraph` floor 0.6; Khan's second charge 0.6; kangaroo crouch 0.6; Duogringo peck 0.6; lion 0.7; giraffe 0.9; elephant 1.0; volcano rumble 1.2; stampede rumble 1.0. Test asserts the numbers. |
+| Small near group (≤3 chasers) | Flies (The Deep) and now grown-ups + dogs on every continent (`CFG.crowd.maxChasing`). Thieves raid the bottle, not Kase, so they are exempt. |
+| Pitch variation vs repetition fatigue | Every sound that goes through the default path (smash, splat, jump, land, throw, hits, flaps, scares, chickens) gets ±6%; streaks of pickups climb. |
+| Kill sequence / last words | Every boss (`beaten`). |
+| Visible rubber band / comeback | Pigeon pecks; emu trips + board; last-heart lungs and assist hearts are global. |
+| Magnet / collecting juice | All pickups, all levels. |
+| Hit-stop | Smash 20–80 ms, boss hit 90, boss kill 250, milestones 80. |
+| Grace + warning before pressure | First thief 6 s + warning; volcano rumble; stampede rumble; Duogringo "growing" toasts; READY/SET/GO on the emu. |
+| Sawtooth pacing | Level order NA, Sky, S. America, Antarctica, Africa, The Deep, Asia, Australia, Europe. |
+| Coverage visible | Poop-cover bosses (wash on the card), statues, nest, creature cover blobs. |
+| PB ghost, household board, per-level medals | Every level. |

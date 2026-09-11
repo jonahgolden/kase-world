@@ -1173,6 +1173,29 @@ describe('sim', () => {
     expect(set).toBe(1)
   })
 
+  it('research applied everywhere: telegraph floors, short hints, chaser cap', () => {
+    expect(CFG.duo.peckTime).toBeGreaterThanOrEqual(0.6)
+    expect(CFG.boss.horse.rechargeTelegraph).toBeGreaterThanOrEqual(0.6)
+    expect(CFG.boss.sumo.crouch).toBeGreaterThanOrEqual(0.6)
+    for (const lvl of LEVELS) {
+      expect(lvl.boss.hintShort.split(' ').length).toBeLessThanOrEqual(8)
+      for (const part of lvl.boss.parts ?? []) if (!part.decor) expect(part.hint.split(' ').length).toBeLessThanOrEqual(8)
+    }
+    const s = createState({ seed: 5, levelId: 'europe' })
+    s.features = []
+    const chasers = s.npcs.filter((n) => n.kind === 'adult' || n.kind === 'dog')
+    expect(chasers.length).toBeGreaterThan(CFG.crowd.maxChasing)
+    for (const n of chasers) {
+      n.x = s.player.x + 2
+      n.z = s.player.z
+      n.state = 'wander'
+      n.scaredCd = 0
+    }
+    s.player.invuln = 99
+    run(s, 0.5)
+    expect(chasers.filter((n) => n.state === 'chase').length).toBeLessThanOrEqual(CFG.crowd.maxChasing)
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

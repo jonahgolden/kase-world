@@ -85,11 +85,12 @@ export interface LevelDef {
   water?: boolean // one big lagoon: Kase floats in a tube, islands, Louie's monsters
 }
 
-const boss = (b: Omit<BossDef, 'hitsPerPhase' | 'phases' | 'fight' | 'hint' | 'beaten'> & Partial<Pick<BossDef, 'hitsPerPhase' | 'phases' | 'fight' | 'hint' | 'beaten'>>): BossDef => ({
+const boss = (b: Omit<BossDef, 'hitsPerPhase' | 'phases' | 'fight' | 'hint' | 'hintShort' | 'beaten'> & Partial<Pick<BossDef, 'hitsPerPhase' | 'phases' | 'fight' | 'hint' | 'hintShort' | 'beaten'>>): BossDef => ({
   hitsPerPhase: 3,
   phases: 3,
   fight: 'charge' as BossFight,
   hint: 'Dodge the charge. Hit him when the ring is green.',
+  hintShort: 'Dodge, then hit him on green',
   beaten: 'Waaah. I want my mommy.',
   ...b,
 })
@@ -111,16 +112,16 @@ const SUBURB: Partial<Record<PropKind, number>> = {
 
 // Crops of the group drawings (fractions of the image, top-left origin).
 const AFRICA_PARTS: BossPartDef[] = [
-  { kind: 'lion', name: 'Lion', uv: [0.02, 0.03, 0.6, 0.99], scale: 3.0, weakness: 'poop', hint: 'LION: poop it! Dodge the pounce.', blocked: 'POOP THE LION!' },
-  { kind: 'giraffe', name: 'Giraffe', uv: [0.08, 0.14, 0.24, 0.5], scale: 3.6, weakness: 'scream', hint: 'GIRAFFE: too tall for poop. Hold SCREAM to charge it, then let go!', blocked: 'TOO TALL! CHARGED SCREAM!' },
-  { kind: 'rhino', name: 'Rhino', uv: [0.55, 0.3, 1.0, 0.8], scale: 2.8, weakness: 'wall', hint: 'RHINO: stand near the edge so it charges into the wall, then hit it while it is dazed.', blocked: 'MAKE IT HIT THE WALL!' },
-  { kind: 'elephant', name: 'Elephant', uv: [0.6, 0.02, 1.0, 0.42], scale: 3.2, weakness: 'bomb', hint: 'ELEPHANT: only hot potatoes work. Grab one and throw it. Jump over the stomp!', blocked: 'POTATO IT! 🥔' },
+  { kind: 'lion', name: 'Lion', uv: [0.02, 0.03, 0.6, 0.99], scale: 3.0, weakness: 'poop', hint: 'LION: poop it, dodge the pounce', blocked: 'POOP THE LION!' },
+  { kind: 'giraffe', name: 'Giraffe', uv: [0.08, 0.14, 0.24, 0.5], scale: 3.6, weakness: 'scream', hint: 'GIRAFFE: hold SCREAM, then let go', blocked: 'TOO TALL! CHARGED SCREAM!' },
+  { kind: 'rhino', name: 'Rhino', uv: [0.55, 0.3, 1.0, 0.8], scale: 2.8, weakness: 'wall', hint: 'RHINO: make it hit the wall', blocked: 'MAKE IT HIT THE WALL!' },
+  { kind: 'elephant', name: 'Elephant', uv: [0.6, 0.02, 1.0, 0.42], scale: 3.2, weakness: 'bomb', hint: 'ELEPHANT: grab potatoes, throw them', blocked: 'POTATO IT! 🥔' },
 ]
 
 const AUSTRALIA_PARTS: BossPartDef[] = [
-  { kind: 'kangaroo', name: 'Kangaroo', uv: [0.3, 0.08, 0.66, 0.84], scale: 3.0, weakness: 'sumo', hint: 'KANGAROO BOXING: screams shove it. Push it out of the ring three times!', blocked: 'SHOVE IT WITH A SCREAM!' },
-  { kind: 'emu', name: 'Emu', uv: [0.6, 0.03, 0.95, 0.48], scale: 2.6, weakness: 'race', hint: 'EMU DASH: run a lap of the track before the emu does. Poop on the track trips it!', blocked: 'RACE IT! POOP TRIPS IT' },
-  { kind: 'rockfish', name: 'Rockfish', uv: [0.66, 0.52, 0.92, 0.74], scale: 1.6, weakness: 'hidden', hint: 'ROCKFISH: it hides on the ground and moves. Do not step on it. Find it and poop it!', blocked: "IT'S A ROCK. POOP IT!" },
+  { kind: 'kangaroo', name: 'Kangaroo', uv: [0.3, 0.08, 0.66, 0.84], scale: 3.0, weakness: 'sumo', hint: 'KANGAROO: scream to shove it out', blocked: 'SHOVE IT WITH A SCREAM!' },
+  { kind: 'emu', name: 'Emu', uv: [0.6, 0.03, 0.95, 0.48], scale: 2.6, weakness: 'race', hint: 'EMU: run a lap, poop trips it', blocked: 'RACE IT! POOP TRIPS IT' },
+  { kind: 'rockfish', name: 'Rockfish', uv: [0.66, 0.52, 0.92, 0.74], scale: 1.6, weakness: 'hidden', hint: 'ROCKFISH: hidden. Listen, then poop it', blocked: "IT'S A ROCK. POOP IT!" },
   { kind: 'devil', name: 'Tasmanian Devil', uv: [0.06, 0.11, 0.34, 0.48], scale: 2.0, weakness: 'any', hint: '', blocked: '', decor: true },
 ]
 
@@ -156,7 +157,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { chicken: 8 },
     finds: { wings: 6, milk: 2, clock: 2 },
     features: {},
-    boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: NOVA, drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', beaten: 'Ay... my sombrero. Adiós, baby.', fight: 'nest', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy. Poop his NEST to stop the minis.' }),
+    boss: boss({ id: 'duogringo', name: 'Duogringo', drawnBy: NOVA, drawing: 'duogringo.jpg', speed: 2.2, chargeSpeed: 8, damage: 15, scale: 2.2, taunt: 'Ay caramba, a flying baby!', beaten: 'Ay... my sombrero. Adiós, baby.', fight: 'nest', hintShort: 'Scream AT him, then poop him', hint: 'Screams make him grow. Scream AT him to shrink him, then poop him while he is dizzy. Poop his NEST to stop the minis.' }),
     theme: { ground: 0xffffff, ground2: 0xeef4ff, sky: 0x7cc4ff, fog: 0xbfe6ff, accent: 0xffd23f },
     par: [120, 180, 280],
     sky: true,
@@ -173,7 +174,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 3, dog: 2, chicken: 8, king: 1 },
     finds: { milk: 2, clock: 2, quad: 1, potato: 1, wings: 1 },
     features: { platform: 2, tall: 2, fan: 2, portal: 1, lake: 1 },
-    boss: boss({ id: 'insane-bolt', name: 'Insane Bolt', drawnBy: NOVA, drawing: 'insane-bolt.jpg', speed: 3.4, chargeSpeed: 13, damage: 10, scale: 2.4, taunt: 'Catch me if you can, baby!', beaten: 'Okay okay... you caught me. Ow, my knee.', fight: 'runner', hint: 'Too fast to catch. Poop on his track so he slips, then hit him.' }),
+    boss: boss({ id: 'insane-bolt', name: 'Insane Bolt', drawnBy: NOVA, drawing: 'insane-bolt.jpg', speed: 3.4, chargeSpeed: 13, damage: 10, scale: 2.4, taunt: 'Catch me if you can, baby!', beaten: 'Okay okay... you caught me. Ow, my knee.', fight: 'runner', hintShort: 'Poop his track, then hit him', hint: 'Too fast to catch. Poop on his track so he slips, then hit him.' }),
     theme: { ground: 0x5fbf5a, ground2: 0x4fa84a, sky: 0xa8e0ff, fog: 0xcdeeff, accent: 0xffd23f },
     par: [110, 160, 260],
   },
@@ -189,7 +190,7 @@ export const LEVELS: LevelDef[] = [
     npcs: { adult: 4, dog: 3, chicken: 8 },
     finds: { milk: 2, clock: 3, skateboard: 1, nap: 1, goggles: 1 },
     features: { platform: 3, tall: 1, fan: 1, portal: 1, lake: 2 },
-    boss: boss({ id: 'president-jeff', name: 'President Jeff', drawnBy: NOVA, drawing: 'president-jeff.jpg', speed: 1.7, chargeSpeed: 8, damage: 12, scale: 2.4, taunt: 'As president of Antarctica, I order you to nap.', beaten: 'I hereby resign. I need a bath.', fight: 'poopcover', hint: 'Screams bounce off ice. Cover him completely in poop.' }),
+    boss: boss({ id: 'president-jeff', name: 'President Jeff', drawnBy: NOVA, drawing: 'president-jeff.jpg', speed: 1.7, chargeSpeed: 8, damage: 12, scale: 2.4, taunt: 'As president of Antarctica, I order you to nap.', beaten: 'I hereby resign. I need a bath.', fight: 'poopcover', hintShort: 'Cover him in poop', hint: 'Screams bounce off ice. Cover him completely in poop.' }),
     theme: { ground: 0xeef6ff, ground2: 0xdbe9f7, sky: 0xcfe6ff, fog: 0xe8f3ff, accent: 0x3b5ba5 },
     par: [120, 180, 280],
   },
@@ -217,6 +218,7 @@ export const LEVELS: LevelDef[] = [
       taunt: 'ROAR. (That was all of us.)',
       beaten: 'squeak. (That was all of us.)',
       fight: 'group',
+      hintShort: 'Four animals, one trick each',
       phases: 4,
       hint: 'Four animals, one trick each. The lion goes first: poop it!',
       parts: AFRICA_PARTS,
@@ -248,6 +250,7 @@ export const LEVELS: LevelDef[] = [
       taunt: 'Beep. Boop. These are robot legs.',
       beaten: 'Bzzt... low battery... robot legs... sleepy.',
       fight: 'stomper',
+      hintShort: 'JUMP the shockwave, then hit him',
       hint: 'Robot legs STOMP a shockwave: JUMP over it, then hit him while he reboots.',
     }),
     theme: { ground: 0x1f6fb8, ground2: 0x1a5f9f, sky: 0x8fd0ff, fog: 0xbfe6ff, accent: 0xff7ab8 },
@@ -278,6 +281,7 @@ export const LEVELS: LevelDef[] = [
       taunt: 'I like horses. I do not like babies.',
       beaten: 'My horse... my horse is scared of a BABY.',
       fight: 'horse',
+      hintShort: 'SCREAM at the charging horse',
       hitsPerPhase: 4,
       hint: 'He charges on horseback. Hold your ground and SCREAM at the horse as it comes. Poop does nothing.',
     }),
@@ -308,6 +312,7 @@ export const LEVELS: LevelDef[] = [
       taunt: "G'day, baby. Welcome to the Outback Games.",
       beaten: 'Crikey. Gold medal goes to the baby.',
       fight: 'games',
+      hintShort: 'Three events: box, race, seek',
       phases: 3,
       hint: 'Three events: box the kangaroo out of the ring, outrun the emu, find the rockfish.',
       parts: AUSTRALIA_PARTS,
@@ -339,6 +344,7 @@ export const LEVELS: LevelDef[] = [
       taunt: 'I discovered this baby first.',
       beaten: 'Fine. YOU discovered ME. Write it down.',
       fight: 'remix',
+      hintShort: 'Every trick again, one per phase',
       coverPoops: 6,
       hint: 'The last boss stole every trick. Dodge and hit him, then trip him with poop, then cover him.',
     }),

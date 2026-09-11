@@ -330,7 +330,8 @@ export interface BossDef {
   scale: number // card height in world units
   taunt: string
   fight: BossFight
-  hint: string // one line shown when the fight starts
+  hint: string // the full rule, shown on the pause screen where it can be read slowly
+  hintShort: string // ≤8 words for the boss card and toasts
   beaten: string // what the boss says when he goes down: the kill-sequence payoff
   parts?: BossPartDef[] // group fights: one card per animal, fought in order
   coverPoops?: number // poopcover phases: poops for full cover (default CFG.boss.coverPoops)
