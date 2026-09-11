@@ -367,7 +367,17 @@ export function telegraphShape(s: State, b: Boss): TelegraphShape | null {
   const fight = fightOf(b)
   const p = s.player
   const dp = dist(b.x, b.z, p.x, p.z)
-  const len = (s.bossRing?.r ?? CFG.boss.ringR) * 2
+  // a charge strip runs to the ring's edge, not across the ocean
+  const ring = s.bossRing
+  let len = (ring?.r ?? CFG.boss.ringR) * 2
+  if (ring) {
+    const ox = b.x - ring.x
+    const oz = b.z - ring.z
+    const bq = ox * b.dirX + oz * b.dirZ
+    const c = ox * ox + oz * oz - ring.r * ring.r
+    const disc = bq * bq - c
+    if (disc >= 0) len = Math.max(1, -bq + Math.sqrt(disc))
+  }
   const stompR = CFG.boss.stompRadius * (0.8 + b.def.scale * 0.1)
   if (fight === 'horse') return { kind: 'line', x: b.x, z: b.z, dirX: b.dirX, dirZ: b.dirZ, len }
   if (fight === 'stomper') return { kind: 'ring', x: b.x, z: b.z, r: stompR }

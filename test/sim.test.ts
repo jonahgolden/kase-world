@@ -1207,7 +1207,14 @@ describe('sim', () => {
     b.attack = 'charge'
     b.dirX = 1
     b.dirZ = 0
-    expect(telegraphShape(s, b)!.kind).toBe('line')
+    const line = telegraphShape(s, b)!
+    expect(line.kind).toBe('line')
+    if (line.kind === 'line') {
+      const ring = s.bossRing!
+      const endD = Math.hypot(line.x + line.dirX * line.len - ring.x, line.z + line.dirZ * line.len - ring.z)
+      expect(endD).toBeLessThanOrEqual(ring.r + 0.05)
+      expect(endD).toBeGreaterThan(ring.r - 0.5)
+    }
     b.attack = 'stomp'
     const ring = telegraphShape(s, b)!
     expect(ring.kind).toBe('ring')
