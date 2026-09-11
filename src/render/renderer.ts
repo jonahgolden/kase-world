@@ -26,6 +26,16 @@ const PICKUP_COLOR: Record<string, number> = {
   decoy: 0xffd9b8,
 }
 import { ASSETS } from './assets.ts'
+
+// One animal of a group boss: a 3D primitive build when we have one, else a cropped card.
+interface PartView {
+  obj: THREE.Object3D
+  mats: THREE.Material[] | null // set for models; flash/gray/opacity go through these
+  card: THREE.Mesh | null
+  idx: number
+  h: number
+  fall: number
+}
 import { Particles } from './particles.ts'
 
 const MAX_DEBRIS = 700
@@ -123,7 +133,7 @@ export class Renderer {
   private duoCurrent = ''
   private duoBaseHeight = 1
   private duoMats: THREE.Material[] = []
-  private boss: { group: THREE.Group; card: THREE.Mesh; overlay: THREE.Mesh; ring: THREE.Mesh; def: Boss['def']; h: number; partKey: string; parts: { mesh: THREE.Mesh; idx: number; h: number; fall: number }[]; model: (THREE.Group & Flashable) | null } | null = null
+  private boss: { group: THREE.Group; card: THREE.Mesh; overlay: THREE.Mesh; ring: THREE.Mesh; def: Boss['def']; h: number; partKey: string; parts: PartView[]; model: (THREE.Group & Flashable) | null } | null = null
   private bossTextures = new Map<string, THREE.Texture>()
   private particles: Particles
   private rings: { mesh: THREE.Mesh; life: number; max: number; grow: number }[] = []
@@ -1402,7 +1412,7 @@ export class Renderer {
   private removeBoss() {
     if (this.boss) {
       this.scene.remove(this.boss.group)
-      for (const pv of this.boss.parts) this.scene.remove(pv.mesh)
+      for (const pv of this.boss.parts) pv.obj.parent?.remove(pv.obj)
       this.boss = null
     }
   }
@@ -1462,15 +1472,23 @@ export class Renderer {
     ring.position.y = 0.03
     group.add(card, overlay, ring)
     this.scene.add(group)
-    const parts: { mesh: THREE.Mesh; idx: number; h: number; fall: number }[] = []
+    const parts: PartView[] = []
     b.parts.forEach((part, idx) => {
       const ph = part.def.scale
+      const model = this.makePartModel(part.def.kind)
+      if (model) {
+        model.position.set(part.x, 0, part.z)
+        model.visible = false
+        this.scene.add(model)
+        parts.push({ obj: model, mats: model.mats, card: null, idx, h: ph, fall: 0 })
+        return
+      }
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ph * 0.75, ph), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true }))
       mesh.castShadow = true
       mesh.position.set(part.x, ph / 2, part.z)
       mesh.visible = false
       this.scene.add(mesh)
-      parts.push({ mesh, idx, h: ph, fall: 0 })
+      parts.push({ obj: mesh, mats: null, card: mesh, idx, h: ph, fall: 0 })
       void this.bossTexture(def.drawing, part.def.uv).then((tex) => {
         if (!tex.image || !this.boss || this.boss.def.id !== def.id) return
         const img = tex.image as HTMLCanvasElement
@@ -1489,6 +1507,223 @@ export class Renderer {
     }
     this.boss = { group, card, overlay, ring, def, h, partKey: '', parts, model }
     await this.setBossCard(def.id, def.drawing, undefined, h)
+  }
+
+  // Nova's animal groups as primitive 3D builds. The drawing stays on the HUD and the boss card.
+  private makePartModel(kind: string): (THREE.Group & Flashable) | null {
+    const g = new THREE.Group() as THREE.Group & Flashable
+    g.mats = []
+    const mat = (c: number) => {
+      const m = this.toon(c)
+      g.mats.push(m)
+      return m
+    }
+    const add = (geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => {
+      const mesh = new THREE.Mesh(geo, m)
+      mesh.position.set(x, y, z)
+      mesh.castShadow = true
+      g.add(mesh)
+      return mesh
+    }
+    const eyes = (y: number, z: number, dx: number, r = 0.09, color = 0x111111) => {
+      for (const x of [-dx, dx]) add(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color }), x, y, z)
+    }
+    switch (kind) {
+      case 'kangaroo': {
+        const fur = mat(0xb87a4a)
+        const body = add(new THREE.CapsuleGeometry(0.5, 0.9, 6, 12), fur, 0, 1.35)
+        body.rotation.x = 0.25
+        add(new THREE.SphereGeometry(0.36, 12, 10), fur, 0, 2.3, 0.35)
+        add(new THREE.BoxGeometry(0.28, 0.24, 0.42), mat(0x8b5a2b), 0, 2.15, 0.75)
+        for (const x of [-0.18, 0.18]) {
+          const ear = add(new THREE.ConeGeometry(0.1, 0.45, 6), fur, x, 2.75, 0.25)
+          ear.rotation.z = -x * 1.2
+        }
+        eyes(2.38, 0.66, 0.15, 0.06)
+        const tail = add(new THREE.CylinderGeometry(0.1, 0.22, 1.6, 8), fur, 0, 0.5, -0.9)
+        tail.rotation.x = 1.15
+        for (const side of [-1, 1]) {
+          const leg = new THREE.Group()
+          const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.5, 4, 8), fur)
+          thigh.position.y = 0.5
+          thigh.rotation.x = 0.4
+          const foot = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.95), mat(0x8b5a2b))
+          foot.position.set(0, 0.08, 0.25)
+          thigh.castShadow = foot.castShadow = true
+          leg.add(thigh, foot)
+          leg.position.x = side * 0.32
+          leg.name = side < 0 ? 'legL' : 'legR'
+          g.add(leg)
+          const glove = add(new THREE.SphereGeometry(0.22, 10, 8), mat(0xd93a3a), side * 0.45, 1.55, 0.5)
+          glove.name = side < 0 ? 'gloveL' : 'gloveR'
+        }
+        return g
+      }
+      case 'emu': {
+        const grey = mat(0x6b7a99)
+        const body = add(new THREE.SphereGeometry(0.62, 12, 10), grey, 0, 1.45)
+        body.scale.set(1, 0.85, 1.25)
+        add(new THREE.SphereGeometry(0.5, 10, 8), mat(0x3aa0e8), 0, 1.5, -0.3)
+        const neck = add(new THREE.CylinderGeometry(0.1, 0.14, 1.3, 8), grey, 0, 2.3, 0.45)
+        neck.rotation.x = -0.25
+        add(new THREE.SphereGeometry(0.2, 10, 8), grey, 0, 2.95, 0.62)
+        const beak = add(new THREE.ConeGeometry(0.07, 0.3, 6), mat(0xffb020), 0, 2.9, 0.9)
+        beak.rotation.x = Math.PI / 2
+        eyes(3.0, 0.74, 0.1, 0.05)
+        for (const side of [-1, 1]) {
+          const leg = new THREE.Group()
+          const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.2, 6), mat(0xd0c8a0))
+          shin.position.y = 0.6
+          const foot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.4), mat(0xd0c8a0))
+          foot.position.set(0, 0.04, 0.1)
+          shin.castShadow = true
+          leg.add(shin, foot)
+          leg.position.set(side * 0.22, 0, 0)
+          leg.name = side < 0 ? 'legL' : 'legR'
+          g.add(leg)
+        }
+        return g
+      }
+      case 'rockfish': {
+        const rock = mat(0x7a6a5a)
+        const body = add(new THREE.SphereGeometry(0.85, 12, 8), rock, 0, 0.3)
+        body.scale.set(1, 0.42, 0.8)
+        for (let i = 0; i < 7; i++) {
+          const sp = add(new THREE.ConeGeometry(0.08, 0.35 + (i % 2) * 0.15, 5), mat(i % 2 ? 0x9a8a7a : 0x5a4a3a), -0.6 + i * 0.2, 0.62, 0)
+          sp.rotation.z = (i - 3) * 0.15
+        }
+        add(new THREE.ConeGeometry(0.25, 0.4, 4), rock, 0, 0.3, -0.95).rotation.x = -Math.PI / 2
+        eyes(0.5, 0.55, 0.28, 0.08, 0xff2020)
+        add(new THREE.BoxGeometry(0.4, 0.06, 0.1), mat(0xffffff), 0, 0.32, 0.72)
+        return g
+      }
+      case 'devil': {
+        const black = mat(0x1e1e26)
+        const body = add(new THREE.CapsuleGeometry(0.45, 0.5, 6, 10), black, 0, 0.95)
+        body.rotation.x = 0.35
+        add(new THREE.BoxGeometry(0.5, 0.12, 0.3), mat(0xffffff), 0, 0.95, 0.42)
+        add(new THREE.SphereGeometry(0.34, 12, 10), black, 0, 1.55, 0.4)
+        for (const x of [-0.2, 0.2]) add(new THREE.ConeGeometry(0.1, 0.3, 6), mat(0xff8fab), x, 1.9, 0.3)
+        eyes(1.62, 0.7, 0.14, 0.06, 0xff2020)
+        add(new THREE.BoxGeometry(0.42, 0.14, 0.2), mat(0xd93a3a), 0, 1.4, 0.68)
+        for (let i = 0; i < 4; i++) add(new THREE.BoxGeometry(0.06, 0.1, 0.06), mat(0xffffff), -0.15 + i * 0.1, 1.46, 0.76)
+        for (const side of [-1, 1]) {
+          const leg = add(new THREE.CylinderGeometry(0.09, 0.1, 0.55, 6), black, side * 0.24, 0.28, 0.1)
+          leg.name = side < 0 ? 'legL' : 'legR'
+        }
+        return g
+      }
+      case 'lion': {
+        const gold = mat(0xf2c14e)
+        const body = add(new THREE.CapsuleGeometry(0.55, 1.2, 6, 12), gold, 0, 1.15)
+        body.rotation.x = Math.PI / 2
+        const mane = add(new THREE.SphereGeometry(0.72, 12, 10), mat(0x6b3a1e), 0, 1.45, 0.95)
+        mane.scale.set(1, 1, 0.7)
+        add(new THREE.SphereGeometry(0.45, 12, 10), gold, 0, 1.45, 1.15)
+        add(new THREE.BoxGeometry(0.5, 0.12, 0.16), mat(0xffffff), 0, 1.25, 1.58)
+        add(new THREE.BoxGeometry(0.5, 0.06, 0.12), mat(0x2b1a10), 0, 1.33, 1.6)
+        eyes(1.58, 1.5, 0.17, 0.07)
+        for (const [x, z] of [
+          [-0.35, 0.6],
+          [0.35, 0.6],
+          [-0.35, -0.6],
+          [0.35, -0.6],
+        ]) {
+          const leg = add(new THREE.CylinderGeometry(0.13, 0.15, 0.9, 8), gold, x, 0.45, z)
+          leg.name = z > 0 ? (x < 0 ? 'legL' : 'legR') : 'leg'
+          add(new THREE.SphereGeometry(0.17, 8, 6), gold, x, 0.08, z)
+        }
+        const tail = add(new THREE.CylinderGeometry(0.04, 0.05, 1.0, 6), gold, 0, 1.2, -1.3)
+        tail.rotation.x = 0.9
+        add(new THREE.SphereGeometry(0.12, 8, 6), mat(0x6b3a1e), 0, 1.5, -1.7)
+        return g
+      }
+      case 'giraffe': {
+        const yellow = mat(0xf2c14e)
+        const brown = mat(0x8b5a2b)
+        const body = add(new THREE.BoxGeometry(0.9, 0.7, 1.5), yellow, 0, 1.4)
+        void body
+        for (const [x, z] of [
+          [-0.32, 0.55],
+          [0.32, 0.55],
+          [-0.32, -0.55],
+          [0.32, -0.55],
+        ]) {
+          const leg = add(new THREE.CylinderGeometry(0.1, 0.09, 1.1, 8), yellow, x, 0.55, z)
+          leg.name = z > 0 ? (x < 0 ? 'legL' : 'legR') : 'leg'
+        }
+        const neck = add(new THREE.CylinderGeometry(0.16, 0.2, 1.7, 8), yellow, 0, 2.5, 0.75)
+        neck.rotation.x = -0.3
+        add(new THREE.BoxGeometry(0.36, 0.32, 0.6), yellow, 0, 3.35, 1.1)
+        for (const x of [-0.1, 0.1]) add(new THREE.CylinderGeometry(0.03, 0.03, 0.22, 6), brown, x, 3.62, 1.0)
+        eyes(3.42, 1.42, 0.16, 0.05)
+        for (const [x, y, z] of [
+          [0.46, 1.5, 0.3],
+          [-0.46, 1.35, -0.2],
+          [0.46, 1.25, -0.5],
+          [-0.46, 1.6, 0.5],
+          [0, 1.78, 0.1],
+          [0.1, 2.5, 0.72],
+          [-0.1, 2.9, 0.85],
+        ]) {
+          const spot = add(new THREE.SphereGeometry(0.12, 6, 5), brown, x, y, z)
+          spot.scale.set(0.5, 1, 1)
+        }
+        return g
+      }
+      case 'rhino': {
+        const grey = mat(0x8a8a94)
+        const body = add(new THREE.CapsuleGeometry(0.7, 1.3, 6, 12), grey, 0, 1.1)
+        body.rotation.x = Math.PI / 2
+        add(new THREE.BoxGeometry(0.8, 0.7, 0.9), grey, 0, 1.05, 1.25)
+        const horn = add(new THREE.ConeGeometry(0.14, 0.7, 8), mat(0xe8e0d0), 0, 1.35, 1.75)
+        horn.rotation.x = -0.5
+        const horn2 = add(new THREE.ConeGeometry(0.09, 0.35, 8), mat(0xe8e0d0), 0, 1.5, 1.35)
+        horn2.rotation.x = -0.3
+        for (const x of [-0.3, 0.3]) add(new THREE.ConeGeometry(0.1, 0.25, 6), grey, x, 1.5, 0.95)
+        eyes(1.25, 1.55, 0.3, 0.06)
+        for (const [x, z] of [
+          [-0.42, 0.6],
+          [0.42, 0.6],
+          [-0.42, -0.6],
+          [0.42, -0.6],
+        ]) {
+          const leg = add(new THREE.CylinderGeometry(0.18, 0.2, 0.8, 8), grey, x, 0.4, z)
+          leg.name = z > 0 ? (x < 0 ? 'legL' : 'legR') : 'leg'
+        }
+        return g
+      }
+      case 'elephant': {
+        const grey = mat(0x9aa0b0)
+        const body = add(new THREE.SphereGeometry(1.0, 14, 10), grey, 0, 1.6)
+        body.scale.set(1, 0.9, 1.3)
+        add(new THREE.SphereGeometry(0.62, 12, 10), grey, 0, 1.9, 1.35)
+        for (const side of [-1, 1]) {
+          const ear = add(new THREE.CylinderGeometry(0.55, 0.55, 0.06, 16), grey, side * 0.75, 1.95, 1.2)
+          ear.rotation.y = side * 0.5
+        }
+        const trunk = add(new THREE.CylinderGeometry(0.1, 0.18, 1.4, 8), grey, 0, 1.25, 1.95)
+        trunk.rotation.x = 0.35
+        trunk.name = 'trunk'
+        for (const x of [-0.25, 0.25]) {
+          const tusk = add(new THREE.ConeGeometry(0.06, 0.6, 6), mat(0xfff3d6), x, 1.55, 1.85)
+          tusk.rotation.x = Math.PI / 2 + 0.3
+        }
+        eyes(2.1, 1.85, 0.25, 0.07)
+        for (const [x, z] of [
+          [-0.55, 0.7],
+          [0.55, 0.7],
+          [-0.55, -0.7],
+          [0.55, -0.7],
+        ]) {
+          const leg = add(new THREE.CylinderGeometry(0.24, 0.26, 1.0, 10), grey, x, 0.5, z)
+          leg.name = z > 0 ? (x < 0 ? 'legL' : 'legR') : 'leg'
+        }
+        return g
+      }
+      default:
+        return null
+    }
   }
 
   // Kacone by Louie: a spiky head with a big grin on striped robot legs.
@@ -2433,26 +2668,44 @@ export class Renderer {
           void this.setBossCard(b.def.id, b.def.drawing, part?.def.uv, part ? part.def.scale : b.def.scale)
         }
         const hidden = part?.def.weakness === 'hidden'
+        let activeModel: PartView | null = null
         for (const pv of bv.parts) {
           const pt = b.parts[pv.idx]
           const isActive = part === pt
-          pv.mesh.visible = !isActive && b.state !== 'enter'
-          if (!pv.mesh.visible) continue
-          const m = pv.mesh.material as THREE.MeshBasicMaterial
+          if (isActive && pv.mats) {
+            // a 3D animal steps up: it rides the boss group and takes the boss poses below
+            if (pv.obj.parent !== bv.group) bv.group.add(pv.obj)
+            pv.obj.position.set(0, 0, 0)
+            pv.obj.visible = b.state !== 'enter'
+            activeModel = pv
+            continue
+          }
+          if (pv.obj.parent !== this.scene) this.scene.add(pv.obj)
+          pv.obj.visible = !isActive && b.state !== 'enter'
+          if (!pv.obj.visible) continue
+          const faceY = pv.card ? Math.atan2(this.camera.position.x - pt.x, this.camera.position.z - pt.z) : Math.atan2(p.x - pt.x, p.z - pt.z)
           if (pt.done) {
             pv.fall = Math.min(1, pv.fall + dt * 2.5)
-            pv.mesh.position.set(pt.x, 0.06 + (1 - pv.fall) * pv.h * 0.5, pt.z)
-            pv.mesh.rotation.set(-1.45 * pv.fall, Math.atan2(this.camera.position.x - pt.x, this.camera.position.z - pt.z), 0)
-            m.color.setScalar(1 - pv.fall * 0.45)
-            m.opacity = 1
+            pv.obj.position.set(pt.x, pv.card ? 0.06 + (1 - pv.fall) * pv.h * 0.5 : 0.05, pt.z)
+            pv.obj.rotation.set(pv.card ? -1.45 * pv.fall : 0, faceY, pv.card ? 0 : -1.5 * pv.fall)
+            if (pv.card) {
+              const m = pv.card.material as THREE.MeshBasicMaterial
+              m.color.setScalar(1 - pv.fall * 0.45)
+              m.opacity = 1
+            } else this.flash(pv.mats!, 0x000000, pv.fall * 0.4)
           } else {
             const bob = Math.sin(this.time * 2.2 + pv.idx) * 0.06
-            pv.mesh.position.set(pt.x, pv.h / 2 + bob, pt.z)
-            pv.mesh.rotation.set(0, Math.atan2(this.camera.position.x - pt.x, this.camera.position.z - pt.z), Math.sin(this.time * 2.5 + pv.idx * 2) * 0.06)
-            m.color.setScalar(1)
-            m.opacity = 1
+            pv.obj.position.set(pt.x, pv.card ? pv.h / 2 + bob : Math.max(0, bob), pt.z)
+            pv.obj.rotation.set(0, faceY, Math.sin(this.time * 2.5 + pv.idx * 2) * 0.06)
+            if (pv.card) {
+              const m = pv.card.material as THREE.MeshBasicMaterial
+              m.color.setScalar(1)
+              m.opacity = 1
+            } else this.flash(pv.mats!, 0x000000, 0)
           }
         }
+        bv.card.visible = !bv.model && !activeModel
+        bv.overlay.visible = bv.card.visible
         let wob = Math.sin(this.time * 3 + ph) * 0.05
         let sy = 1
         let sx = 1
@@ -2491,18 +2744,42 @@ export class Renderer {
         } else if (cm.opacity < 1) {
           cm.opacity = 1
         }
-        if (bv.model) {
-          bv.model.rotation.set(-tilt * 0.6, b.facing, wob)
-          bv.model.scale.set(sx, sy, sx)
-          bv.model.position.y = b.state === 'attack' && b.attack === 'stomp' ? Math.max(0, b.stateT) * 3 : 0
-          const walking = Math.hypot(b.vx, b.vz) > 0.3
-          const legL = bv.model.getObjectByName('legL')
-          const legR = bv.model.getObjectByName('legR')
-          const step = walking ? Math.sin(this.time * 9) * 0.5 : 0
-          if (legL) legL.rotation.x = step
-          if (legR) legR.rotation.x = -step
-          this.flash(bv.model.mats, 0xffffff, b.hitFlash > 0 ? 0.7 : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : 0)
-          if (b.state === 'telegraph') bv.model.rotation.z = Math.sin(this.time * 40) * 0.05
+        const posed: { obj: THREE.Object3D; mats: THREE.Material[] } | null = bv.model ? { obj: bv.model, mats: bv.model.mats } : activeModel ? { obj: activeModel.obj, mats: activeModel.mats! } : null
+        if (posed) {
+          const mo = posed.obj
+          if (hidden) {
+            // the rockfish lies low and fades until Kase is close, a poop lands near, or it stings
+            const near = Math.hypot(p.x - b.x, p.z - b.z) < 3
+            mo.rotation.set(0, b.facing, near ? Math.sin(this.time * 18) * 0.08 : 0)
+            mo.scale.set(1, 1, 1)
+            mo.position.y = 0
+            const op = b.hitFlash > 0 ? 1 : near ? 0.85 : 0.35
+            for (const m of posed.mats) {
+              const mm = m as THREE.MeshToonMaterial
+              mm.transparent = true
+              mm.opacity = op
+            }
+            this.flash(posed.mats, 0xffffff, b.hitFlash > 0 ? 0.6 : 0)
+          } else {
+            mo.rotation.set(-tilt * 0.6, b.facing, wob)
+            mo.scale.set(sx, sy, sx)
+            mo.position.y = b.state === 'attack' && b.attack === 'stomp' && (fight === 'charge' || fight === 'stomper') ? Math.max(0, b.stateT) * 3 : 0
+            const walking = Math.hypot(b.vx, b.vz) > 0.3
+            const legL = mo.getObjectByName('legL')
+            const legR = mo.getObjectByName('legR')
+            const step = walking ? Math.sin(this.time * 9) * 0.5 : 0
+            if (legL) legL.rotation.x = step
+            if (legR) legR.rotation.x = -step
+            const gl = mo.getObjectByName('gloveL')
+            const gr = mo.getObjectByName('gloveR')
+            if (gl && gr) {
+              const punch = b.state === 'attack' ? Math.sin(this.time * 24) * 0.5 : 0
+              gl.position.z = 0.5 + Math.max(0, punch)
+              gr.position.z = 0.5 + Math.max(0, -punch)
+            }
+            this.flash(posed.mats, 0xffffff, b.hitFlash > 0 ? 0.7 : b.state === 'telegraph' ? 0.25 + Math.sin(this.time * 30) * 0.2 : 0)
+            if (b.state === 'telegraph') mo.rotation.z = Math.sin(this.time * 40) * 0.05
+          }
         }
         bv.card.rotation.z = wob
         bv.card.rotation.x = -tilt
