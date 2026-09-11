@@ -100,5 +100,6 @@ v0.7.1: controls memo applied: holding SCREAM/POOP enters aim mode (arrows turn 
 movement), view facing lerps (~0.07 s), facing arrow always visible, auto-aim acquires within 60° and
 ignores targets under 1 unit with a gold ring on the chosen target, dashed arc + landing ring while
 holding poop, touch drag distance sets range, "ready" ding at full charge.
-Next: distinct fights for Khan/animal groups/Columbus, chase goal,
+Next session: start from `~/.claude/kase-world-next-session.md` (prioritized backlog). Summary: sky fans,
+distinct fights for Khan/animal groups/Columbus, chase goal,
 Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.
