@@ -8,6 +8,41 @@ export function botInput(s: State): Input {
   const b = s.boss
   const period = s.tick % 120
 
+  if (p.flying) {
+    // fly toward the boss when stunned, else the nearest egg or wings
+    let tx = 0
+    let tz = 0
+    let ty = 4
+    let best = Infinity
+    if (b && b.def.fight === 'nest') {
+      tx = s.duo.x
+      tz = s.duo.z
+      ty = s.duo.y + 0.5
+      best = 0
+    }
+    for (const k of s.pickups) {
+      const d = Math.hypot(k.x - p.x, k.z - p.z)
+      if (d < best) {
+        best = d
+        tx = k.x
+        tz = k.z
+        ty = k.y + 0.3
+      }
+    }
+    let diff = Math.atan2(tx - p.x, tz - p.z) - p.facing
+    while (diff > Math.PI) diff -= Math.PI * 2
+    while (diff < -Math.PI) diff += Math.PI * 2
+    out.mx = Math.max(-1, Math.min(1, diff * 2))
+    out.mz = -Math.max(-1, Math.min(1, (ty - p.y) * 0.6))
+    out.jump = best > 12
+    if (b && b.def.fight === 'nest') {
+      const d = Math.hypot(s.duo.x - p.x, s.duo.z - p.z)
+      out.scream = d < 7 && Math.abs(diff) < 0.5 && period < 40 && s.duo.state !== 'stun'
+      out.poop = d < 8 && Math.abs(diff) < 0.4 && s.duo.state === 'stun' && period % 20 < 3
+    }
+    return out
+  }
+
   if (b && b.state !== 'enter' && b.state !== 'dead') {
     const dx = b.x - p.x
     const dz = b.z - p.z

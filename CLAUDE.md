@@ -83,5 +83,10 @@ giant poops. `BossDef.fight` + `hint`; `LevelDef.sky`.
 v0.6.1: sky uses an over-the-shoulder chase camera (input rotated by camera yaw in main.ts, camera
 climbs over islands); other levels follow the baby's height. Air control 0.5, fan launches keep
 momentum for 0.55 s, sky gravity 65%, fans on every island up to height 6.
+v0.6.2: sky = real flight model (`updateFlight`): always airborne, stick x = turn (rate-limited,
+smoothed), stick y = climb/dive with auto-level, JUMP = boost from wing pickups, mouse steers the
+heading; chase camera looks ahead with an FOV kick on boost. Render interpolation (main snapshots
+positions before each sim step, renderer lerps by `alpha`) removed the 60 Hz judder. Flying pose
+tilts the walk model belly-down and banks. Globe shows the animated 3D baby on the chosen continent.
 Next: family playtest; remaining: distinct fights for Khan/animal groups/Columbus, chase goal,
 Zzz nap bomb, decoy baby, boomerang binky, giraffe ride; sky level art (clouds) and tuning.

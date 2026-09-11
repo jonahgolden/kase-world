@@ -40,6 +40,22 @@ interface Flashable {
   mats: THREE.MeshToonMaterial[]
 }
 
+export interface PrevSnap {
+  player: { x: number; y: number; z: number; facing: number }
+  duo: { x: number; y: number; z: number }
+  boss: { x: number; y: number; z: number } | null
+  npcs: Map<number, { x: number; z: number }>
+  props: Map<number, { x: number; z: number; rot: number }>
+  poops: Map<number, { x: number; y: number; z: number }>
+}
+
+function lerpAngle(a: number, b: number, t: number): number {
+  let d = b - a
+  while (d > Math.PI) d -= Math.PI * 2
+  while (d < -Math.PI) d += Math.PI * 2
+  return a + d * t
+}
+
 export class Renderer {
   readonly gl: THREE.WebGLRenderer
   readonly scene = new THREE.Scene()
@@ -109,7 +125,13 @@ export class Renderer {
   private time = 0
   private giantScale = 1
   private camYaw = 0
+  private walkTS = 1
+  private flyTilt = 0
+  private fovKick = 0
   chase = false // over-the-shoulder camera (sky level)
+  // previous-tick positions for render interpolation (filled by main before each sim step)
+  prev: PrevSnap | null = null
+  alpha = 1
   readonly lowEnd: boolean
 
   constructor(canvas: HTMLCanvasElement, touch: boolean) {
@@ -1211,11 +1233,24 @@ export class Renderer {
   sync(s: State, dt: number) {
     this.time += dt
     const p = s.player
+    const a = this.alpha
+    const pv = this.prev
+    const px = pv ? pv.player.x + (p.x - pv.player.x) * a : p.x
+    const py = pv ? pv.player.y + (p.y - pv.player.y) * a : p.y
+    const pz = pv ? pv.player.z + (p.z - pv.player.z) * a : p.z
+    const pf = pv ? lerpAngle(pv.player.facing, p.facing, a) : p.facing
     // player
     const riding = p.ride === 'skateboard'
     const quad = p.ride === 'quad'
-    this.player.position.set(p.x, p.y + (riding ? 0.16 : quad ? 0.55 : p.inLake ? -0.3 : 0), p.z)
-    this.player.rotation.y = p.facing
+    this.player.position.set(px, py + (riding ? 0.16 : quad ? 0.55 : p.inLake ? -0.3 : 0), pz)
+    this.player.rotation.y = pf
+    // flying pose: belly down, bank into turns, nose follows pitch
+    const wantTilt = p.flying || (p.wings && !p.grounded) ? 1 : 0
+    this.flyTilt += (wantTilt - this.flyTilt) * Math.min(1, dt * 6)
+    if (this.playerModel) {
+      this.playerModel.rotation.x = -1.25 * this.flyTilt + (p.flying ? -p.pitch * 0.5 : 0)
+      this.playerModel.rotation.z = p.flying ? -p.turnV * 0.7 : 0
+    }
     this.board.visible = riding
     this.quad.visible = quad
     this.hat.visible = p.fedora
@@ -1231,13 +1266,13 @@ export class Renderer {
     }
     if (p.wings && !p.grounded) this.wings.rotation.z = Math.sin(this.time * (p.wingFuel > 0 ? 24 : 10)) * 0.6
     if (riding) {
-      this.board.position.set(p.x, p.y, p.z)
-      this.board.rotation.y = p.facing
+      this.board.position.set(px, py, pz)
+      this.board.rotation.y = pf
       this.board.rotation.z = Math.sin(this.time * 6) * 0.06
     }
     if (quad) {
-      this.quad.position.set(p.x, p.y, p.z)
-      this.quad.rotation.y = p.facing
+      this.quad.position.set(px, py, pz)
+      this.quad.rotation.y = pf
       this.quad.rotation.z = Math.sin(this.time * 9) * 0.04
     }
     if (p.wings && !p.grounded) this.wings.rotation.z = Math.sin(this.time * 12) * 0.5
@@ -1303,7 +1338,7 @@ export class Renderer {
     }
     const speed = Math.hypot(p.vx, p.vz)
     const ch = p.screamCharging ? p.screamCharge : 0
-    const squash = 1 + p.screamFlash * 0.6 + ch * 0.35 + (ch > 0 ? Math.sin(this.time * 40) * 0.05 * ch : 0)
+    const squash = 1 + p.screamFlash * 0.6 + ch * 0.35 + (ch > 0 ? Math.sin(this.time * 24) * 0.025 * ch : 0)
     const wide = 1 + ch * 0.25
     const giantWant = p.giantT > 0 ? 2.4 : 1
     this.giantScale += (giantWant - this.giantScale) * Math.min(1, dt * 6)
@@ -1315,7 +1350,7 @@ export class Renderer {
     }
     this.chargeCone.visible = ch > 0
     if (ch > 0) {
-      this.chargeCone.position.set(p.x, 0.04, p.z)
+      this.chargeCone.position.set(px, p.flying ? py - 0.3 : 0.04, pz)
       this.chargeCone.rotation.y = p.facing
       this.chargeCone.scale.setScalar(screamRange(p, ch))
       const cm = this.chargeCone.material as THREE.MeshBasicMaterial
@@ -1325,15 +1360,18 @@ export class Renderer {
     const poopCharge = p.poopHeld ? Math.min(1, p.poopHoldT / 0.5) : 0
     if (poopCharge > 0) this.player.scale.y *= 1 - poopCharge * 0.12
     if (this.playerMixer) {
-      const want = speed > 0.6 ? 'walk' : 'walk-idle'
+      const flyingNow = this.flyTilt > 0.5
+      const want = flyingNow ? 'walk' : speed > 0.6 ? 'walk' : 'walk-idle'
       if (want !== this.playerCurrent && this.playerActions[want]) {
         const prev = this.playerActions[this.playerCurrent]
         const next = this.playerActions[want]
-        next.reset().fadeIn(0.15).play()
-        if (prev) prev.fadeOut(0.15)
+        next.reset().fadeIn(0.2).play()
+        if (prev) prev.fadeOut(0.2)
         this.playerCurrent = want
       }
-      if (this.playerActions.walk) this.playerActions.walk.timeScale = Math.max(0.6, speed / 3.2)
+      const tsWant = flyingNow ? 0.45 : Math.max(0.7, Math.min(1.6, speed / 3.4))
+      this.walkTS += (tsWant - this.walkTS) * Math.min(1, dt * 6)
+      if (this.playerActions.walk) this.playerActions.walk.timeScale = this.walkTS
       this.playerMixer.update(dt)
     } else {
       this.player.rotation.z = Math.sin(this.time * 14) * 0.08 * Math.min(1, speed / 3)
@@ -1349,7 +1387,10 @@ export class Renderer {
     this.duo.visible = d.active
     const dr = duoRadius(d)
     const dh = (dr / 0.45) * 1.05
-    this.duo.position.set(d.x, d.y + Math.abs(Math.sin(this.time * 9)) * 0.08 * (1 + d.power), d.z)
+    const dx = pv ? pv.duo.x + (d.x - pv.duo.x) * a : d.x
+    const dy = pv ? pv.duo.y + (d.y - pv.duo.y) * a : d.y
+    const dz = pv ? pv.duo.z + (d.z - pv.duo.z) * a : d.z
+    this.duo.position.set(dx, dy + Math.abs(Math.sin(this.time * 9)) * 0.08 * (1 + d.power), dz)
     this.duo.rotation.y = d.facing
     this.duo.scale.setScalar(dh / this.duoBaseHeight)
     if (this.duoMixer) {
@@ -1373,8 +1414,14 @@ export class Renderer {
         continue
       }
       v.visible = true
-      v.position.set(pr.x, pr.y, pr.z)
-      v.rotation.y = pr.rot
+      const pp = pv?.props.get(pr.id)
+      if (pp) {
+        v.position.set(pp.x + (pr.x - pp.x) * a, pr.y, pp.z + (pr.z - pp.z) * a)
+        v.rotation.y = pp.rot + (pr.rot - pp.rot) * a
+      } else {
+        v.position.set(pr.x, pr.y, pr.z)
+        v.rotation.y = pr.rot
+      }
       if (pr.kind === 'statue') {
         const cov = v.getObjectByName('cover') as THREE.Mesh | undefined
         if (cov) (cov.material as THREE.MeshToonMaterial).opacity = pr.cover * 0.95
@@ -1390,7 +1437,9 @@ export class Renderer {
     // npcs
     for (const n of s.npcs) {
       const v = this.ensureNpc(n)
-      v.position.set(n.x, 0, n.z)
+      const pn = pv?.npcs.get(n.id)
+      if (pn) v.position.set(pn.x + (n.x - pn.x) * a, 0, pn.z + (n.z - pn.z) * a)
+      else v.position.set(n.x, 0, n.z)
       v.rotation.y = n.facing
       if (n.scale !== 1) v.scale.setScalar(n.scale)
       const sp = Math.hypot(n.vx, n.vz)
@@ -1417,7 +1466,9 @@ export class Renderer {
         this.poopViews.set(q.id, m)
         this.scene.add(m)
       }
-      m.position.set(q.x, q.y, q.z)
+      const pq = pv?.poops.get(q.id)
+      if (pq) m.position.set(pq.x + (q.x - pq.x) * a, pq.y + (q.y - pq.y) * a, pq.z + (q.z - pq.z) * a)
+      else m.position.set(q.x, q.y, q.z)
       m.rotation.x += dt * 8
     }
     for (const [id, m] of this.poopViews) {
@@ -1477,7 +1528,9 @@ export class Renderer {
       const b = s.boss
       const bv = this.boss
       if (bv) {
-        bv.group.position.set(b.x, b.y, b.z)
+        const pb = pv?.boss
+        if (pb) bv.group.position.set(pb.x + (b.x - pb.x) * a, pb.y + (b.y - pb.y) * a, pb.z + (b.z - pb.z) * a)
+        else bv.group.position.set(b.x, b.y, b.z)
         const camYaw = Math.atan2(this.camera.position.x - b.x, this.camera.position.z - b.z)
         bv.group.rotation.y = camYaw
         const ph = bossPhase(b)
@@ -1578,24 +1631,29 @@ export class Renderer {
 
   // Horizontal yaw the camera looks along (0 = toward -z). Drivers rotate stick input by it.
   inputYaw(): number {
-    return this.chase ? this.camYaw : 0
+    return 0
   }
 
   private updateCamera(s: State, dt: number) {
     const p = s.player
     const portrait = this.camera.aspect < 1
     if (this.chase) {
-      // over the shoulder: behind Kase along his facing, following his height
+      // behind Kase along his heading, following his height, looking a little ahead of him
       let diff = p.facing - this.camYaw
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      this.camYaw += diff * Math.min(1, 2.5 * dt)
+      this.camYaw += diff * Math.min(1, 4 * dt)
       const fx = Math.sin(this.camYaw)
       const fz = Math.cos(this.camYaw)
-      const back = portrait ? 6.5 : 6
-      const up = portrait ? 3.4 : 2.8
-      this.camTarget.lerp(this.tmpV.set(p.x + fx * 1.2, p.y + 1.0, p.z + fz * 1.2), Math.min(1, 8 * dt))
+      const boost = p.boosting ? 1 : 0
+      this.fovKick += (boost - this.fovKick) * Math.min(1, dt * 4)
+      const back = (portrait ? 7 : 6.5) + this.fovKick * 1.2
+      const up = (portrait ? 3.2 : 2.6) - p.pitch * 1.2
+      this.camTarget.lerp(this.tmpV.set(p.x + fx * 3, p.y + 0.8 + p.pitch * 2, p.z + fz * 3), Math.min(1, 8 * dt))
       const want = this.tmpS.set(p.x - fx * back, p.y + up, p.z - fz * back)
+      const fovBase = portrait ? 62 : 50
+      this.camera.fov = fovBase + this.fovKick * 10
+      this.camera.updateProjectionMatrix()
       // never sit inside an island: climb over any platform the camera would enter
       for (const f of s.features) {
         if (f.kind !== 'platform') continue

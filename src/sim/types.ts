@@ -196,6 +196,11 @@ export interface Player {
   hasAim: boolean // true when the input supplied an aim direction this tick
   hats: number // goal fedoras stacked on the head
   launchT: number // seconds since a fan launch during which steering is weak
+  flying: boolean // sky level: always airborne
+  pitch: number // flight pitch, radians (+ up)
+  turnV: number // smoothed turn input -1..1
+  boostFuel: number // seconds of boost left (sky wings)
+  boosting: boolean
 }
 
 export type DuoState = 'chase' | 'peck' | 'hurt' | 'stun' | 'lay'

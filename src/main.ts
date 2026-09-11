@@ -4,6 +4,7 @@ import { botInput } from './sim/bot.ts'
 import { LEVELS } from './sim/levels.ts'
 import type { GameEvent, State } from './sim/types.ts'
 import { Renderer } from './render/renderer.ts'
+import type { PrevSnap } from './render/renderer.ts'
 import { Globe } from './render/globe.ts'
 import { InputDriver } from './input/input.ts'
 import { AudioDriver } from './audio/audio.ts'
@@ -28,6 +29,24 @@ let hitstop = 0
 let name = 'KASE'
 let endTimer = 0
 let runStartIndex = 0
+const prevSnap: PrevSnap = { player: { x: 0, y: 0, z: 0, facing: 0 }, duo: { x: 0, y: 0, z: 0 }, boss: null, npcs: new Map(), props: new Map(), poops: new Map() }
+
+function snapshot(s: State) {
+  prevSnap.player.x = s.player.x
+  prevSnap.player.y = s.player.y
+  prevSnap.player.z = s.player.z
+  prevSnap.player.facing = s.player.facing
+  prevSnap.duo.x = s.duo.x
+  prevSnap.duo.y = s.duo.y
+  prevSnap.duo.z = s.duo.z
+  prevSnap.boss = s.boss ? { x: s.boss.x, y: s.boss.y, z: s.boss.z } : null
+  prevSnap.npcs.clear()
+  for (const n of s.npcs) prevSnap.npcs.set(n.id, { x: n.x, z: n.z })
+  prevSnap.props.clear()
+  for (const pr of s.props) if (!pr.broken && (pr.vx !== 0 || pr.vz !== 0 || pr.angVel !== 0)) prevSnap.props.set(pr.id, { x: pr.x, z: pr.z, rot: pr.rot })
+  prevSnap.poops.clear()
+  for (const q of s.poops) prevSnap.poops.set(q.id, { x: q.x, y: q.y, z: q.z })
+}
 let chosen = 0
 let helpFromGame = false
 
@@ -343,7 +362,7 @@ function handleEvents(s: State) {
         }
         if (e.kind === 'fedora' && s.goal.kind === 'find') break
         if (e.kind === 'wings') {
-          ui.popup('WINGS! Hold JUMP to fly', pt.x, pt.y, '#bfe6ff', 0.8)
+          ui.popup(s.player.flying ? 'BOOST! Hold JUMP for speed' : 'WINGS! Hold JUMP to fly', pt.x, pt.y, '#bfe6ff', 0.8)
           break
         }
         const [label, color] = labels[e.kind ?? ''] ?? ['', '#fff']
@@ -517,22 +536,15 @@ function loop(now: number) {
         let n = 0
         while (acc >= DT && n < 4) {
           const inp = bot ? botInput(state) : input.read()
-          const yaw = renderer.inputYaw()
-          if (yaw !== 0 && !bot) {
-            // stick/keys are screen-relative; rotate them to match where the camera looks
-            const fx = Math.sin(yaw)
-            const fz = Math.cos(yaw)
-            const wx = inp.mx * -fz + -inp.mz * fx
-            const wz = inp.mx * fx + -inp.mz * fz
-            inp.mx = wx
-            inp.mz = wz
-          }
+          snapshot(state)
           step(state, inp)
           handleEvents(state)
           acc -= DT
           n++
         }
         if (n === 4) acc = 0
+        renderer.prev = prevSnap
+        renderer.alpha = Math.max(0, Math.min(1, acc / DT))
       }
       ui.updateHud(state, dt)
       if (state.tick % 4 === 0) ui.drawMinimap(state)
@@ -551,10 +563,13 @@ function loop(now: number) {
       acc += dt
       let n = 0
       while (acc >= DT && n < 4) {
+        snapshot(state)
         step(state, { mx: 0, mz: 0, scream: false, poop: false, jump: false })
         acc -= DT
         n++
       }
+      renderer.prev = prevSnap
+      renderer.alpha = Math.max(0, Math.min(1, acc / DT))
       renderer.sync(state, dt)
     } else {
       renderer.sync(state, 0)

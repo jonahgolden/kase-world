@@ -61,6 +61,20 @@ export const CFG = {
   },
   skyGravity: 0.65,
   flight: { rise: 5.5, riseAccel: 40, fuelPerWings: 3.5, maxFuel: 7 },
+  fly: {
+    speed: 8.5,
+    boostSpeed: 14.5,
+    turnRate: 1.7, // rad/s at full stick (~100 deg/s)
+    turnSmooth: 7,
+    pitchMax: 0.8,
+    pitchIn: 4,
+    autoLevel: 2.2,
+    minY: 0.35,
+    maxY: 13,
+    boostPerWings: 3,
+    maxBoost: 9,
+    aimTurnGain: 1.8,
+  },
   ride: {
     skateboard: { speed: 1.7, accel: 0.55, smash: 1.8, push: 1.5, hp: 1 },
     quad: { speed: 2.2, accel: 0.5, smash: 2.6, push: 2.2, hp: 2 },
@@ -232,6 +246,11 @@ export function createState(opts: CreateOpts = {}): State {
     hasAim: false,
     hats: 0,
     launchT: 0,
+    flying: false,
+    pitch: 0,
+    turnV: 0,
+    boostFuel: 0,
+    boosting: false,
   }
   const s: State = {
     version: VERSION,
@@ -654,7 +673,10 @@ function populate(s: State, level: LevelDef) {
       if (level.sky) {
         if (kind === 'wings') airFind(kind)
         else if (kind === 'egg') {
-          if (!onTop(tallTops, kind)) airFind(kind)
+          if (i % 2 === 0 || !onTop(tallTops, kind)) {
+            const p = farPoint(s, 0, 0, 3, 12, (x, z) => s.pickups.every((k) => dist(k.x, k.z, x, z) > 7))
+            addPickup(kind, p.x, range(s.rng, 2, 9), p.z, true)
+          }
         } else if (!onTop(lowTops, kind) && !onTop(tallTops, kind)) nearFind(kind)
         continue
       }
@@ -791,9 +813,89 @@ export function clampArena(s: State, o: { x: number; z: number; vx: number; vz: 
 
 // ---------------------------------------------------------------- player
 
+function playerTimers(s: State, input: Input) {
+  const p = s.player
+  void input
+  p.invuln = Math.max(0, p.invuln - DT)
+  for (const [key, kind] of [
+    ['pacifierT', 'pacifier'],
+    ['rattleT', 'rattle'],
+    ['giantT', 'giant'],
+  ] as const) {
+    if (p[key] > 0) {
+      p[key] -= DT
+      if (p[key] <= 0) {
+        p[key] = 0
+        if (kind === 'giant') p.r = p.baseR
+        ev(s, { t: 'powerEnd', kind })
+      }
+    }
+  }
+  for (const k of s.pickups) {
+    if (dist(k.x, k.z, p.x, p.z) < CFG.seenRadius && !s.seen.includes(k.id)) s.seen.push(k.id)
+  }
+}
+
+// Sky level: Kase is always flying. Stick x turns, stick y climbs or dives, JUMP boosts while fuel lasts.
+function updateFlight(s: State, input: Input) {
+  const p = s.player
+  const F = CFG.fly
+  p.flying = true
+  p.wings = true
+  p.grounded = false
+  let turn = Math.max(-1, Math.min(1, input.mx))
+  const climb = Math.max(-1, Math.min(1, -input.mz))
+  const aimLen = input.aimX !== undefined && input.aimZ !== undefined ? Math.hypot(input.aimX, input.aimZ) : 0
+  if (aimLen > 0.1) {
+    // mouse: fly toward the cursor, turn rate still limited
+    let diff = Math.atan2(input.aimX!, input.aimZ!) - p.facing
+    while (diff > Math.PI) diff -= Math.PI * 2
+    while (diff < -Math.PI) diff += Math.PI * 2
+    turn = Math.max(-1, Math.min(1, diff * F.aimTurnGain))
+    p.hasAim = true
+  } else p.hasAim = false
+  p.turnV += (turn - p.turnV) * Math.min(1, F.turnSmooth * DT)
+  if (Math.abs(p.turnV) < 0.02) p.turnV = 0
+  p.facing += p.turnV * F.turnRate * DT
+  const pitchTarget = climb * F.pitchMax
+  p.pitch += (pitchTarget - p.pitch) * Math.min(1, (Math.abs(climb) > 0.1 ? F.pitchIn : F.autoLevel) * DT)
+  p.boosting = input.jump && p.boostFuel > 0
+  if (p.boosting) p.boostFuel = Math.max(0, p.boostFuel - DT)
+  const speed = (p.boosting ? F.boostSpeed : F.speed) * (p.fedora ? CFG.fedora.speed : 1)
+  const cp = Math.cos(p.pitch)
+  p.vx = Math.sin(p.facing) * cp * speed
+  p.vz = Math.cos(p.facing) * cp * speed
+  p.vy = Math.sin(p.pitch) * speed
+  if (p.hitstun > 0) {
+    p.hitstun -= DT
+  }
+  p.x += p.vx * DT
+  p.y += p.vy * DT
+  p.z += p.vz * DT
+  pushOutOfPlatforms(s, p, p.r, p.y)
+  const top = groundY(s, p.x, p.z, p.y + 0.5)
+  if (top > 0 && p.y < top + 0.45) {
+    p.y = top + 0.45
+    if (p.pitch < 0) p.pitch = 0
+  }
+  if (p.y < F.minY) {
+    p.y = F.minY
+    if (p.pitch < 0) p.pitch = 0
+  }
+  if (p.y > F.maxY) {
+    p.y = F.maxY
+    if (p.pitch > 0) p.pitch = 0
+  }
+  clampArena(s, p, p.r)
+  p.gy = 0
+  if (s.tick % 15 === 0) ev(s, { t: 'flap', x: p.x, y: p.y, z: p.z, big: p.boosting ? 1 : 0.3 })
+  playerTimers(s, input)
+}
+
 function updatePlayer(s: State, input: Input) {
   const p = s.player
   const C = CFG.player
+  if (isSky(s)) return updateFlight(s, input)
   let mx = input.mx
   let mz = input.mz
   const len = Math.hypot(mx, mz)
@@ -897,24 +999,7 @@ function updatePlayer(s: State, input: Input) {
       ev(s, { t: 'portal', x: p.x, z: p.z, big: 1 })
     }
   }
-  p.invuln = Math.max(0, p.invuln - DT)
-  for (const [key, kind] of [
-    ['pacifierT', 'pacifier'],
-    ['rattleT', 'rattle'],
-    ['giantT', 'giant'],
-  ] as const) {
-    if (p[key] > 0) {
-      p[key] -= DT
-      if (p[key] <= 0) {
-        p[key] = 0
-        if (kind === 'giant') p.r = p.baseR
-        ev(s, { t: 'powerEnd', kind })
-      }
-    }
-  }
-  for (const k of s.pickups) {
-    if (dist(k.x, k.z, p.x, p.z) < CFG.seenRadius && !s.seen.includes(k.id)) s.seen.push(k.id)
-  }
+  playerTimers(s, input)
 }
 
 export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, big = 0.5) {
@@ -929,8 +1014,10 @@ export function hurtPlayer(s: State, dmg: number, fromX: number, fromZ: number, 
   const dx = p.x - fromX
   const dz = p.z - fromZ
   const d = Math.hypot(dx, dz) || 1
-  p.vx = (dx / d) * 7
-  p.vz = (dz / d) * 7
+  if (!p.flying) {
+    p.vx = (dx / d) * 7
+    p.vz = (dz / d) * 7
+  }
   if (s.combo >= 3) ev(s, { t: 'comboLost', x: p.x, z: p.z, combo: s.combo })
   s.combo = 0
   s.comboT = 0
@@ -1185,7 +1272,7 @@ function throwPoop(s: State, power: number) {
       y: 0.8 + p.y,
       z: p.z + fz * 0.5,
       vx: fx * speed + p.vx * 0.4,
-      vy: P.upV + P.upPerPower * power,
+      vy: p.flying ? p.vy * 0.6 + 1.5 : P.upV + P.upPerPower * power,
       vz: fz * speed + p.vz * 0.4,
       r: P.r * (giant ? CFG.giant.poopR : 1),
     })
@@ -1242,7 +1329,8 @@ function updatePoops(s: State, input: Input) {
       const bx = b.def.fight === 'nest' ? s.duo.x : b.x
       const bz = b.def.fight === 'nest' ? s.duo.z : b.z
       const br = b.def.fight === 'nest' ? duoRadius(s.duo) : b.r
-      if (q.y < 2.5 && dist(q.x, q.z, bx, bz) < q.r + br) {
+      const by = b.def.fight === 'nest' ? s.duo.y : 0
+      if (Math.abs(q.y - by) < 2.5 && dist(q.x, q.z, bx, bz) < q.r + br) {
         bossHit(s, 'poop')
         hit = true
       }
@@ -1393,8 +1481,12 @@ function collect(s: State, k: Pickup) {
       ev(s, { t: 'found', x: k.x, z: k.z, points: s.found, kind: 'egg' })
       break
     case 'wings':
-      p.wings = true
-      p.wingFuel = Math.min(CFG.flight.maxFuel, p.wingFuel + CFG.flight.fuelPerWings)
+      if (isSky(s)) {
+        p.boostFuel = Math.min(CFG.fly.maxBoost, p.boostFuel + CFG.fly.boostPerWings)
+      } else {
+        p.wings = true
+        p.wingFuel = Math.min(CFG.flight.maxFuel, p.wingFuel + CFG.flight.fuelPerWings)
+      }
       break
     case 'goggles':
       p.goggles = true
@@ -1812,7 +1904,7 @@ function updateDuogringo(s: State) {
   const r = duoRadius(d)
   const speed = D.baseSpeed + D.speedPerPower * d.power
   const dp = dist(d.x, d.z, p.x, p.z)
-  d.y += (p.y * 0.8 + 0.3 * d.power - d.y) * Math.min(1, 3 * DT)
+  d.y += ((p.flying ? p.y : p.y * 0.8) + 0.3 * d.power - d.y) * Math.min(1, 3 * DT)
   switch (d.state) {
     case 'chase': {
       moveToward(d, p.x, p.z, speed, 3)

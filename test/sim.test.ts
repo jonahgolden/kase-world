@@ -519,6 +519,31 @@ describe('sim', () => {
     expect(bossHit(sky, 'poop')).toBe(true)
   })
 
+  it('sky flight: always airborne, turns at a limited rate, boost from wings, skims over islands', () => {
+    const s = createState({ seed: 5, levelId: 'sky' })
+    run(s, 1)
+    expect(s.player.flying).toBe(true)
+    expect(s.player.y).toBeGreaterThanOrEqual(CFG.fly.minY)
+    const f0 = s.player.facing
+    run(s, 0.5, { ...EMPTY_INPUT, mx: 1 })
+    const turned = Math.abs(s.player.facing - f0)
+    expect(turned).toBeGreaterThan(0.3)
+    expect(turned).toBeLessThan(CFG.fly.turnRate * 0.5 + 0.05)
+    run(s, 1.5, { ...EMPTY_INPUT, mz: -1 })
+    expect(s.player.y).toBeGreaterThan(2)
+    const speedBefore = Math.hypot(s.player.vx, s.player.vz)
+    s.player.boostFuel = 3
+    run(s, 0.3, { ...EMPTY_INPUT, jump: true })
+    expect(Math.hypot(s.player.vx, s.player.vz)).toBeGreaterThan(speedBefore * 1.3)
+    expect(s.player.boostFuel).toBeLessThan(3)
+    s.features = [{ id: 990, kind: 'platform', x: s.player.x + Math.sin(s.player.facing) * 6, z: s.player.z + Math.cos(s.player.facing) * 6, r: 4, h: 6, pair: -1, dirX: 0, dirZ: 1, cd: 0, island: false }]
+    s.player.y = 1
+    s.player.pitch = 0
+    run(s, 1.5)
+    expect(s.player.y).toBeLessThan(6.5)
+    expect(s.player.y).toBeGreaterThanOrEqual(CFG.fly.minY)
+  })
+
   it('player dies at zero hp and the game is over', () => {
     const s = createState({ seed: 1 })
     s.player.hp = 10

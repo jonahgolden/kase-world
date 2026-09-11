@@ -246,7 +246,7 @@ export class Ui {
       lvl.goal.kind === 'find'
         ? lvl.goal.item === 'fedora'
           ? `Find ${lvl.goal.count} fedoras 🎩 (red hat boxes hide some)`
-          : `Fly and find ${lvl.goal.count} golden eggs 🥚`
+          : `Fly! Find ${lvl.goal.count} golden eggs 🥚 · stick = turn and climb · JUMP = boost`
         : `Wreck ${Math.round(lvl.goal.pct * 100)}% of it`
     ;(this.get('card-boss') as HTMLImageElement).src = `/assets/drawings/${lvl.boss.drawing}`
     this.get('card-boss-name').textContent = lvl.boss.name
@@ -385,7 +385,8 @@ export class Ui {
     if (p.ride === 'quad') powers.push(`<span class="chip red">🏍${'♥'.repeat(p.rideHp)}</span>`)
     if (p.megaphone) powers.push('<span class="chip red">📣</span>')
     if (p.fedora) powers.push('<span class="chip purple">🎩 EPIC</span>')
-    if (p.wings) powers.push(`<span class="chip blue">🪽 ${p.wingFuel > 0 ? Math.ceil(p.wingFuel) : 'glide'}</span>`)
+    if (p.flying) powers.push(`<span class="chip blue">🚀 BOOST ${Math.ceil(p.boostFuel)}</span>`)
+    else if (p.wings) powers.push(`<span class="chip blue">🪽 ${p.wingFuel > 0 ? Math.ceil(p.wingFuel) : 'glide'}</span>`)
     if (p.goggles) powers.push('<span class="chip green">🥽</span>')
     if (p.potatoes > 0) powers.push(`<span class="chip brown">🥔×${p.potatoes}</span>`)
     if (p.congaT > 0) powers.push(`<span class="chip pink">💃 CONGA ${Math.ceil(p.congaT)}</span>`)

@@ -1,5 +1,6 @@
 // Low-poly globe hub: vertex-colored icosphere with the seven continents, a boss card on each.
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { LEVELS } from '../sim/levels.ts'
 import { CONTINENTS } from '../sim/continents.ts'
 import { pointInRing } from '../sim/geom.ts'
@@ -39,7 +40,8 @@ export class Globe {
   readonly R = 6
   mode: 'spin' | 'fly' | 'focus' = 'spin'
   private markers = new Map<string, { group: THREE.Group; lock: THREE.Sprite; medal: THREE.Sprite }>()
-  private baby: THREE.Sprite
+  private baby: THREE.Group = new THREE.Group()
+  private babyMixer: THREE.AnimationMixer | null = null
   private fromQ = new THREE.Quaternion()
   private toQ = new THREE.Quaternion()
   private flyT = 0
@@ -62,7 +64,6 @@ export class Globe {
     this.group.rotation.x = 0.35
     this.camera.position.set(0, 0, this.camDist)
     this.camera.lookAt(0, 0, 0)
-    this.baby = this.textSprite('👶', 1.4)
     this.baby.visible = false
     this.group.add(this.baby)
     this.addStars()
@@ -103,7 +104,35 @@ export class Globe {
     }
     this.buildSphere(continents)
     for (const lvl of LEVELS) this.addMarker(lvl.id)
+    await this.loadBaby()
     this.loaded = true
+  }
+
+  // The real Kase stands on the current continent, idling.
+  private async loadBaby() {
+    try {
+      const gltf = await new GLTFLoader().loadAsync(ASSETS.models.baby)
+      const model = gltf.scene
+      const box = new THREE.Box3().setFromObject(model)
+      const size = box.getSize(new THREE.Vector3())
+      const sc = 1.3 / (size.y || 1)
+      model.scale.setScalar(sc)
+      const box2 = new THREE.Box3().setFromObject(model)
+      model.position.y -= box2.min.y
+      model.position.x -= (box2.min.x + box2.max.x) / 2
+      model.position.z -= (box2.min.z + box2.max.z) / 2
+      model.rotation.y = ASSETS.yaw.baby
+      model.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (m.isMesh) m.frustumCulled = false
+      })
+      this.baby.add(model)
+      this.babyMixer = new THREE.AnimationMixer(model)
+      const clip = gltf.animations.find((c) => c.name === 'walk-idle') ?? gltf.animations[0]
+      if (clip) this.babyMixer.clipAction(clip).play()
+    } catch (e) {
+      console.warn('globe baby failed', e)
+    }
   }
 
   private buildSphere(continents: ContinentPolys[]) {
@@ -250,7 +279,11 @@ export class Globe {
     if (currentId) {
       const ll = this.lonLat(currentId)
       const dir = lonLatToVec(ll[0], ll[1], 1).normalize()
-      this.baby.position.copy(dir).multiplyScalar(this.R * 1.04).add(new THREE.Vector3(-0.9, 0.6, 0))
+      // stand on the surface a little off the marker, feet down along the surface normal
+      const side = new THREE.Vector3(0, 1, 0).cross(dir).normalize().multiplyScalar(0.9)
+      const pos = dir.clone().multiplyScalar(this.R * 1.03).add(side)
+      this.baby.position.copy(pos)
+      this.baby.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize())
       this.baby.visible = true
     } else {
       this.baby.visible = false
@@ -309,6 +342,7 @@ export class Globe {
       const s = 1 + Math.sin(this.time * 2.2 + m.group.position.x) * 0.04
       m.group.scale.setScalar(s)
     }
+    if (this.babyMixer) this.babyMixer.update(dt)
     this.camera.position.set(0, 0.4, this.camDist)
     this.camera.lookAt(0, 0.2, 0)
   }
