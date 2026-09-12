@@ -394,3 +394,19 @@ Dense notes with sources. Each section is dated. Findings that changed a number 
   half to one heart, plus assist hearts after losses. Kept.
 - Attract mode: idle title shows a demo and the mechanics. ([TV Tropes: Attract Mode](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode))
   Ours: the globe crowd of pooping babies; a real gameplay demo on idle is a candidate for a later pass.
+
+## 2026-09-11 (timer pass 13) — reward cadence, collect-a-thon guidance, drop-off
+
+- Casual games surface a small reward every 30–90 s and a bigger moment every 10–15 min; action games burst
+  every ~5 s; a mid-level "rest" beat fights the sag. ([Game Developer: action-adventure pacing](https://www.gamedeveloper.com/audio/action-adventure-level-design-pacing-content-and-mood),
+  [Chaotic Stupid: reward schedules](http://www.chaoticstupid.com/reward-schedules/))
+  **→ applied: every level's meter calls out QUARTER / HALFWAY / ALMOST at 25 / 50 / 75% with a rising chime
+  (`meterMilestone`, sim-side, tested), on top of the per-smash +% pops.**
+- Collect-a-thons: place items at every height, some visible-easy, some visible-hard, few hidden; trails of items
+  guide players into exploring more, not less; the counter is the progress bar. ([Abstracting Games: collectathon](https://abstractinggames.com/2023/01/01/collectathon-athon/))
+  Ours: eggs/fedoras on pillars at several heights, crates for the hidden few, counter on the meter. Kept.
+- Drop-off: most loss is in the first minutes; flag any step whose median attempts exceed 3; distinguish bored
+  quitters (same time spent) from stuck ones (less time). ([Bugnet: tutorial drop-off](https://bugnet.io/blog/how-to-measure-and-reduce-tutorial-drop-off),
+  [GameAnalytics: funnels](https://www.gameanalytics.com/blog/exploring-gaming-funnels))
+  Ours: `kw.fails` per level already counts attempts on the device; the next playtest should read it.
+- Boards unchanged since pass 12 (no new plays).

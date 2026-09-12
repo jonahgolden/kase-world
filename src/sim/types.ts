@@ -416,6 +416,7 @@ export type EventType =
   | 'duoPeck'
   | 'levelPhase'
   | 'trampled'
+  | 'meterMilestone'
   | 'stuckHint'
   | 'kingPoof'
   | 'rockHint'
@@ -520,6 +521,7 @@ export interface State {
   decoy: { x: number; z: number; t: number } | null // grown-ups chase this instead of Kase
   found: number // goal count: items found, king catches, thieves repelled, checkpoints passed
   progressT: number // seconds since the goal meter last moved (stuck-hint timer)
+  milestone: number // meter milestones already called out (0..3)
   lastWreck: number // meter value the stuck timer last saw
   wreck: number // 0..1 progress toward the boss
   wreckPoints: number

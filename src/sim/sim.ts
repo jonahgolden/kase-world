@@ -179,6 +179,7 @@ export const CFG = {
   comeback: { hearts: 1, chargeMult: 0.7 }, // last-heart lungs: screams charge faster when nearly out
   magnet: { r: 1.6, speed: 9 }, // pickups this close drift to Kase: no fiddly positioning
   hint: { stuckAfter: 25 }, // seconds without meter progress before the game points the way
+  milestones: [0.25, 0.5, 0.75], // meter call-outs: a small reward every minute or so on every level
   crowd: { maxChasing: 3 }, // grown-ups and dogs: a small near group, the rest keep wandering
   race: { pigeonSpeed: 3.3, stall: 2.2, gateR: 1.8, penalty: 10, pigeonY: 2.2, distractLead: 2, distractEvery: 4, distractFor: 1.5 },
   water: { speed: 0.95, jet: 4.5, drag: 2.5 },
@@ -339,6 +340,7 @@ export function createState(opts: CreateOpts = {}): State {
     decoy: null,
     found: 0,
     progressT: 0,
+    milestone: 0,
     lastWreck: 0,
     wreck: 0,
     wreckPoints: 0,

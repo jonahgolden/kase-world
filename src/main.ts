@@ -571,6 +571,11 @@ function handleEvents(s: State) {
         hitstop = Math.max(hitstop, 0.1)
         ui.toast('TRAMPLED! Keep running!', 1200, 'boss')
         break
+      case 'meterMilestone': {
+        const pt = renderer.project(e.x ?? 0, 2.4, e.z ?? 0)
+        ui.popup(e.label ?? '', pt.x, pt.y, '#ffd23f', 1.3)
+        break
+      }
       case 'stuckHint':
         arrowOffT = 99 // stuck: the arrow shows right away
         ui.toast(`${goalShort(s.goal)} · follow the green arrow`, 2600, 'go')
@@ -797,6 +802,7 @@ function playSound(e: GameEvent) {
       audio.play(e.kind === 'chicken' ? 'chicken' : 'npcScared', { pitch: vary() })
       return
     case 'snowMilestone':
+    case 'meterMilestone':
       audio.play('win', { vol: 0.4, pitch: 1 + (e.big ?? 0) * 0.4 })
       return
     case 'kingPoof':

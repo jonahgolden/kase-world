@@ -1319,6 +1319,25 @@ describe('sim', () => {
     expect(s.goalDone).toBe(true)
   })
 
+  it('research pass 13: the meter calls out quarter, halfway and almost once each', () => {
+    const s = createState({ seed: 5 })
+    s.features = []
+    s.npcs = []
+    let labels: string[] = []
+    const tick = () => {
+      step(s, EMPTY_INPUT)
+      labels = labels.concat(s.events.filter((e) => e.t === 'meterMilestone').map((e) => e.label ?? ''))
+    }
+    s.wreckPoints = s.wreckGoalPoints * 0.3
+    s.wreck = 0.3
+    tick()
+    expect(labels).toEqual(['QUARTER!'])
+    s.wreck = 0.8
+    tick()
+    tick()
+    expect(labels).toEqual(['QUARTER!', 'HALFWAY!', 'ALMOST!'])
+  })
+
   it('sky fans launch a hovering baby, even while JUMP is held', () => {
     for (const hold of [false, true]) {
       const s = createState({ seed: 5, levelId: 'sky' })

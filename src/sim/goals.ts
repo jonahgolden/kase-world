@@ -126,6 +126,17 @@ function updateStuck(s: State) {
 export function updateGoal(s: State) {
   updateGoalInner(s)
   updateStuck(s)
+  updateMilestones(s)
+}
+
+// QUARTER, HALFWAY, ALMOST: the meter itself hands out a small reward every minute or so.
+function updateMilestones(s: State) {
+  if (s.phase !== 'wreck') return
+  const marks = CFG.milestones
+  while (s.milestone < marks.length && s.wreck >= marks[s.milestone]) {
+    const i = s.milestone++
+    ev(s, { t: 'meterMilestone', x: s.player.x, z: s.player.z, big: (i + 1) / marks.length, label: ['QUARTER!', 'HALFWAY!', 'ALMOST!'][i] })
+  }
 }
 
 function updateGoalInner(s: State) {
